@@ -48,7 +48,7 @@
 
   #disconnected-banner {
     position: fixed;
-    top: 22px;
+    top: 0;
     left: 0;
     right: 0;
     background: #7a1f1f;
@@ -58,27 +58,9 @@
     font-size: 0.85rem;
     display: none;
   }
-
-  /* frame:false removes the OS titlebar (needed for OpenKneeboard capture),
-     which also removes the normal click-and-drag area, so we bring one back
-     as a thin strip. Everything else stays non-draggable, in case future UI
-     needs to be clickable. */
-  #drag-handle {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 22px;
-    -webkit-app-region: drag;
-  }
-
-  #stage, #index-indicator, #disconnected-banner {
-    -webkit-app-region: no-drag;
-  }
 </style>
 </head>
 <body>
-  <div id="drag-handle"></div>
   <div id="stage">
     <div id="idle">Waiting for reveal&hellip;</div>
     <img id="photo" alt="" />

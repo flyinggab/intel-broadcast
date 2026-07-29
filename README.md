@@ -20,8 +20,8 @@ design writeup).
 1. The GM copies a folder of photos for the mission into `app/photos/<mission-name>/`.
 2. The GM launches the app with `--gm`, which additionally starts an embedded WebSocket relay
    server and registers a global reveal hotkey (default `Ctrl+Shift+I`).
-3. Every other pilot just launches the plain app (no flag) — a fullscreen, frameless viewer window
-   that connects out to the GM's relay over a public [Tailscale Funnel](https://tailscale.com/kb/1223/funnel)
+3. Every other pilot just launches the plain app (no flag) — a normal, movable viewer window that
+   connects out to the GM's relay over a public [Tailscale Funnel](https://tailscale.com/kb/1223/funnel)
    URL baked into the build config.
 4. Pressing the reveal hotkey sends every photo in the mission folder to all connected viewers at
    once. Each pilot can browse the received set with their own local hotkeys

@@ -4,9 +4,12 @@ const path = require('path');
 const { BrowserWindow, globalShortcut } = require('electron');
 
 /**
- * Creates the fixed, frameless, OpenKneeboard-Window-Capture-friendly viewer
- * window, and registers this pilot's own local next/prev browsing hotkeys
- * (never touches the network — purely local UI state in the renderer).
+ * Creates the OpenKneeboard-Window-Capture-friendly viewer window, and
+ * registers this pilot's own local next/prev browsing hotkeys (never touches
+ * the network — purely local UI state in the renderer). Uses a normal, framed
+ * OS window — OpenKneeboard's Window Capture doesn't need a frameless window
+ * (it captures WhatsApp, which has a titlebar, without issue), and a normal
+ * frame gets drag/resize/minimize for free instead of reimplementing it.
  */
 function createViewerWindow({ title, hotkeys, initialPosition }) {
   const window = new BrowserWindow({
@@ -14,7 +17,6 @@ function createViewerWindow({ title, hotkeys, initialPosition }) {
     width: 1280,
     height: 800,
     ...(initialPosition ? { x: initialPosition.x, y: initialPosition.y } : {}),
-    frame: false,
     backgroundColor: '#000000',
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'viewer-preload.js'),
