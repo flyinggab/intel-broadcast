@@ -1,0 +1,12 @@
+{
+  "relayUrl": "ws://localhost:8787",
+  "token": "dev-secret",
+  "callsign": "",
+  "windowTitle": "Intel Broadcast Viewer",
+  "hotkeys": {
+    "reveal": "Ctrl+Shift+I",
+    "next": "Ctrl+Shift+Right",
+    "prev": "Ctrl+Shift+Left"
+  },
+  "missionName": "roman-sead-joker1"
+}
