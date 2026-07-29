@@ -13,6 +13,7 @@ const callsignInput = document.getElementById('callsign');
 const tokenInput = document.getElementById('token');
 const hotkeyPrevInput = document.getElementById('hotkeyPrev');
 const hotkeyNextInput = document.getElementById('hotkeyNext');
+const hotkeySettingsInput = document.getElementById('hotkeySettings');
 
 let isGmMode = false;
 
@@ -25,6 +26,7 @@ window.settingsAPI.onInit(({ isGmMode: gm, config }) => {
   tokenInput.value = config.token || '';
   hotkeyPrevInput.value = config.hotkeys?.prev || '';
   hotkeyNextInput.value = config.hotkeys?.next || '';
+  hotkeySettingsInput.value = config.hotkeys?.settings || '';
 
   if (gm) {
     photosFolderInput.value = config.photosFolder || '';
@@ -60,9 +62,10 @@ function nonEmptyHotkeys(fields) {
 }
 
 document.getElementById('save').addEventListener('click', () => {
+  const commonHotkeys = { prev: hotkeyPrevInput.value, next: hotkeyNextInput.value, settings: hotkeySettingsInput.value };
   const hotkeys = isGmMode
-    ? nonEmptyHotkeys({ prev: hotkeyPrevInput.value, next: hotkeyNextInput.value, reveal: hotkeyRevealInput.value })
-    : nonEmptyHotkeys({ prev: hotkeyPrevInput.value, next: hotkeyNextInput.value });
+    ? nonEmptyHotkeys({ ...commonHotkeys, reveal: hotkeyRevealInput.value })
+    : nonEmptyHotkeys(commonHotkeys);
 
   const values = isGmMode
     ? {

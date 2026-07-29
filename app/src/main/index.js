@@ -45,14 +45,33 @@ function takeDevScreenshotAndQuit(viewer) {
 }
 
 app.whenReady().then(() => {
-  // Electron's default menu binds Ctrl+Shift+I to "Toggle DevTools" — with a
-  // window focused, that accelerator can consume the keypress before our
-  // globalShortcut listener ever sees it. This app has no need for a menu
-  // bar anyway (kiosk-style capture window) — Settings lives in the tray.
-  Menu.setApplicationMenu(null);
-
   registerSettingsIpc();
+
+  // A minimal menu bar of our own — NOT Electron's default menu, which binds
+  // Ctrl+Shift+I to "Toggle DevTools" and would consume that keypress before
+  // our globalShortcut reveal-hotkey listener ever saw it. This gives a
+  // normal, discoverable "Settings" entry without that collision.
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: 'Intel Broadcast',
+        submenu: [
+          { label: 'Settings', click: () => openSettingsWindow({ isGmMode, config }) },
+          { type: 'separator' },
+          { label: 'Quit', role: 'quit' },
+        ],
+      },
+    ]),
+  );
+
   createTray({ onOpenSettings: () => openSettingsWindow({ isGmMode, config }) });
+
+  // Guaranteed way to reach Settings even if the tray icon is hard to spot
+  // (easy to happen — it's currently a tiny placeholder, and Windows tucks
+  // new tray icons into the hidden-icons overflow by default).
+  if (config.hotkeys.settings) {
+    globalShortcut.register(config.hotkeys.settings, () => openSettingsWindow({ isGmMode, config }));
+  }
 
   // Dev/test-only: opens the settings window immediately on startup instead of
   // waiting for a tray click, and optionally drives a real save through it —
