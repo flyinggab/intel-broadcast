@@ -40,7 +40,8 @@
     },
     "mac": {
       "target": "zip",
-      "category": "public.app-category.utilities"
+      "category": "public.app-category.utilities",
+      "arch": ["x64", "arm64"]
     },
     "publish": {
       "provider": "github",
