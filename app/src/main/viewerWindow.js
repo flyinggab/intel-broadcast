@@ -37,10 +37,12 @@ function createViewerWindow({ title, hotkeys, initialPosition }) {
   window.loadFile(path.join(__dirname, '..', 'renderer', 'viewer', 'index.html'));
 
   if (hotkeys.next) {
-    globalShortcut.register(hotkeys.next, () => window.webContents.send('navigate', 'next'));
+    const ok = globalShortcut.register(hotkeys.next, () => window.webContents.send('navigate', 'next'));
+    console.log(`[viewerWindow] register next "${hotkeys.next}": ${ok ? 'OK' : 'FAILED (already taken by another app?)'}`);
   }
   if (hotkeys.prev) {
-    globalShortcut.register(hotkeys.prev, () => window.webContents.send('navigate', 'prev'));
+    const ok = globalShortcut.register(hotkeys.prev, () => window.webContents.send('navigate', 'prev'));
+    console.log(`[viewerWindow] register prev "${hotkeys.prev}": ${ok ? 'OK' : 'FAILED (already taken by another app?)'}`);
   }
 
   function toDataUrl(item) {

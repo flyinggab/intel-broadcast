@@ -32,7 +32,8 @@ function revealPhotosFolder({ photosFolder, viewer, relayServer, onLog = () => {
 /** Registers the GM's global reveal hotkey, wired to revealPhotosFolder(). */
 function registerGmHotkey(opts) {
   if (!opts.hotkey) return;
-  globalShortcut.register(opts.hotkey, () => revealPhotosFolder(opts));
+  const ok = globalShortcut.register(opts.hotkey, () => revealPhotosFolder(opts));
+  console.log(`[gmHotkey] register reveal "${opts.hotkey}": ${ok ? 'OK' : 'FAILED (already taken by another app?)'}`);
 }
 
 module.exports = { registerGmHotkey, revealPhotosFolder };

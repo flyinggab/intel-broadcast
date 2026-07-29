@@ -70,7 +70,8 @@ app.whenReady().then(() => {
   // (easy to happen — it's currently a tiny placeholder, and Windows tucks
   // new tray icons into the hidden-icons overflow by default).
   if (config.hotkeys.settings) {
-    globalShortcut.register(config.hotkeys.settings, () => openSettingsWindow({ isGmMode, config }));
+    const ok = globalShortcut.register(config.hotkeys.settings, () => openSettingsWindow({ isGmMode, config }));
+    console.log(`[index] register settings "${config.hotkeys.settings}": ${ok ? 'OK' : 'FAILED (already taken by another app?)'}`);
   }
 
   // Dev/test-only: opens the settings window immediately on startup instead of
@@ -152,6 +153,19 @@ app.whenReady().then(() => {
       onLog: (msg) => console.log(`[gmHotkey] ${msg}`),
     };
     registerGmHotkey(gmHotkeyOpts);
+
+    // Dev/test-only: reports what got registered to a file, since a relaunched
+    // process (app.relaunch()) may not inherit this process's piped stdio the
+    // way a directly-spawned test child would — a marker file works regardless.
+    if (process.env.INTEL_BROADCAST_HOTKEY_REGISTER_MARKER_PATH) {
+      fs.writeFileSync(
+        process.env.INTEL_BROADCAST_HOTKEY_REGISTER_MARKER_PATH,
+        JSON.stringify({
+          reveal: config.hotkeys.reveal,
+          revealRegistered: globalShortcut.isRegistered(config.hotkeys.reveal),
+        }),
+      );
+    }
 
     // Dev/test-only: lets a test harness trigger the same reveal action a real
     // hotkey press would, without simulating an OS-level keypress. Never

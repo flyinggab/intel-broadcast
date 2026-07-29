@@ -39,9 +39,13 @@
       "target": "portable"
     },
     "mac": {
-      "target": "zip",
-      "category": "public.app-category.utilities",
-      "arch": ["x64", "arm64"]
+      "target": [
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "category": "public.app-category.utilities"
     },
     "publish": {
       "provider": "github",

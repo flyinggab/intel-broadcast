@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { BrowserWindow, ipcMain, dialog, app } = require('electron');
+const { BrowserWindow, ipcMain, dialog, app, globalShortcut } = require('electron');
 const { LOCAL_CONFIG_PATH } = require('./config');
 
 let settingsWindow = null;
@@ -44,6 +44,12 @@ function registerSettingsIpc() {
 
   ipcMain.handle('settings:save', (_event, values) => {
     saveSettingsValues(values);
+    // app.exit() (needed for an immediate restart) does NOT fire 'will-quit'
+    // the way app.quit() does, so the app-level cleanup handler that
+    // unregisters hotkeys on normal quit never runs on this path — without
+    // this explicit call, the old process's hotkey registrations could still
+    // be held during the handoff to the relaunched process.
+    globalShortcut.unregisterAll();
     // Dev/test-only: skips the relaunch so an automated test doesn't spawn an
     // orphaned second instance it then has to hunt down and kill.
     if (!process.env.INTEL_BROADCAST_NO_RELAUNCH) app.relaunch();
