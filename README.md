@@ -17,13 +17,16 @@ design writeup).
 
 ## How it works
 
-1. The GM copies a folder of photos for the mission into `app/photos/<mission-name>/`.
-2. The GM launches the app with `--gm`, which additionally starts an embedded WebSocket relay
-   server and registers a global reveal hotkey (default `Ctrl+Shift+I`).
-3. Every other pilot just launches the plain app (no flag) — a normal, movable viewer window that
-   connects out to the GM's relay over a public [Tailscale Funnel](https://tailscale.com/kb/1223/funnel)
-   URL baked into the build config.
-4. Pressing the reveal hotkey sends every photo in the mission folder to all connected viewers at
+Everyone runs the exact same app — there's no separate launch flag or build for the GM. Whoever's
+running the mission opens Settings (tray icon, the "Intel Broadcast" menu, or `Ctrl+Shift+O`) and
+checks "Enable Game Master mode," which starts an embedded WebSocket relay server and registers the
+reveal hotkey (default `Ctrl+Shift+I`) after a restart.
+
+1. The GM picks a folder of photos for the mission via Settings' folder picker.
+2. Every other pilot just runs the plain app (GM mode left unchecked) — a normal, movable viewer
+   window that connects out to the GM's relay over a public
+   [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) URL baked into the build config.
+3. Pressing the reveal hotkey sends every photo in the mission folder to all connected viewers at
    once. Each pilot can browse the received set with their own local hotkeys
    (`Ctrl+Shift+Right` / `Ctrl+Shift+Left`) without touching the network or affecting anyone else.
 

@@ -4,7 +4,7 @@
 // registered at startup" from "does app.relaunch() work correctly" — writes
 // config.local.json directly (bypassing the settings UI/relaunch entirely)
 // with hotkey values deliberately different from the defaults, starts a
-// fresh --gm instance, and checks the registration log lines show the
+// fresh GM-mode instance, and checks the registration log lines show the
 // CUSTOM values being registered, not the defaults.
 //
 // Usage: node scripts/dev-hotkey-config-load-test.js
@@ -25,9 +25,12 @@ const CUSTOM_HOTKEYS = {
 };
 
 fs.rmSync(LOCAL_CONFIG_PATH, { force: true });
-fs.writeFileSync(LOCAL_CONFIG_PATH, JSON.stringify({ hotkeys: CUSTOM_HOTKEYS, gm: { relayPort: 8797 } }, null, 2));
+fs.writeFileSync(
+  LOCAL_CONFIG_PATH,
+  JSON.stringify({ gmModeEnabled: true, hotkeys: CUSTOM_HOTKEYS, gm: { relayPort: 8797 } }, null, 2),
+);
 
-const child = spawn(ELECTRON_BIN, ['.', '--gm', '--no-sandbox'], { cwd: APP_DIR });
+const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], { cwd: APP_DIR });
 
 let output = '';
 child.stdout.on('data', (d) => {

@@ -73,10 +73,27 @@
     border-color: #8f6a3f;
     color: #fff;
   }
+
+  .gm-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    margin-bottom: 8px;
+    background: #262626;
+    border-radius: 4px;
+  }
+  .gm-toggle input { margin: 0; }
+  .gm-toggle label { margin: 0; color: #ddd; }
 </style>
 </head>
 <body>
   <h2 id="heading">Settings</h2>
+
+  <div class="gm-toggle">
+    <input type="checkbox" id="gmModeToggle" />
+    <label for="gmModeToggle">Enable Game Master mode (host the relay + reveal hotkey)</label>
+  </div>
 
   <div id="gm-fields" style="display:none">
     <label for="photosFolder">Photos folder to share</label>

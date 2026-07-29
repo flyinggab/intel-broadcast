@@ -19,6 +19,7 @@ const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
 const MARKER_PATH = path.join(APP_DIR, 'relaunch-test-marker.json');
 
 const SAVE_PAYLOAD = {
+  gmModeEnabled: true,
   token: 'relaunch-test',
   gm: { relayPort: 8798 },
   hotkeys: { reveal: 'Ctrl+Shift+U', next: 'Ctrl+Shift+Right', prev: 'Ctrl+Shift+Left', settings: 'Ctrl+Shift+O' },
@@ -27,7 +28,13 @@ const SAVE_PAYLOAD = {
 fs.rmSync(LOCAL_CONFIG_PATH, { force: true });
 fs.rmSync(MARKER_PATH, { force: true });
 
-const child = spawn(ELECTRON_BIN, ['.', '--gm', '--no-sandbox'], {
+// Generation 1 needs to already be in GM mode itself (mode is a config value
+// now, not a launch flag) so it hits the registerGmHotkey code path at its
+// own startup — the SAVE_PAYLOAD's gmModeEnabled only takes effect for
+// generation 2, after the save+relaunch.
+fs.writeFileSync(LOCAL_CONFIG_PATH, JSON.stringify({ gmModeEnabled: true, gm: { relayPort: 8798 } }, null, 2));
+
+const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
   cwd: APP_DIR,
   env: {
     ...process.env,
@@ -46,9 +53,12 @@ function cleanup(exitCode) {
   child.kill();
   // app.relaunch()'s generation-2 process is spawned by Electron internally,
   // not as a direct child of `child` above — child.kill() doesn't reach it,
-  // so it'd otherwise leak. Sweep by command-line pattern instead.
+  // so it'd otherwise leak. Sweep by command-line pattern instead. Note: `ps`
+  // shows the *real* binary (node_modules/electron/dist/electron), not the
+  // node_modules/.bin/electron symlink ELECTRON_BIN points at — matching on
+  // ELECTRON_BIN itself silently matches nothing.
   try {
-    execSync(`pkill -9 -f "${ELECTRON_BIN}.*--gm"`);
+    execSync(`pkill -9 -f "${APP_DIR}/node_modules/electron/dist/electron"`);
   } catch {
     // pkill exits non-zero when nothing matched — fine, nothing to clean up
   }

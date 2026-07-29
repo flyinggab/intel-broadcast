@@ -12,7 +12,10 @@ const { createTray } = require('./tray');
 const { openSettingsWindow, registerSettingsIpc } = require('./settingsWindow');
 
 const config = loadConfig();
-const isGmMode = process.argv.includes('--gm');
+// GM mode is a config value the Settings window toggles (a checkbox, saved to
+// config.local.json like everything else), not a launch flag — one app,
+// one shortcut, mode picked from Settings.
+const isGmMode = config.gmModeEnabled === true;
 const BUNDLED_PHOTOS_DIR = path.join(__dirname, '..', '..', 'photos');
 
 // GM's settings page can point photosFolder at any arbitrary absolute path;

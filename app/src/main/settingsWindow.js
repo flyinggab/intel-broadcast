@@ -67,8 +67,10 @@ function openSettingsWindow({ isGmMode, config }) {
   settingsWindow = new BrowserWindow({
     title: 'Intel Broadcast Settings',
     width: 480,
-    height: isGmMode ? 640 : 460,
-    resizable: false,
+    // Tall enough for GM fields, since the mode toggle is now live in-session
+    // (not fixed at launch) — switching to GM mode shouldn't clip content.
+    height: 680,
+    resizable: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'settings-preload.js'),
       contextIsolation: true,

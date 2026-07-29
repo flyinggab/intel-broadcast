@@ -14,7 +14,7 @@ const { spawn } = require('child_process');
 const APP_DIR = path.join(__dirname, '..');
 const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
 
-const child = spawn(ELECTRON_BIN, ['.', '--gm', '--no-sandbox'], {
+const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
   cwd: APP_DIR,
   env: {
     ...process.env,

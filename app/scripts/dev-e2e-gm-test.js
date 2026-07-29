@@ -1,6 +1,6 @@
 'use strict';
 
-// Phase 2 smoke test: spawns a real --gm instance and a real plain viewer
+// Phase 2 smoke test: spawns a real GM-mode instance and a real plain viewer
 // instance as separate processes, points the viewer at the GM's embedded
 // relay, hits the GM's dev-only test-trigger endpoint (stands in for a real
 // hotkey press), and confirms the viewer actually received the batch via its
@@ -30,10 +30,10 @@ fs.rmSync(MARKER_PATH, { force: true });
 // with anything else using the default port, and pins the mission/token.
 fs.writeFileSync(
   LOCAL_CONFIG_PATH,
-  JSON.stringify({ token: TOKEN, missionName: MISSION_NAME, gm: { relayPort: RELAY_PORT } }, null, 2),
+  JSON.stringify({ gmModeEnabled: true, token: TOKEN, missionName: MISSION_NAME, gm: { relayPort: RELAY_PORT } }, null, 2),
 );
 
-const gmChild = spawn(ELECTRON_BIN, ['.', '--gm', '--no-sandbox'], {
+const gmChild = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
   cwd: APP_DIR,
   env: { ...process.env, INTEL_BROADCAST_TEST_TRIGGER_PORT: String(TRIGGER_PORT) },
 });

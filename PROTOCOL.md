@@ -1,7 +1,8 @@
 # Wire Protocol
 
-Transport: WebSocket (`ws`). The GM's app instance (`--gm` mode) runs the server; every other
-instance (viewer mode, including the GM's own window) connects as a client. In production the
+Transport: WebSocket (`ws`). The instance with GM mode enabled (a Settings checkbox, not a launch
+flag) runs the server; every other instance (viewer mode, including the GM's own window) connects
+as a client. In production the
 server is reached via a Tailscale Funnel public HTTPS/WSS URL baked into
 `resources/config.default.json`; nothing below changes based on how the socket was reached.
 

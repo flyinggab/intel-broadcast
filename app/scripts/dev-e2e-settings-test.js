@@ -18,6 +18,7 @@ const APP_DIR = path.join(__dirname, '..');
 const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
 
 const SAVE_PAYLOAD = {
+  gmModeEnabled: true,
   photosFolder: '/tmp/some-mission-photos',
   token: 'settings-e2e-token',
   gm: { relayPort: 9123 },
@@ -26,7 +27,7 @@ const SAVE_PAYLOAD = {
 
 fs.rmSync(LOCAL_CONFIG_PATH, { force: true });
 
-const child = spawn(ELECTRON_BIN, ['.', '--gm', '--no-sandbox'], {
+const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
   cwd: APP_DIR,
   env: {
     ...process.env,
@@ -56,6 +57,7 @@ child.on('exit', (code) => {
     try {
       assert.ok(fs.existsSync(LOCAL_CONFIG_PATH), 'config.local.json should exist after save');
       const written = JSON.parse(fs.readFileSync(LOCAL_CONFIG_PATH, 'utf8'));
+      assert.strictEqual(written.gmModeEnabled, true);
       assert.strictEqual(written.photosFolder, SAVE_PAYLOAD.photosFolder);
       assert.strictEqual(written.token, SAVE_PAYLOAD.token);
       assert.strictEqual(written.gm.relayPort, SAVE_PAYLOAD.gm.relayPort);
