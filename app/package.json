@@ -10,8 +10,8 @@
     "start": "electron .",
     "start:gm": "electron . --gm",
     "relay:standalone": "node src/main/relayServer.js",
-    "build:win": "electron-builder --win portable",
-    "build:mac": "electron-builder --mac zip"
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac"
   },
   "dependencies": {
     "ws": "^8.21.1"
@@ -50,7 +50,8 @@
     "publish": {
       "provider": "github",
       "owner": "flyinggab",
-      "repo": "intel-broadcast"
+      "repo": "intel-broadcast",
+      "releaseType": "release"
     }
   }
 }
