@@ -1,0 +1,4 @@
+node_modules/
+dist/
+*.log
+app/resources/config.local.json
