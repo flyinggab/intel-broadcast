@@ -92,6 +92,36 @@ app.whenReady().then(() => {
           );
         }, 300);
       }
+      // Simulates the Record-button UX (click -> synthetic keydown -> value
+      // captured; click -> Escape -> value unchanged) and reports PASS/FAIL
+      // via console, which the console-message listener above already pipes
+      // to this process's stdout for a test harness to grep.
+      if (process.env.INTEL_BROADCAST_HOTKEY_RECORD_TEST) {
+        setTimeout(() => {
+          settingsWin.webContents.executeJavaScript(`
+            (function() {
+              try {
+                const revealBtn = document.querySelector('.record-btn[data-key="reveal"]');
+                revealBtn.click();
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'u', ctrlKey: true, shiftKey: true, bubbles: true }));
+                if (hotkeyValues.reveal !== 'Ctrl+Shift+U') throw new Error('expected Ctrl+Shift+U, got ' + hotkeyValues.reveal);
+                if (revealBtn.textContent !== 'Record') throw new Error('button should reset after capture, got ' + revealBtn.textContent);
+
+                const nextBtn = document.querySelector('.record-btn[data-key="next"]');
+                const beforeNext = hotkeyValues.next;
+                nextBtn.click();
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                if (hotkeyValues.next !== beforeNext) throw new Error('Escape changed the value: ' + beforeNext + ' -> ' + hotkeyValues.next);
+                if (nextBtn.textContent !== 'Record') throw new Error('button should reset after Escape, got ' + nextBtn.textContent);
+
+                console.log('RECORD_TEST_PASS');
+              } catch (err) {
+                console.log('RECORD_TEST_FAIL: ' + err.message);
+              }
+            })();
+          `);
+        }, 300);
+      }
     });
   }
 
