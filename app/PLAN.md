@@ -1,5 +1,104 @@
 # Intel Photo Broadcast System (keybind-triggered, cross-client)
 
+## Session status / how to resume (2026-07-29)
+
+**Read this section first in a fresh session.** Everything below it is the original design
+writeup — still accurate architecturally, but some implementation details (`--gm` flag, fixed
+window frame) it describes were later superseded; the "How it works" section of `README.md` and
+this section reflect current reality more precisely than the body text further down.
+
+**Repo**: `~/intel-broadcast`, pushed to `https://github.com/flyinggab/intel-broadcast` (public).
+Current `main` HEAD as of this writing: `6fa5d9f`. Run `git log --oneline` for the authoritative
+list — don't trust hardcoded hashes here once more commits land.
+
+**⚠️ The published release is stale — rebuild before further cross-machine/Tailscale testing.**
+`v0.1.0` (https://github.com/flyinggab/intel-broadcast/releases/tag/v0.1.0) is tagged at commit
+`d1ed98d`, which is **missing the two most recent feature commits**:
+- `bb80b7e` — replaced the `--gm` launch flag with a Settings checkbox (`gmModeEnabled` in config).
+  The released build still needs `--gm` on the command line to enable GM mode at all — there's no
+  way to turn it on from the UI in that build.
+- `6fa5d9f` — `INTEL_BROADCAST_LOCAL_CONFIG_PATH` for testing two instances on one machine.
+
+To cut a fresh release: bump/retag `v0.1.0` (delete the old release + tag first —
+`gh release delete v0.1.0 --repo flyinggab/intel-broadcast --yes --cleanup-tag`, then
+`git tag -d v0.1.0 && git push origin :refs/tags/v0.1.0 && git tag v0.1.0 && git push origin v0.1.0`)
+to trigger `.github/workflows/release.yml`, which builds Windows + both Mac archs and publishes
+automatically (`releaseType: "release"` in `app/package.json`, not a draft). Takes ~2-3 minutes;
+watch with `gh run watch <run-id> --repo flyinggab/intel-broadcast`. Known release-pipeline
+footguns already hit and fixed once — don't reintroduce them: (a) CLI args like
+`electron-builder --mac zip` override `package.json`'s `build.mac` config entirely, including
+`arch` — the npm scripts must be bare (`electron-builder --mac`, `--win`) so config controls it;
+(b) validate config changes locally first via `npx electron-builder --linux dir --publish never`
+from `app/` — validates the *entire* config object (all platforms) without needing a real CI
+round-trip.
+
+**What's built and verified** (all via automated `dev-e2e-*.js`/`dev-*-test.js` scripts in
+`app/scripts/`, run with plain `node`, no test framework):
+- Phase 0 — relay protocol (`relayServer.js`, `auth.js`): token auth, `reveal-batch` broadcast,
+  binary-frame reassembly. `dev-e2e-test.js`, `dev-auth-test.js`.
+- Phase 1 — Electron viewer window, renders received batches, next/prev local browsing.
+  `dev-e2e-electron-test.js`.
+- Phase 2 — GM hotkey + embedded relay, fan-out to viewers. `dev-e2e-gm-test.js` (now runs GM +
+  viewer as genuinely concurrent processes with isolated configs).
+- Settings window: folder picker, relay port/token, click-to-record hotkeys (not typed
+  accelerator strings), GM-mode toggle. `dev-e2e-settings-test.js` (real IPC path),
+  `dev-e2e-hotkey-record-test.js` (real click + synthetic keydown → capture),
+  `dev-settings-save-test.js` (deep-merge unit test), `dev-hotkey-config-load-test.js` (fresh
+  process picks up saved hotkeys), `dev-e2e-relaunch-test.js` (the *actual* save → `app.relaunch()`
+  → re-register cycle, not a shortcut around it).
+
+**Real bugs found and fixed this session** (via the tests above, not just code review — worth
+knowing the *shape* of what broke, since it's the kind of thing that could regress):
+1. `render()` toggled `photoEl.style.display = ''` to show the image, but CSS had
+   `#photo { display: none }` as a stylesheet rule — clearing an inline style doesn't override a
+   stylesheet rule, so the image (and index indicator) never actually appeared. Fixed by using
+   explicit `'block'`.
+2. `viewer.setConnectionState()`/`showBatch()` could fire after the BrowserWindow was destroyed
+   (shutdown-ordering race), throwing "Object has been destroyed". Fixed with `isDestroyed()`
+   guards.
+3. **The hotkey bug that took the longest to nail down**: after Settings "Save & Restart", a newly
+   recorded custom hotkey wouldn't fire — the old default kept working instead. Root cause:
+   `app.exit(0)` (needed for an immediate restart) does **not** fire Electron's `will-quit` event
+   the way `app.quit()` does, so the cleanup handler that unregisters hotkeys never ran on that
+   path, and the old process's registrations could linger through the handoff to the relaunched
+   process. Fixed by calling `globalShortcut.unregisterAll()` explicitly in the save handler.
+   Verified with `dev-e2e-relaunch-test.js`, which drives the *real* relaunch (not
+   `INTEL_BROADCAST_NO_RELAUNCH`-suppressed) and confirms the second-generation process registers
+   the new value. **This was reported fixed by testing in this sandbox, but the user has not yet
+   explicitly re-confirmed it's resolved on their end** after the subsequent GM-mode-via-settings
+   change landed on top of it — worth a direct check if picking this back up.
+4. Release pipeline: `mac.arch` isn't a valid top-level property (must nest under
+   `mac.target[].arch`); npm script CLI args silently override `package.json` build config;
+   electron-builder's GitHub publisher defaults to draft releases with a placeholder
+   `untagged-...` URL until published (`releaseType: "release"` fixes both).
+
+**Known environment limitations of this WSL/WSLg sandbox** (don't re-investigate these — they're
+sandbox artifacts, not app bugs, per hands-on testing already done):
+- `capturePage()`-based screenshot verification doesn't reliably work here (GPU compositor issues:
+  "Exiting GPU process due to errors during initialization"). A dev-only hook for it still exists
+  (`INTEL_BROADCAST_SCREENSHOT_PATH` env var) in case it's useful on a real display, but don't
+  trust it here.
+- System Tray icon support under WSLg is unverified — `tray.js` wraps creation in try/catch so it
+  can never crash the app if unsupported. This is why a menu-bar item and a hotkey
+  (`Ctrl+Shift+O` default) were added as guaranteed-to-work fallbacks for reaching Settings.
+- GUI windows in this sandbox render onto the user's real Windows desktop via WSLg — be careful
+  about spawning test instances without warning; several rounds of this session caused
+  unexpected windows/dialogs to appear on the user's actual screen.
+
+**Local dev environment notes**: this WSL sandbox has no native `node` — one was installed via nvm
+and symlinked into `~/.local/bin` (already on `PATH` per `.zshrc`). `npm install` in `app/` needed
+`npm approve-scripts electron` once, to let Electron's postinstall download its binary (blocked by
+npm's install-script allowlist by default) — already done, recorded in `app/package.json`'s
+`allowScripts` field, shouldn't need repeating.
+
+**Not yet done / open items**:
+- Rebuild and republish the GitHub release (see above) once ready to resume cross-machine testing.
+- Phase 3 (Tailscale Funnel on the GM's real machine) and Phase 4 (full squad rehearsal) haven't
+  started for real — everything so far has been local/WSL testing plus one release build cycle.
+- Window size/position persistence (`%APPDATA%`) mentioned in the design below was never
+  implemented — flagged as a TODO back in Phase 2, still outstanding.
+- No icon asset for the app/tray — currently a 1x1 placeholder PNG scaled up (`tray.js`).
+
 ## Context
 
 The user wants to share a recon/intel photo with their whole flight during a DCS multiplayer mission: one person (the GM, who is also flying) presses a keybind and the photo pops up simultaneously on every connected pilot's screen — pilots are on separate physical PCs spread across the internet, not a LAN party. Each pilot's screen shows the photo in an Electron window that OpenKneeboard's Window Capture source can grab and present as a virtual kneeboard page in the cockpit.
