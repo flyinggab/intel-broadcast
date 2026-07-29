@@ -7,11 +7,18 @@ const { loadConfig } = require('./config');
 const { createViewerWindow } = require('./viewerWindow');
 const { RelayClient } = require('./relayClient');
 const { createRelayServer } = require('./relayServer');
-const { registerGmHotkey, revealMissionFolder } = require('./gmHotkey');
+const { registerGmHotkey, revealPhotosFolder } = require('./gmHotkey');
+const { createTray } = require('./tray');
+const { openSettingsWindow, registerSettingsIpc } = require('./settingsWindow');
 
 const config = loadConfig();
 const isGmMode = process.argv.includes('--gm');
-const PHOTOS_DIR = path.join(__dirname, '..', '..', 'photos');
+const BUNDLED_PHOTOS_DIR = path.join(__dirname, '..', '..', 'photos');
+
+// GM's settings page can point photosFolder at any arbitrary absolute path;
+// falls back to the bundled test-fixture convention (photos/<mission-name>/)
+// until it's been set once.
+const photosFolder = config.photosFolder || path.join(BUNDLED_PHOTOS_DIR, config.missionName);
 
 function attachDevScreenshotHook(viewer) {
   viewer.window.webContents.on('console-message', (_e, level, message) => {
@@ -41,8 +48,11 @@ app.whenReady().then(() => {
   // Electron's default menu binds Ctrl+Shift+I to "Toggle DevTools" — with a
   // window focused, that accelerator can consume the keypress before our
   // globalShortcut listener ever sees it. This app has no need for a menu
-  // bar anyway (kiosk-style capture window).
+  // bar anyway (kiosk-style capture window) — Settings lives in the tray.
   Menu.setApplicationMenu(null);
+
+  registerSettingsIpc();
+  createTray({ onOpenSettings: () => openSettingsWindow({ isGmMode, config }) });
 
   // Distinct default starting spot per role, purely so two instances launched
   // on the same machine (e.g. this local demo) don't land exactly on top of
@@ -65,8 +75,7 @@ app.whenReady().then(() => {
 
     const gmHotkeyOpts = {
       hotkey: config.hotkeys.reveal,
-      photosDir: PHOTOS_DIR,
-      missionName: config.missionName,
+      photosFolder,
       viewer,
       relayServer,
       onLog: (msg) => console.log(`[gmHotkey] ${msg}`),
@@ -79,7 +88,7 @@ app.whenReady().then(() => {
     if (process.env.INTEL_BROADCAST_TEST_TRIGGER_PORT) {
       require('http')
         .createServer((req, res) => {
-          revealMissionFolder(gmHotkeyOpts);
+          revealPhotosFolder(gmHotkeyOpts);
           res.end('ok');
         })
         .listen(Number(process.env.INTEL_BROADCAST_TEST_TRIGGER_PORT), '127.0.0.1');

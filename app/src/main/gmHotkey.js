@@ -1,41 +1,38 @@
 'use strict';
 
 const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 const { globalShortcut } = require('electron');
 const { readPhotoFolder } = require('./relayServer');
 
 /**
- * Reads every photo in `photosDir/<missionName>/`, shows it on the GM's own
+ * Reads every photo directly inside `photosFolder`, shows it on the GM's own
  * viewer window immediately (no network round-trip for self), and hands the
  * same items to the embedded relay server for fan-out to everyone else.
  * Returned separately from hotkey registration so dev/test harnesses can
  * trigger a reveal directly without needing to simulate a real OS keypress.
  */
-function revealMissionFolder({ photosDir, missionName, viewer, relayServer, onLog = () => {} }) {
-  const folderPath = path.join(photosDir, missionName);
-
-  if (!fs.existsSync(folderPath)) {
-    onLog(`mission photo folder not found: ${folderPath}`);
+function revealPhotosFolder({ photosFolder, viewer, relayServer, onLog = () => {} }) {
+  if (!photosFolder || !fs.existsSync(photosFolder)) {
+    onLog(`photos folder not found: ${photosFolder} (set it via the Settings window)`);
     return;
   }
 
-  const items = readPhotoFolder(folderPath);
+  const items = readPhotoFolder(photosFolder);
   if (items.length === 0) {
-    onLog(`no photos found in ${folderPath}`);
+    onLog(`no photos found in ${photosFolder}`);
     return;
   }
 
   viewer.showBatch({ batchId: crypto.randomUUID(), items });
   relayServer.broadcastRevealBatch(items);
-  onLog(`revealed ${items.length} photo(s) from ${folderPath}`);
+  onLog(`revealed ${items.length} photo(s) from ${photosFolder}`);
 }
 
-/** Registers the GM's global reveal hotkey, wired to revealMissionFolder(). */
+/** Registers the GM's global reveal hotkey, wired to revealPhotosFolder(). */
 function registerGmHotkey(opts) {
   if (!opts.hotkey) return;
-  globalShortcut.register(opts.hotkey, () => revealMissionFolder(opts));
+  globalShortcut.register(opts.hotkey, () => revealPhotosFolder(opts));
 }
 
-module.exports = { registerGmHotkey, revealMissionFolder };
+module.exports = { registerGmHotkey, revealPhotosFolder };

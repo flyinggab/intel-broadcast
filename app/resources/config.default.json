@@ -9,6 +9,7 @@
     "prev": "Ctrl+Shift+Left"
   },
   "missionName": "roman-sead-joker1",
+  "photosFolder": null,
   "gm": {
     "relayPort": 8787
   }

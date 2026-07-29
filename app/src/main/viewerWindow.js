@@ -11,11 +11,16 @@ const { BrowserWindow, globalShortcut } = require('electron');
  * (it captures WhatsApp, which has a titlebar, without issue), and a normal
  * frame gets drag/resize/minimize for free instead of reimplementing it.
  */
+// A4 portrait proportions (210mm x 297mm, ~1:1.4142) — matches kneeboard-page
+// orientation rather than a landscape default.
+const A4_PORTRAIT_WIDTH = 850;
+const A4_PORTRAIT_HEIGHT = 1202;
+
 function createViewerWindow({ title, hotkeys, initialPosition }) {
   const window = new BrowserWindow({
     title,
-    width: 1280,
-    height: 800,
+    width: A4_PORTRAIT_WIDTH,
+    height: A4_PORTRAIT_HEIGHT,
     ...(initialPosition ? { x: initialPosition.x, y: initialPosition.y } : {}),
     backgroundColor: '#000000',
     webPreferences: {

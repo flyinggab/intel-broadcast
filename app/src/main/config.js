@@ -18,7 +18,12 @@ function loadConfig() {
   if (!fs.existsSync(LOCAL_CONFIG_PATH)) return defaults;
 
   const local = JSON.parse(fs.readFileSync(LOCAL_CONFIG_PATH, 'utf8'));
-  return { ...defaults, ...local, hotkeys: { ...defaults.hotkeys, ...(local.hotkeys || {}) } };
+  return {
+    ...defaults,
+    ...local,
+    hotkeys: { ...defaults.hotkeys, ...(local.hotkeys || {}) },
+    gm: { ...defaults.gm, ...(local.gm || {}) },
+  };
 }
 
-module.exports = { loadConfig };
+module.exports = { loadConfig, LOCAL_CONFIG_PATH };
