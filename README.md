@@ -30,6 +30,27 @@ reveal hotkey (default `Ctrl+Shift+I`) after a restart.
    once. Each pilot can browse the received set with their own local hotkeys
    (`Ctrl+Shift+Right` / `Ctrl+Shift+Left`) without touching the network or affecting anyone else.
 
+## Local testing (two instances, one machine)
+
+Both GM and viewer are the same app now, which means two instances launched from the same
+`app/` folder normally fight over the same `resources/config.local.json` — enabling GM mode in
+one makes both think they're the GM, and they collide on the relay port. Give each terminal its
+own config file via `INTEL_BROADCAST_LOCAL_CONFIG_PATH`:
+
+```
+# Terminal 1 — GM
+cd app
+INTEL_BROADCAST_LOCAL_CONFIG_PATH=/tmp/gm-config.json npm start
+# open Settings, enable GM mode, save & restart
+
+# Terminal 2 — viewer
+cd app
+INTEL_BROADCAST_LOCAL_CONFIG_PATH=/tmp/viewer-config.json npm start
+```
+
+Only needed for testing two roles on one machine — real deployments don't need this at all, since
+every pilot's machine already has its own separate install.
+
 ## Repo layout
 
 ```

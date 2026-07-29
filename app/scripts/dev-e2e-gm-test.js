@@ -1,7 +1,9 @@
 'use strict';
 
 // Phase 2 smoke test: spawns a real GM-mode instance and a real plain viewer
-// instance as separate processes, points the viewer at the GM's embedded
+// instance as separate, concurrent processes (each with its own isolated
+// config.local.json via INTEL_BROADCAST_LOCAL_CONFIG_PATH, mirroring the real
+// two-terminal local testing setup), points the viewer at the GM's embedded
 // relay, hits the GM's dev-only test-trigger endpoint (stands in for a real
 // hotkey press), and confirms the viewer actually received the batch via its
 // dev-only marker file.
@@ -14,7 +16,8 @@ const http = require('http');
 const { spawn } = require('child_process');
 
 const APP_DIR = path.join(__dirname, '..');
-const LOCAL_CONFIG_PATH = path.join(APP_DIR, 'resources', 'config.local.json');
+const GM_CONFIG_PATH = path.join(APP_DIR, 'gm-e2e-config.local.json');
+const VIEWER_CONFIG_PATH = path.join(APP_DIR, 'viewer-e2e-config.local.json');
 const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
 const MARKER_PATH = path.join(APP_DIR, 'out-marker.json');
 
@@ -25,17 +28,22 @@ const MISSION_NAME = 'roman-sead-joker1';
 
 fs.rmSync(MARKER_PATH, { force: true });
 
-// GM instance uses the repo's own config.default.json (relayPort 8787 by
-// default) — override via config.local.json so this test doesn't collide
-// with anything else using the default port, and pins the mission/token.
 fs.writeFileSync(
-  LOCAL_CONFIG_PATH,
+  GM_CONFIG_PATH,
   JSON.stringify({ gmModeEnabled: true, token: TOKEN, missionName: MISSION_NAME, gm: { relayPort: RELAY_PORT } }, null, 2),
+);
+fs.writeFileSync(
+  VIEWER_CONFIG_PATH,
+  JSON.stringify({ relayUrl: `ws://localhost:${RELAY_PORT}`, token: TOKEN, callsign: 'gm-e2e-viewer' }, null, 2),
 );
 
 const gmChild = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
   cwd: APP_DIR,
-  env: { ...process.env, INTEL_BROADCAST_TEST_TRIGGER_PORT: String(TRIGGER_PORT) },
+  env: {
+    ...process.env,
+    INTEL_BROADCAST_LOCAL_CONFIG_PATH: GM_CONFIG_PATH,
+    INTEL_BROADCAST_TEST_TRIGGER_PORT: String(TRIGGER_PORT),
+  },
 });
 gmChild.stdout.on('data', (d) => process.stdout.write(`[gm] ${d}`));
 gmChild.stderr.on('data', (d) => process.stderr.write(`[gm] ${d}`));
@@ -43,7 +51,8 @@ gmChild.stderr.on('data', (d) => process.stderr.write(`[gm] ${d}`));
 let viewerChild;
 
 function cleanup(exitCode) {
-  fs.rmSync(LOCAL_CONFIG_PATH, { force: true });
+  fs.rmSync(GM_CONFIG_PATH, { force: true });
+  fs.rmSync(VIEWER_CONFIG_PATH, { force: true });
   fs.rmSync(MARKER_PATH, { force: true });
   gmChild.kill();
   if (viewerChild) viewerChild.kill();
@@ -51,17 +60,16 @@ function cleanup(exitCode) {
 }
 
 // Give the GM instance time to boot its window + embedded relay server, then
-// launch a plain viewer instance pointed at it. Config.local.json is shared by
-// both processes' loadConfig() — the viewer only cares about relayUrl/token.
+// launch a plain viewer instance (its own isolated config, running
+// concurrently — not sequential writes to a shared file) pointed at it.
 setTimeout(() => {
-  fs.writeFileSync(
-    LOCAL_CONFIG_PATH,
-    JSON.stringify({ relayUrl: `ws://localhost:${RELAY_PORT}`, token: TOKEN, callsign: 'gm-e2e-viewer' }, null, 2),
-  );
-
   viewerChild = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
     cwd: APP_DIR,
-    env: { ...process.env, INTEL_BROADCAST_RECEIVED_MARKER_PATH: MARKER_PATH },
+    env: {
+      ...process.env,
+      INTEL_BROADCAST_LOCAL_CONFIG_PATH: VIEWER_CONFIG_PATH,
+      INTEL_BROADCAST_RECEIVED_MARKER_PATH: MARKER_PATH,
+    },
   });
   viewerChild.stdout.on('data', (d) => process.stdout.write(`[viewer] ${d}`));
   viewerChild.stderr.on('data', (d) => process.stderr.write(`[viewer] ${d}`));
