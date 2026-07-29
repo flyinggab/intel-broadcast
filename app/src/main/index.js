@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { app, globalShortcut } = require('electron');
+const { app, globalShortcut, Menu } = require('electron');
 const { loadConfig } = require('./config');
 const { createViewerWindow } = require('./viewerWindow');
 const { RelayClient } = require('./relayClient');
@@ -38,6 +38,12 @@ function takeDevScreenshotAndQuit(viewer) {
 }
 
 app.whenReady().then(() => {
+  // Electron's default menu binds Ctrl+Shift+I to "Toggle DevTools" — with a
+  // window focused, that accelerator can consume the keypress before our
+  // globalShortcut listener ever sees it. This app has no need for a menu
+  // bar anyway (kiosk-style capture window).
+  Menu.setApplicationMenu(null);
+
   // Distinct default starting spot per role, purely so two instances launched
   // on the same machine (e.g. this local demo) don't land exactly on top of
   // each other before you've dragged either one. Irrelevant once pilots are

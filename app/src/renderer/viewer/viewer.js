@@ -10,16 +10,16 @@ let currentIndex = 0;
 
 function render() {
   if (items.length === 0) {
-    idleEl.style.display = '';
+    idleEl.style.display = 'block';
     photoEl.style.display = 'none';
     indexEl.style.display = 'none';
     return;
   }
 
   idleEl.style.display = 'none';
-  photoEl.style.display = '';
+  photoEl.style.display = 'block';
   photoEl.src = items[currentIndex].dataUrl;
-  indexEl.style.display = items.length > 1 ? '' : 'none';
+  indexEl.style.display = items.length > 1 ? 'block' : 'none';
   indexEl.textContent = `${currentIndex + 1} / ${items.length}`;
 }
 
