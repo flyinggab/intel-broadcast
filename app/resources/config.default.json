@@ -8,5 +8,8 @@
     "next": "Ctrl+Shift+Right",
     "prev": "Ctrl+Shift+Left"
   },
-  "missionName": "roman-sead-joker1"
+  "missionName": "roman-sead-joker1",
+  "gm": {
+    "relayPort": 8787
+  }
 }
