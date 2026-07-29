@@ -54,6 +54,28 @@ app.whenReady().then(() => {
   registerSettingsIpc();
   createTray({ onOpenSettings: () => openSettingsWindow({ isGmMode, config }) });
 
+  // Dev/test-only: opens the settings window immediately on startup instead of
+  // waiting for a tray click, and optionally drives a real save through it —
+  // lets a test harness exercise the full preload/contextBridge/ipcMain wiring
+  // without needing to click a real tray icon or dialog. Never triggered
+  // unless these env vars are explicitly set.
+  if (process.env.INTEL_BROADCAST_OPEN_SETTINGS) {
+    const settingsWin = openSettingsWindow({ isGmMode, config });
+    settingsWin.webContents.on('console-message', (_e, level, message) => {
+      console.log(`[settings renderer console] ${message}`);
+    });
+    settingsWin.webContents.on('did-finish-load', () => {
+      console.log('[main] settings did-finish-load');
+      if (process.env.INTEL_BROADCAST_SETTINGS_AUTOSAVE_JSON) {
+        setTimeout(() => {
+          settingsWin.webContents.executeJavaScript(
+            `window.settingsAPI.save(${process.env.INTEL_BROADCAST_SETTINGS_AUTOSAVE_JSON})`,
+          );
+        }, 300);
+      }
+    });
+  }
+
   // Distinct default starting spot per role, purely so two instances launched
   // on the same machine (e.g. this local demo) don't land exactly on top of
   // each other before you've dragged either one. Irrelevant once pilots are
