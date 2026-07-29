@@ -38,7 +38,12 @@ function takeDevScreenshotAndQuit(viewer) {
 }
 
 app.whenReady().then(() => {
-  const viewer = createViewerWindow({ title: config.windowTitle, hotkeys: config.hotkeys });
+  // Distinct default starting spot per role, purely so two instances launched
+  // on the same machine (e.g. this local demo) don't land exactly on top of
+  // each other before you've dragged either one. Irrelevant once pilots are
+  // on separate physical machines.
+  const initialPosition = isGmMode ? { x: 80, y: 80 } : { x: 460, y: 200 };
+  const viewer = createViewerWindow({ title: config.windowTitle, hotkeys: config.hotkeys, initialPosition });
 
   if (process.env.INTEL_BROADCAST_SCREENSHOT_PATH) attachDevScreenshotHook(viewer);
 

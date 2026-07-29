@@ -8,11 +8,12 @@ const { BrowserWindow, globalShortcut } = require('electron');
  * window, and registers this pilot's own local next/prev browsing hotkeys
  * (never touches the network — purely local UI state in the renderer).
  */
-function createViewerWindow({ title, hotkeys }) {
+function createViewerWindow({ title, hotkeys, initialPosition }) {
   const window = new BrowserWindow({
     title,
     width: 1280,
     height: 800,
+    ...(initialPosition ? { x: initialPosition.x, y: initialPosition.y } : {}),
     frame: false,
     backgroundColor: '#000000',
     webPreferences: {
