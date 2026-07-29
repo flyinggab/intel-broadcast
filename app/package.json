@@ -5,6 +5,7 @@
   "description": "DCS intel photo broadcast companion app (viewer + GM relay)",
   "main": "src/main/index.js",
   "author": "flyinggab",
+  "repository": "https://github.com/flyinggab/intel-broadcast",
   "scripts": {
     "start": "electron .",
     "start:gm": "electron . --gm",
@@ -42,7 +43,9 @@
       "category": "public.app-category.utilities"
     },
     "publish": {
-      "provider": "github"
+      "provider": "github",
+      "owner": "flyinggab",
+      "repo": "intel-broadcast"
     }
   }
 }
