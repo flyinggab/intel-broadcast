@@ -19,14 +19,28 @@ Read "Unified mode" below before changing anything in `relayServer.js`/`relayCli
 **Repo**: `~/intel-broadcast`, pushed to `https://github.com/flyinggab/intel-broadcast` (public).
 Run `git log --oneline` for the authoritative commit list — don't trust hardcoded hashes here.
 
-**Current release: `v0.2.0`** (https://github.com/flyinggab/intel-broadcast/releases/tag/v0.2.0),
-published 2026-07-30 with everything below: unified share/receive mode, the Tailscale panel, the
-viewer side panel, 4K scaling and live settings apply. Assets: `Intel-Broadcast-0.2.0.exe`
-(Windows portable) plus both Mac arch zips. The older `v0.1.0` is kept only as history — it
-predates the mode unification and still expects a `--gm` launch flag, so don't test against it.
-Minor bump rather than a patch because dropping GM mode is a breaking change for anyone's
-existing `config.local.json` (`loadConfig()` maps the legacy `gmModeEnabled` key forward, so
-those configs still work).
+**Current release: `v0.2.1`** (https://github.com/flyinggab/intel-broadcast/releases/tag/v0.2.1),
+published 2026-07-30. Contains unified share/receive mode, the Tailscale panel, the viewer side
+panel, 4K scaling, live settings apply — plus the packaging fix below. Assets:
+`Intel-Broadcast-0.2.1.exe` (Windows portable) plus both Mac arch zips. `v0.1.0` and `v0.2.0` are
+history only; **`v0.2.0` in particular is broken** (see below) and nobody should test against it.
+
+**⚠️ The bug v0.2.0 shipped with — the single most important lesson from this project so far.**
+`config.local.json` was written relative to `__dirname`, which in a packaged app is inside
+`app.asar` — **read-only**. Every settings save threw, the exception was swallowed, and *no
+setting ever persisted*: the Tailscale toggle, the photos folder, the callsign, all of it. The
+user reported it as three separate symptoms ("save does nothing", "where's my URL", "the gallery
+still shows the test images") that were one cause. Fixed in `config.js`
+(`app.isPackaged` → `app.getPath('userData')`; unpackaged keeps the repo path so dev scripts and
+the two-instance workflow are unchanged) and pinned by `dev-packaged-config-test.js`, which packs
+a real bundle and asserts the settings path is outside it *and* that `app.asar` is genuinely
+read-only, so the test can actually fail.
+
+**Why it wasn't caught**: every existing e2e test runs *unpackaged*, where the repo path is
+writable. Nothing exercised a real packaged bundle. **When adding features that touch the
+filesystem, ask whether the packaged layout differs** — and prefer `app.getPath('userData')` for
+anything written at runtime. A save that cannot be written now surfaces the error in the UI
+rather than silently succeeding, which is what made this so hard to spot.
 
 To cut a fresh release: bump/retag `v0.1.0` (delete the old release + tag first —
 `gh release delete v0.1.0 --repo flyinggab/intel-broadcast --yes --cleanup-tag`, then
@@ -212,9 +226,12 @@ npm's install-script allowlist by default) — already done, recorded in `app/pa
 `allowScripts` field, shouldn't need repeating.
 
 **Not yet done / open items**:
-- **The Tailscale panel has never touched a real `tailscale` binary** — all of Phase 3 was
-  developed against `scripts/fixtures/fake-tailscale`, since this WSL sandbox has no Tailscale
-  install and no way to reach a real tailnet. The stub encodes the CLI's *documented* behavior
+- **The Tailscale panel still hasn't been seen working against a real `tailscale` binary.** The
+  first Windows attempt (2026-07-30, v0.2.0) never got that far — the packaging bug above meant
+  `funnelEnabled` was never persisted, so the funnel was never even attempted. v0.2.1 is the
+  first build where the panel can actually run; the CLI-behavior assumptions below remain
+  unverified. All of Phase 3 was developed against `scripts/fixtures/fake-tailscale`, since this
+  WSL sandbox has no Tailscale install and no way to reach a real tailnet. The stub encodes the CLI's *documented* behavior
   (verified against Tailscale docs, July 2026), but the first real run on the user's Windows PC
   is where the remaining risk lives. Specifically worth watching: exact stderr wording/URL shape
   when the funnel node attribute is missing (`extractUrl` grabs the first `https://` — fine for
