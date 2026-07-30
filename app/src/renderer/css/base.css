@@ -69,12 +69,25 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
    that constraint exists because OpenKneeboard captures this window and a
    layout shift would move the image under the pilot.                       */
 .shell {
-  display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
 }
 
+/* Flex column, NOT `grid-template-rows: auto auto 1fr auto`. The banner is
+   display:none in the normal case, so only three of the four children exist;
+   with fixed grid rows every later child shifts up one — .body took its
+   content height and the tab bar landed in the 1fr row, floating up against
+   the page content with dead space under it. The bar only sat correctly while
+   the arrival banner happened to be showing. Flex skips hidden children, so
+   the chrome pins to the edges in every combination. Do not go back to grid
+   rows without giving each child an explicit grid-row. */
+.shell > .topbar,
+.shell > .banner,
+.shell > .tabbar { flex: none; }
+
 .body {
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
@@ -115,7 +128,8 @@ body[data-surface="window"].is-chrome-hidden .topbar,
 body[data-surface="window"].is-chrome-hidden .tabbar,
 body[data-surface="window"].is-chrome-hidden .banner,
 body[data-surface="window"].is-chrome-hidden .stage__chrome { display: none !important; }
-body[data-surface="window"].is-chrome-hidden .shell { grid-template-rows: 1fr; }
+/* No .shell override needed here: with the chrome hidden .body is the only
+   flex child left, and flex:1 already gives it the whole window. */
 
 /* Dim the chrome while another app (DCS) holds focus, so it stays out of
    the capture without being gone when you look at the real window. */

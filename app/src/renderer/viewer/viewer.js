@@ -58,23 +58,9 @@ const PLACEHOLDER = 'img/frame-placeholder.svg';
 let bannerTimer = null;
 
 // --- formatting -------------------------------------------------------------
-// Zulu time throughout: this is a flight-sim tool and the design specifies
-// "1432Z". UTC, no separator, matching how a mission brief reads.
-function zulu(ts) {
-  if (!ts) return '----Z';
-  const d = new Date(ts);
-  return `${String(d.getUTCHours()).padStart(2, '0')}${String(d.getUTCMinutes()).padStart(2, '0')}Z`;
-}
-
-function megabytes(bytes) {
-  if (!bytes) return '0 MB';
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function photoWord(n) {
-  return `${n} ${n === 1 ? 'PHOTO' : 'PHOTOS'}`;
-}
+// In viewer/format.js so plain node can require and test them; loaded by the
+// <script> tag above this one.
+const { zulu, megabytes, photoWord } = self.Format;
 
 // Callsigns are remote-supplied strings — everything user-facing goes in via
 // textContent, never innerHTML.
