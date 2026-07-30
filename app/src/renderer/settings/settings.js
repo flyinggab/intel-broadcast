@@ -146,6 +146,14 @@ function renderTailscaleState(state) {
     tsActions.append(tsDetail(state.funnelError), tsButton('Retry now', 'refresh'));
     return;
   }
+  if (state.funnelStatusError) {
+    // Unknown, not off: the sharing state can't be read right now. The main
+    // process deliberately takes no action off the back of this.
+    tsDot.className = 'ts-dot warn';
+    tsStatusText.textContent = "Can't read the current sharing state (an earlier funnel may still be running):";
+    tsActions.append(tsDetail(state.funnelStatusError), tsButton('Re-check', 'refresh'));
+    return;
+  }
   tsDot.className = 'ts-dot';
   tsStatusText.textContent = `Logged in as ${state.dnsName || '(unknown)'} — not shared publicly yet. Tick the box below, then Save & Apply.`;
   tsActions.append(tsButton('Re-check', 'refresh'));

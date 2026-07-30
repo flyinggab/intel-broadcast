@@ -173,8 +173,27 @@ async function getState() {
   if (!loggedIn) return state;
 
   const funnel = await run(bin, ['funnel', 'status', '--json']);
-  if (funnel.ok) Object.assign(state, parseFunnelStatus(funnel.stdout));
+  if (funnel.ok) {
+    Object.assign(state, parseFunnelStatus(funnel.stdout));
+    // Raw output kept for the log: the on/off flapping seen on the first real
+    // Windows run could only be diagnosed by seeing exactly what the CLI said.
+    state.funnelRaw = (funnel.stdout || '').trim();
+  } else {
+    // A failed status read means "unknown", NOT "off" — reporting it as off
+    // made the app think it had to re-start the funnel, flapping the UI.
+    state.funnelStatusError = `"tailscale funnel status --json" failed: ${
+      (funnel.stderr || funnel.error || '').trim() || 'no output'
+    }`;
+  }
   return state;
+}
+
+/** Local port a running funnel forwards to, from getState()'s funnelTarget
+ *  (e.g. "http://127.0.0.1:8787" -> 8787), or null. Used to decide whether a
+ *  leftover funnel found at startup is plausibly OURS before touching it. */
+function funnelTargetPort(state) {
+  const match = /:(\d+)\/?$/.exec((state && state.funnelTarget) || '');
+  return match ? Number(match[1]) : null;
 }
 
 /**
@@ -257,6 +276,7 @@ module.exports = {
   findBinary,
   findBinaryDetailed,
   getState,
+  funnelTargetPort,
   startFunnel,
   stopFunnel,
   stopFunnelSync,

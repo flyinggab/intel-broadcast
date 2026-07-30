@@ -118,16 +118,43 @@ function wantFunnel() {
   return isHost() && config.gm.funnelEnabled === true;
 }
 
+let lastLoggedFunnelRaw;
+
 /**
- * Fetches the current Tailscale state, optionally reconciling reality with
- * config (start the funnel if wanted-but-off, stop it if off-but-running),
- * and pushes the result to the settings window if one is open.
+ * Fetches the current Tailscale state, optionally starting the funnel when
+ * config wants it on, and pushes the result to the settings window.
+ *
+ * Reconciliation deliberately only ever turns the funnel ON. The first real
+ * Windows run flapped on/off every few seconds because this also enforced
+ * "off": anything that made a status read look like "no funnel" — a failed
+ * readback, or a second app instance whose config didn't want sharing —
+ * triggered a stop that the next pass undid. Turning the funnel OFF now
+ * happens only at three explicit moments: the user disabling it in Settings
+ * (applyNewConfig), app quit (will-quit), and a port-matched leftover check
+ * once at startup.
  */
 async function refreshTailscaleState({ reconcile = false } = {}) {
   let state;
   try {
     state = await tailscale.getState();
-    if (reconcile && wantFunnel() && state.installed && state.loggedIn && !state.funnelOn) {
+    // The raw funnel-status output goes to the log whenever it changes — this
+    // is the line to look at when the panel disagrees with reality.
+    if (state.funnelRaw !== undefined && state.funnelRaw !== lastLoggedFunnelRaw) {
+      lastLoggedFunnelRaw = state.funnelRaw;
+      console.log(`[tailscale] funnel status raw: ${state.funnelRaw || '(empty)'}`);
+    }
+    if (state.funnelStatusError) console.log(`[tailscale] ${state.funnelStatusError}`);
+
+    const startable =
+      reconcile &&
+      wantFunnel() &&
+      state.installed &&
+      state.loggedIn &&
+      !state.funnelOn &&
+      // "unknown" is not "off" — never start (or imply restarts) off the back
+      // of a status read that failed.
+      !state.funnelStatusError;
+    if (startable) {
       if (Date.now() - lastFunnelAttempt >= FUNNEL_RETRY_MS) {
         lastFunnelAttempt = Date.now();
         const res = await tailscale.startFunnel(config.gm.relayPort);
@@ -147,10 +174,6 @@ async function refreshTailscaleState({ reconcile = false } = {}) {
         state.enableUrl = lastTailscaleState.enableUrl || null;
         state.funnelError = lastTailscaleState.funnelError || null;
       }
-    } else if (reconcile && !wantFunnel() && state.funnelOn) {
-      await tailscale.stopFunnel();
-      console.log('[tailscale] funnel stopped (sharing disabled in settings)');
-      state = await tailscale.getState();
     }
   } catch (err) {
     state = { installed: true, error: err.message };
@@ -158,6 +181,24 @@ async function refreshTailscaleState({ reconcile = false } = {}) {
   lastTailscaleState = state;
   pushTailscaleState(state);
   return state;
+}
+
+/**
+ * One-shot at startup: a `--bg` funnel survives crashes/reboots, so if config
+ * doesn't want sharing but a funnel is up AND it forwards to OUR relay port,
+ * treat it as ours from a previous session and stop it. The port match is
+ * what keeps this from killing a funnel some other instance/tool owns.
+ */
+async function cleanupLeftoverFunnel() {
+  try {
+    const state = await tailscale.getState();
+    if (!wantFunnel() && state.funnelOn && tailscale.funnelTargetPort(state) === config.gm.relayPort) {
+      console.log('[tailscale] stopping leftover funnel from a previous session (it targets our relay port)');
+      await tailscale.stopFunnel();
+    }
+  } catch (err) {
+    console.log(`[tailscale] leftover-funnel check failed: ${err.message}`);
+  }
 }
 
 /** Handles a button press from the settings panel's Tailscale section. */
@@ -347,10 +388,20 @@ function applyNewConfig(newConfig) {
     console.log('[index] relay connection changed — reconnecting');
   }
 
-  // A save is explicit user intent — reconcile the funnel against the new
-  // config right away (and let a previously-failed start retry immediately).
+  // A save is explicit user intent — apply the funnel side right away.
+  // Turning it OFF happens here and only here (plus quit/startup-leftover):
+  // the polling reconcile never stops a funnel, so nothing can flap it.
+  const wantedBefore = old.relayHostEnabled === true && old.gm.funnelEnabled === true;
   lastFunnelAttempt = 0;
-  refreshTailscaleState({ reconcile: true });
+  if (wantedBefore && !wantFunnel()) {
+    tailscale
+      .stopFunnel()
+      .then(() => console.log('[tailscale] funnel stopped (sharing disabled in settings)'))
+      .catch(() => {})
+      .finally(() => refreshTailscaleState());
+  } else {
+    refreshTailscaleState({ reconcile: true });
+  }
 }
 
 function attachDevScreenshotHook(viewer) {
@@ -377,7 +428,31 @@ function takeDevScreenshotAndQuit(viewer) {
   }, 500);
 }
 
+// One instance per machine. Two copies of the app fight: both grab hotkeys,
+// both may host, and their funnel opinions can differ (the on/off flapping in
+// the first real Windows test is exactly what that looks like — an old
+// instance turning off what the new one turned on). The deliberate
+// two-instance DEV workflow opts out via its per-instance config env var.
+let isPrimaryInstance = true;
+if (!process.env.INTEL_BROADCAST_LOCAL_CONFIG_PATH) {
+  isPrimaryInstance = app.requestSingleInstanceLock();
+  if (!isPrimaryInstance) {
+    app.quit();
+  } else {
+    // Someone double-clicked the exe again — surface the existing window.
+    app.on('second-instance', () => {
+      if (viewer && !viewer.window.isDestroyed()) {
+        if (viewer.window.isMinimized()) viewer.window.restore();
+        viewer.window.show();
+        viewer.window.focus();
+      }
+    });
+  }
+}
+
 app.whenReady().then(() => {
+  if (!isPrimaryInstance) return; // quitting — don't build windows on the way out
+
   // First thing: a packaged build has no console, so without this a user
   // hitting trouble has nothing to send back.
   initFileLogging(app.getPath('userData'));
@@ -576,10 +651,9 @@ app.whenReady().then(() => {
   if (isHost()) startHost();
   startClient();
 
-  // Startup reconcile: bring the funnel up if this host wants it, and — since
-  // `--bg` funnels survive reboots/crashes — tear down a leftover one when
-  // config says it shouldn't be running.
-  refreshTailscaleState({ reconcile: true });
+  // Startup: clear a port-matched leftover funnel from a crashed session,
+  // then bring the funnel up if config wants it.
+  cleanupLeftoverFunnel().then(() => refreshTailscaleState({ reconcile: true }));
 
   // Dev/test-only: lets a test harness trigger the same reveal action a real
   // hotkey press would, without simulating an OS-level keypress. Any instance

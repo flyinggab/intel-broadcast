@@ -35,6 +35,13 @@ if (cmd === 'status --json') {
 }
 
 if (cmd === 'funnel status --json') {
+  // Simulates the status command itself breaking (the real Windows run
+  // surfaced readback trouble) — the app must treat this as "unknown", not
+  // "off", and specifically must NOT start flapping the funnel.
+  if (state.funnelStatusFail) {
+    process.stderr.write('FAKE: transient error talking to tailscaled\n');
+    process.exit(2);
+  }
   const host = state.dnsName.replace(/\.$/, '');
   if (state.funnelOn) {
     process.stdout.write(

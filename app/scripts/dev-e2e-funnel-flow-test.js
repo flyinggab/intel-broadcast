@@ -178,10 +178,99 @@ async function scenario2() {
   }
 }
 
+function stubInvocations(pattern) {
+  try {
+    return fs
+      .readFileSync(LOG_PATH, 'utf8')
+      .split('\n')
+      .filter((l) => l.trim().startsWith(pattern)).length;
+  } catch {
+    return 0;
+  }
+}
+
+// Scenario 3 — a broken status READBACK must read as "unknown", never "off":
+// with the funnel up and wanted, the status command starts failing. The app
+// must not flap (no new `funnel --bg`, no `off`), must say in the panel that
+// the state can't be read, and must return to "Shared" once readback
+// recovers — still without ever having restarted the funnel. This pins the
+// fix for the on/off flapping seen on the first real Windows run.
+async function scenario3() {
+  cleanupFiles();
+  fs.writeFileSync(
+    CONFIG_PATH,
+    JSON.stringify({
+      relayHostEnabled: true,
+      token: 'funnel-e2e',
+      gm: { relayPort: RELAY_PORT, funnelEnabled: true },
+    }),
+  );
+  // Funnel already up and wanted — steady state.
+  fs.writeFileSync(
+    STATE_PATH,
+    JSON.stringify({
+      backendState: 'Running',
+      dnsName: 'fake-host.tail1234.ts.net.',
+      funnelOn: true,
+      funnelPort: RELAY_PORT,
+      funnelAllowed: true,
+    }),
+  );
+
+  let output = '';
+  const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
+    cwd: APP_DIR,
+    detached: true, // process GROUP, so killApp reaches the real binary
+    env: { ...baseEnv(), INTEL_BROADCAST_OPEN_SETTINGS: '1', INTEL_BROADCAST_TAILSCALE_PROBE: '1' },
+  });
+  child.stdout.on('data', (d) => {
+    output += d.toString();
+    process.stdout.write(`[app3] ${d}`);
+  });
+  child.stderr.on('data', (d) => process.stderr.write(`[app3] ${d}`));
+
+  try {
+    await waitFor('steady state: shared, no start needed', () => output.includes(`| ${WSS_URL}`), 15000);
+    const startsBefore = stubInvocations('funnel --bg');
+    const offsBefore = stubInvocations('funnel --https=443 off');
+
+    let state = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
+    state.funnelStatusFail = true;
+    fs.writeFileSync(STATE_PATH, JSON.stringify(state));
+
+    await waitFor(
+      "the panel to say the state can't be read",
+      () => output.includes("Can't read the current sharing state"),
+      15000,
+    );
+    await sleep(4000); // several poll ticks worth of opportunity to misbehave
+    if (stubInvocations('funnel --bg') !== startsBefore) throw new Error('app re-ran `funnel --bg` on an unreadable status');
+    if (stubInvocations('funnel --https=443 off') !== offsBefore) throw new Error('app ran `funnel off` on an unreadable status');
+    console.log('[e2e] unreadable status: no flapping, clearly reported');
+
+    state = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
+    state.funnelStatusFail = false;
+    fs.writeFileSync(STATE_PATH, JSON.stringify(state));
+    await waitFor(
+      'the panel to recover to Shared',
+      () => {
+        const lines = output.split('\n').filter((l) => l.includes('TS_PROBE'));
+        return lines.length > 0 && lines[lines.length - 1].includes(WSS_URL);
+      },
+      15000,
+    );
+    if (stubInvocations('funnel --bg') !== startsBefore) throw new Error('recovery should not have restarted the funnel');
+    console.log('[e2e] scenario 3 OK (unknown != off; no restarts across a readback outage)');
+  } finally {
+    killApp(child);
+  }
+}
+
 (async () => {
   try {
     await scenario1();
     await scenario2();
+    await scenario3();
     console.log('[dev-e2e-funnel-flow-test] PASS');
     cleanupFiles();
     setTimeout(() => process.exit(0), 300);

@@ -226,12 +226,20 @@ npm's install-script allowlist by default) — already done, recorded in `app/pa
 `allowScripts` field, shouldn't need repeating.
 
 **Not yet done / open items**:
-- **The Tailscale panel still hasn't been seen working against a real `tailscale` binary.** The
-  first Windows attempt (2026-07-30, v0.2.0) never got that far — the packaging bug above meant
-  `funnelEnabled` was never persisted, so the funnel was never even attempted. v0.2.1 is the
-  first build where the panel can actually run; the CLI-behavior assumptions below remain
-  unverified. All of Phase 3 was developed against `scripts/fixtures/fake-tailscale`, since this
-  WSL sandbox has no Tailscale install and no way to reach a real tailnet. The stub encodes the CLI's *documented* behavior
+- **Real-Windows Tailscale status (2026-07-30, v0.2.1 test)**: detection, login state, and
+  `funnel --bg` all WORKED against the real binary — the funnel came up and the panel showed the
+  real `wss://gamingab.tail8b14ff.ts.net` URL. But the panel then **flapped** to "not shared"
+  after a few seconds, repeatedly. Root cause never pinned to one culprit; the fix (v0.2.2)
+  removed the whole failure class instead: reconcile now only ever turns the funnel ON — off
+  happens exclusively on settings-toggle-off, quit, and a *port-matched* startup leftover check;
+  a failed `funnel status` readback is treated as "unknown" (surfaced in the panel), never as
+  "off"; and a **single-instance lock** stops a second app copy (e.g. an old exe still open,
+  whose config wants no funnel) from fighting the first — the leading suspect for the flapping.
+  Dev two-instance testing opts out of the lock via `INTEL_BROADCAST_LOCAL_CONFIG_PATH`.
+  `dev-e2e-funnel-flow-test.js` scenario 3 pins no-flapping across a readback outage. The raw
+  `funnel status --json` output is now logged whenever it changes — **if the flap recurs, that
+  log line is the diagnosis.** Remaining unverified against the real CLI: the login-URL scrape
+  and the funnel-enable error wording. The stub encodes the CLI's *documented* behavior
   (verified against Tailscale docs, July 2026), but the first real run on the user's Windows PC
   is where the remaining risk lives. Specifically worth watching: exact stderr wording/URL shape
   when the funnel node attribute is missing (`extractUrl` grabs the first `https://` — fine for
