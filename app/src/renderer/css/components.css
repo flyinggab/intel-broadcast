@@ -97,6 +97,8 @@
   box-shadow: inset 3px 0 0 var(--lit);
 }
 .rail__spacer { flex: 1; }
+.rail__lang { padding: var(--sp-3) var(--sp-4) 0; }
+.rail__lang .keyrow { margin-top: .3rem; }
 .rail__version {
   padding: var(--sp-3) var(--sp-4);
   font-family: var(--font-mono);

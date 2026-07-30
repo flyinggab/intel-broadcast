@@ -42,10 +42,13 @@ const log = {
 
 const savebar = { state: el('save-state'), save: el('btn-save') };
 const railVersion = el('rail-version');
+const langKeys = el('lang-keys');
 
 // Zulu times for the status line and pilots list; loaded by the <script>
 // tag above this one.
 const { zulu } = self.Format;
+// i18n.js is loaded by the <script> tag above format.js.
+const { t, setLocale, applyStatic } = self.I18n;
 
 // Local, pre-save form state only.
 let mode = 'host';
@@ -75,13 +78,26 @@ function isDirty() {
 function renderSavebar() {
   const dirty = isDirty();
   savebar.save.disabled = !dirty;
-  setText(savebar.state, dirty ? 'UNSAVED CHANGES' : 'ALL CHANGES APPLIED');
+  setText(savebar.state, t(dirty ? 'save.unsaved' : 'save.applied'));
 }
 
 // --- render -----------------------------------------------------------------
 
+let renderedLocale = null;
+
 function render(s) {
   lastSnapshot = s;
+
+  // Locale first: every string below reads through t().
+  if (s.locale !== renderedLocale) {
+    renderedLocale = s.locale;
+    setLocale(s.locale);
+    document.documentElement.lang = s.locale || 'en';
+    applyStatic(document);
+  }
+  for (const key of langKeys.querySelectorAll('[data-locale]')) {
+    key.classList.toggle('key--primary', key.dataset.locale === (s.locale || 'en'));
+  }
 
   setText(railVersion, s.version ? `V${s.version}` : '');
 
@@ -91,17 +107,17 @@ function render(s) {
   // Status line: what you ARE, regardless of the unsaved choice below it.
   const f = s.funnel || {};
   if (s.isHost) {
-    setText(net.stateWhat, 'HOSTING');
-    const funnelPart = f.funnelOn ? `FUNNEL UP · ${zulu(f.since)}` : 'FUNNEL DOWN';
-    setText(net.stateMeta, `${s.peers.length} ON NET · ${funnelPart}`);
+    setText(net.stateWhat, t('net.hosting'));
+    const funnelPart = f.funnelOn ? t('net.funnelUp', { t: zulu(f.since) }) : t('net.funnelDown');
+    setText(net.stateMeta, t('net.hostingMeta', { n: s.peers.length, funnel: funnelPart }));
     net.stateDot.classList.remove('netstate__dot--off');
   } else if (s.connected) {
-    setText(net.stateWhat, 'JOINED');
+    setText(net.stateWhat, t('net.joined'));
     setText(net.stateMeta, `${(s.relayLabel || '').toUpperCase()} · ${zulu(s.lastContactAt)}`);
     net.stateDot.classList.remove('netstate__dot--off');
   } else {
-    setText(net.stateWhat, 'NOT CONNECTED');
-    setText(net.stateMeta, mode === 'join' ? 'PASTE A CODE TO JOIN' : 'RELAY DOWN');
+    setText(net.stateWhat, t('net.notConnected'));
+    setText(net.stateMeta, t(mode === 'join' ? 'net.pasteToJoin' : 'net.relayDown'));
     net.stateDot.classList.add('netstate__dot--off');
   }
 
@@ -114,19 +130,19 @@ function render(s) {
     card.classList.toggle('is-on', card.dataset.setMode === mode);
   }
 
-  setText(net.code, s.squadCode || 'NOT AVAILABLE');
+  setText(net.code, s.squadCode || t('net.codeUnavailable'));
   setText(net.port, String(s.relayPort || ''));
   setText(net.token, s.tokenMasked || '••••');
 
-  if (!f.installed) setStep(net.stepInstall, 'running', 'NOT FOUND · CLICK TO INSTALL');
-  else setStep(net.stepInstall, 'done', 'INSTALLED');
-  if (!f.installed) setStep(net.stepAuth, '', 'WAITING');
-  else if (!f.loggedIn) setStep(net.stepAuth, 'running', 'SIGN IN REQUIRED');
-  else setStep(net.stepAuth, 'done', (f.dnsName || 'SIGNED IN').toUpperCase());
-  if (f.funnelOn) setStep(net.stepFunnel, 'done', `UP · ${s.squadCode ? 'CODE READY' : 'UP'}`);
-  else if (f.enableUrl) setStep(net.stepFunnel, 'running', 'NEEDS ENABLING IN ADMIN');
-  else if (f.funnelError || f.funnelStatusError) setStep(net.stepFunnel, 'running', 'FAILED · SEE LOG');
-  else setStep(net.stepFunnel, '', 'OFF');
+  if (!f.installed) setStep(net.stepInstall, 'running', t('ts.notFound'));
+  else setStep(net.stepInstall, 'done', t('ts.installed'));
+  if (!f.installed) setStep(net.stepAuth, '', t('ts.waiting'));
+  else if (!f.loggedIn) setStep(net.stepAuth, 'running', t('ts.signInRequired'));
+  else setStep(net.stepAuth, 'done', (f.dnsName || t('ts.signedIn')).toUpperCase());
+  if (f.funnelOn) setStep(net.stepFunnel, 'done', t(s.squadCode ? 'ts.upCodeReady' : 'ts.up'));
+  else if (f.enableUrl) setStep(net.stepFunnel, 'running', t('ts.needsEnabling'));
+  else if (f.funnelError || f.funnelStatusError) setStep(net.stepFunnel, 'running', t('ts.failed'));
+  else setStep(net.stepFunnel, '', t('ts.off'));
 
   // Pilots on net. Callsigns are remote-supplied strings: textContent only.
   setText(net.count, String(s.peers.length));
@@ -136,7 +152,7 @@ function render(s) {
     empty.className = 'pilot';
     const name = document.createElement('span');
     name.className = 'pilot__name';
-    name.textContent = s.connected ? 'NOBODY ELSE ON NET' : 'NOT CONNECTED';
+    name.textContent = t(s.connected ? 'net.nobodyElse' : 'net.notConnected');
     empty.appendChild(name);
     net.pilots.appendChild(empty);
   }
@@ -147,10 +163,10 @@ function render(s) {
     dot.className = 'pilot__dot';
     const name = document.createElement('span');
     name.className = 'pilot__name';
-    name.textContent = (peer.callsign || 'UNNAMED').toUpperCase();
+    name.textContent = (peer.callsign || t('strip.unnamed')).toUpperCase();
     const meta = document.createElement('span');
     meta.className = 'pilot__meta';
-    meta.textContent = peer.self ? 'YOU' : peer.host ? 'HOST' : zulu(peer.connectedAt);
+    meta.textContent = peer.self ? t('net.you') : peer.host ? t('net.host') : zulu(peer.connectedAt);
     row.append(dot, name, meta);
     net.pilots.appendChild(row);
   }
@@ -162,13 +178,13 @@ function render(s) {
     const field = bind.parentElement.querySelector('.field');
     if (key === recordingKey) {
       field.classList.add('field--recording');
-      setText(field, 'PRESS KEYS…');
-      bind.textContent = 'STOP';
+      setText(field, t('bind.pressKeys'));
+      bind.textContent = t('bind.stop');
       bind.classList.add('key--primary');
     } else {
       field.classList.remove('field--recording');
       setText(field, (hotkeys[key] || '—').toUpperCase());
-      bind.textContent = 'RECORD';
+      bind.textContent = t('bind.record');
       bind.classList.remove('key--primary');
     }
   }
@@ -195,10 +211,10 @@ async function refreshJoinPreview() {
   const typed = net.codeInput.value.trim().length > 0;
   if (decoded.ok) {
     net.connect.disabled = false;
-    setText(net.joinResolved, `${decoded.host.toUpperCase()} · PORT ${decoded.port} · TOKEN VALID`);
+    setText(net.joinResolved, t('net.resolved', { host: decoded.host.toUpperCase(), port: decoded.port }));
   } else {
     net.connect.disabled = true;
-    setText(net.joinResolved, typed ? 'CODE NOT RECOGNISED' : 'PASTE A CODE TO CONNECT');
+    setText(net.joinResolved, t(typed ? 'net.badCode' : 'net.pasteToConnect'));
   }
   net.joinStep2.classList.toggle('is-running', decoded.ok);
 }
@@ -231,6 +247,13 @@ for (const card of document.querySelectorAll('[data-set-mode]')) {
 }
 
 pilot.callsign.addEventListener('input', renderSavebar);
+
+// Language applies immediately — it is a display preference, not a form
+// value, so it does not belong behind SAVE & APPLY.
+langKeys.addEventListener('click', (event) => {
+  const key = event.target.closest('[data-locale]');
+  if (key) send('set-locale', key.dataset.locale);
+});
 
 el('btn-copy-code').addEventListener('click', () => send('copy-code'));
 el('btn-new-token').addEventListener('click', () => {

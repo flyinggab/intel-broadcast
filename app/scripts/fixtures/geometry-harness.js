@@ -12,6 +12,8 @@ const path = require('path');
 const APP_DIR = path.join(__dirname, '..', '..');
 const TOUCH_MIN = 44;
 const SCALES = [0.8, 1, 1.4];
+// Italian is the longer language: if it fits, English does.
+const LOCALES = ['en', 'it'];
 
 // The shipped HTML boots empty — demo state lives in preview-state.js and is
 // pushed through the same window.__preview hook preview.html uses. Measuring
@@ -77,7 +79,7 @@ function measureInPage(touchMin) {
   return report;
 }
 
-async function measure(file, scale) {
+async function measure(file, scale, locale) {
   // NOT offscreen: offscreen rendering is unreliable in this WSLg sandbox
   // (same GPU-compositor trouble PLAN.md records for capturePage). A normal
   // hidden window still lays out and runs script, which is all we measure.
@@ -98,8 +100,8 @@ async function measure(file, scale) {
   await win.webContents.executeJavaScript(PREVIEW_STATE_SOURCE);
   await win.webContents.executeJavaScript(
     file === 'viewer.html'
-      ? `window.__preview.render(PreviewState.viewer['banner switched'])`
-      : `window.__preview.render(PreviewState.settings)`,
+      ? `window.__preview.render({ ...PreviewState.viewer['banner switched'], locale: ${JSON.stringify(locale)} })`
+      : `window.__preview.render({ ...PreviewState.settings, locale: ${JSON.stringify(locale)} })`,
   );
   await win.webContents.executeJavaScript(
     `document.documentElement.style.setProperty('--ui-scale', ${JSON.stringify(String(scale))})`,
@@ -111,7 +113,7 @@ async function measure(file, scale) {
 
   const report = await win.webContents.executeJavaScript(`(${measureInPage.toString()})(${TOUCH_MIN})`);
   win.destroy();
-  return { file, scale, ...report };
+  return { file, scale, locale, ...report };
 }
 
 // Each measurement destroys its window, which would otherwise leave zero
@@ -123,7 +125,9 @@ app.whenReady().then(async () => {
   const results = [];
   try {
     for (const file of ['viewer.html', 'settings.html']) {
-      for (const scale of SCALES) results.push(await measure(file, scale));
+      for (const scale of SCALES) {
+        for (const locale of LOCALES) results.push(await measure(file, scale, locale));
+      }
     }
     console.log('GEOMETRY ' + JSON.stringify(results));
   } catch (err) {

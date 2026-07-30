@@ -61,7 +61,9 @@ let bannerShownAt = null;
 // --- formatting -------------------------------------------------------------
 // In viewer/format.js so plain node can require and test them; loaded by the
 // <script> tag above this one.
-const { zulu, megabytes, photoWord } = self.Format;
+const { zulu, megabytes } = self.Format;
+// i18n.js is loaded by the <script> tag above format.js.
+const { t, photos: photoWord, setLocale, applyStatic } = self.I18n;
 
 // Callsigns and filenames are remote-supplied strings — everything user-facing
 // goes in via textContent, never innerHTML.
@@ -72,9 +74,12 @@ function setText(node, text) {
 // --- render -----------------------------------------------------------------
 
 function renderStrip(s) {
-  setText(strip.callsign, (s.callsign || 'UNNAMED').toUpperCase());
-  setText(strip.net, s.isHost ? `HOST · ${s.peers.length} ON NET` : s.connected ? 'JOINED' : 'NO NET');
-  setText(strip.relay, s.connected ? `RELAY UP · ${zulu(s.lastContactAt)}` : 'RELAY DOWN');
+  setText(strip.callsign, (s.callsign || t('strip.unnamed')).toUpperCase());
+  setText(
+    strip.net,
+    s.isHost ? t('strip.host', { n: s.peers.length }) : s.connected ? t('strip.joined') : t('strip.nonet'),
+  );
+  setText(strip.relay, s.connected ? t('strip.relayUp', { t: zulu(s.lastContactAt) }) : t('strip.relayDown'));
   strip.relay.classList.toggle('strip__seg--fault', !s.connected);
 }
 
@@ -85,8 +90,8 @@ function renderBanner(s) {
     clearTimeout(bannerTimer);
     return;
   }
-  setText(banner.who, `NEW FROM ${(s.banner.who || 'UNKNOWN').toUpperCase()}`);
-  setText(banner.meta, `${photoWord(s.banner.count)} · ${s.banner.switched ? 'SWITCHED AUTOMATICALLY' : 'QUEUED'}`);
+  setText(banner.who, t('banner.newFrom', { who: (s.banner.who || t('fault.unknown')).toUpperCase() }));
+  setText(banner.meta, `${photoWord(s.banner.count)} · ${t(s.banner.switched ? 'banner.switched' : 'banner.queued')}`);
   banner.root.classList.remove('is-hidden');
   if (bannerShownAt !== s.banner.at) {
     bannerShownAt = s.banner.at;
@@ -101,11 +106,11 @@ function renderStage(s) {
   stage.standby.classList.toggle('is-hidden', !empty);
   if (empty) {
     if (stage.img.getAttribute('src') !== PLACEHOLDER) stage.img.src = PLACEHOLDER;
-    setText(stage.file, 'NO INTEL');
+    setText(stage.file, t('stage.noIntel'));
     setText(stage.posN, '');
     setText(stage.posMeta, '');
-    setText(stage.standbyLine1, 'NO INTEL RECEIVED');
-    setText(stage.standbyLine2, s.connected ? 'SINCE POWER UP' : 'RELAY DOWN');
+    setText(stage.standbyLine1, t('standby.nothing'));
+    setText(stage.standbyLine2, t(s.connected ? 'standby.sincePowerUp' : 'standby.relayDown'));
     return;
   }
   // Only reassign src when it actually changed: re-setting it restarts the
@@ -114,7 +119,7 @@ function renderStage(s) {
   if (stage.img.getAttribute('src') !== q.current.url) stage.img.src = q.current.url;
   setText(stage.file, (q.current.filename || '').toUpperCase());
   setText(stage.posN, `${q.pos + 1} / ${q.total}`);
-  setText(stage.posMeta, ` · ${(q.current.sharedBy || 'UNKNOWN').toUpperCase()} · ${zulu(q.current.receivedAt)}`);
+  setText(stage.posMeta, ` · ${(q.current.sharedBy || t('fault.unknown')).toUpperCase()} · ${zulu(q.current.receivedAt)}`);
 }
 
 function renderReceived(s) {
@@ -129,10 +134,10 @@ function renderReceived(s) {
     head.className = 'batch__head';
     const who = document.createElement('span');
     who.className = 'batch__who';
-    who.textContent = 'NOTHING RECEIVED YET';
+    who.textContent = t('received.emptyTitle');
     const meta = document.createElement('span');
     meta.className = 'batch__meta';
-    meta.textContent = 'ANYTHING THE SQUAD SHARES LANDS HERE';
+    meta.textContent = t('received.emptyHint');
     head.append(who, meta);
     empty.appendChild(head);
     batches.appendChild(empty);
@@ -148,15 +153,19 @@ function renderReceived(s) {
     head.className = 'batch__head';
     const who = document.createElement('span');
     who.className = 'batch__who';
-    who.textContent = (batch.sharedBy || 'UNKNOWN').toUpperCase();
+    who.textContent = (batch.sharedBy || t('fault.unknown')).toUpperCase();
     const meta = document.createElement('span');
     meta.className = 'batch__meta';
-    meta.textContent = `${batch.selectedCount} OF ${batch.count} IN BRIEF · ${zulu(batch.receivedAt)}`;
+    meta.textContent = t('received.inBrief', {
+      sel: batch.selectedCount,
+      n: batch.count,
+      t: zulu(batch.receivedAt),
+    });
     const all = document.createElement('button');
     all.className = 'key key--sm batch__all';
     all.dataset.batchId = String(batch.id);
     all.dataset.on = batch.selectedCount === 0 ? '1' : '0';
-    all.textContent = batch.selectedCount === 0 ? 'RESTORE' : 'HIDE';
+    all.textContent = t(batch.selectedCount === 0 ? 'received.restore' : 'received.hide');
     head.append(who, meta, all);
 
     const tiles = document.createElement('div');
@@ -187,10 +196,12 @@ function renderReceived(s) {
 }
 
 function renderShare(s) {
-  setText(share.folder, (s.folder ? s.folder.split(/[\\/]/).pop() : 'NOT SET').toUpperCase());
+  setText(share.folder, (s.folder ? s.folder.split(/[\\/]/).pop() : t('share.notSet')).toUpperCase());
   setText(
     share.count,
-    s.photoCount ? `${s.selectedCount} OF ${s.photoCount} · ${megabytes(s.stagedBytes)}` : 'NO PHOTOS',
+    s.photoCount
+      ? t('share.count', { sel: s.selectedCount, n: s.photoCount, size: megabytes(s.stagedBytes) })
+      : t('share.noPhotos'),
   );
 
   share.grid.textContent = '';
@@ -214,22 +225,37 @@ function renderShare(s) {
   }
 
   share.reveal.disabled = s.selectedCount === 0;
-  setText(share.reveal, s.selectedCount === 0 ? 'NOTHING SELECTED' : `REVEAL ${photoWord(s.selectedCount)}`);
+  setText(
+    share.reveal,
+    s.selectedCount === 0 ? t('share.nothingSelected') : t('share.reveal', { photos: photoWord(s.selectedCount) }),
+  );
 }
 
 function renderFault(s) {
   const r = s.reconnect || {};
   setText(
     fault.attempt,
-    r.attempt ? `ATTEMPT ${r.attempt} · NEXT IN ${Math.ceil((r.nextInMs || 0) / 1000)}S` : 'RECONNECTING',
+    r.attempt
+      ? t('fault.attempt', { n: r.attempt, s: Math.ceil((r.nextInMs || 0) / 1000) })
+      : t('fault.reconnecting'),
   );
   setText(fault.last, zulu(s.lastContactAt));
-  setText(fault.relay, (s.relayLabel || 'UNKNOWN').toUpperCase());
-  const photos = s.batches.reduce((n, b) => n + b.count, 0);
-  setText(fault.cached, `${s.batches.length} BATCHES · ${photos} PHOTOS`);
+  setText(fault.relay, (s.relayLabel || t('fault.unknown')).toUpperCase());
+  const photoCount = s.batches.reduce((n, b) => n + b.count, 0);
+  setText(fault.cached, t('fault.cached', { batches: s.batches.length, photos: photoCount }));
 }
 
+let renderedLocale = null;
+
 function render(s) {
+  // Locale first: every string below reads through t().
+  if (s.locale !== renderedLocale) {
+    renderedLocale = s.locale;
+    setLocale(s.locale);
+    document.documentElement.lang = s.locale || 'en';
+    applyStatic(document);
+  }
+
   body.dataset.page = s.page;
   body.classList.toggle('is-chrome-hidden', s.chromeHidden);
   body.classList.toggle('is-unfocused', !s.focused);

@@ -83,6 +83,7 @@
     chromeHidden: false,
     focused: true,
     autoShow: true,
+    locale: 'en',
     banner: null,
 
     queue: { total: queueItems.length, pos: 0, current: queueItems[0] },
@@ -103,7 +104,14 @@
 
   const scenario = (over) => ({ ...base, ...over });
 
+  const withLocale = (base, l) => {
+    const out = {};
+    for (const [k, v] of Object.entries(base)) out[k] = { ...v, locale: l };
+    return out;
+  };
+
   root.PreviewState = {
+    withLocale,
     viewer: {
       queue: scenario({}),
       'queue mid': scenario({ queue: { total: queueItems.length, pos: 4, current: queueItems[4] } }),

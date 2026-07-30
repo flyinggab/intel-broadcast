@@ -6,7 +6,7 @@
   "windowTitle": "Intel Broadcast Viewer",
   "uiScale": null,
   "autoShow": true,
-  "watchFolder": false,
+  "locale": null,
   "sendProfile": "kneeboard",
   "hotkeys": {
     "reveal": "Ctrl+Shift+I",

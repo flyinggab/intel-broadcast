@@ -39,10 +39,17 @@
   <div class="frame">
 
     <nav class="rail">
-      <button class="rail__item is-active" data-page="net">NETWORK</button>
-      <button class="rail__item" data-page="keys">KEYBINDS</button>
-      <button class="rail__item" data-page="log">LOG</button>
+      <button class="rail__item is-active" data-page="net" data-i18n="rail.network">NETWORK</button>
+      <button class="rail__item" data-page="keys" data-i18n="rail.keybinds">KEYBINDS</button>
+      <button class="rail__item" data-page="log" data-i18n="rail.log">LOG</button>
       <div class="rail__spacer"></div>
+      <div class="rail__lang">
+        <span class="cap" data-i18n="cap.language">Language</span>
+        <div class="keyrow" id="lang-keys">
+          <button class="key key--sm" data-locale="en">EN</button>
+          <button class="key key--sm" data-locale="it">IT</button>
+        </div>
+      </div>
       <div class="rail__version" id="rail-version"></div>
     </nav>
 
@@ -51,7 +58,7 @@
       <!-- ============================================ NETWORK ========== -->
       <section class="page page--pad stack" data-page="net">
         <div>
-          <span class="cap">Callsign &mdash; how the squad sees you</span>
+          <span class="cap" data-i18n="cap.callsign">Callsign</span>
           <div class="field field--lead selectable">
             <input id="in-callsign" value="" maxlength="24" />
           </div>
@@ -64,19 +71,19 @@
         </div>
 
         <div>
-          <span class="cap">Where is the relay?</span>
+          <span class="cap" data-i18n="cap.whereRelay">Where is the relay?</span>
           <button class="choice" data-set-mode="host" id="choice-host">
             <i class="choice__radio"></i>
             <span class="choice__text">
-              <span class="choice__label">I HOST THE SQUAD</span>
-              <span class="choice__hint">THIS MACHINE RUNS THE RELAY &mdash; YOU HAND OUT THE CODE</span>
+              <span class="choice__label" data-i18n="choice.host">I HOST THE SQUAD</span>
+              <span class="choice__hint" data-i18n="choice.hostHint">THIS MACHINE RUNS THE RELAY</span>
             </span>
           </button>
           <button class="choice" data-set-mode="join" id="choice-join">
             <i class="choice__radio"></i>
             <span class="choice__text">
-              <span class="choice__label">I JOIN A SQUAD</span>
-              <span class="choice__hint">SOMEONE ELSE HOSTS &mdash; PASTE THE CODE THEY SENT YOU</span>
+              <span class="choice__label" data-i18n="choice.join">I JOIN A SQUAD</span>
+              <span class="choice__hint" data-i18n="choice.joinHint">SOMEONE ELSE HOSTS</span>
             </span>
           </button>
         </div>
@@ -84,15 +91,15 @@
         <!-- ---------------- HOST path ---------------- -->
         <div data-mode="host" class="stack">
           <div>
-            <span class="cap">Your squad code &mdash; treat it as a password</span>
+            <span class="cap" data-i18n="cap.squadCode">Your squad code</span>
             <div class="field selectable">
               <span class="field__code" id="squad-code"></span>
             </div>
           </div>
-          <button class="key key--primary" id="btn-copy-code">COPY SQUAD CODE</button>
+          <button class="key key--primary" id="btn-copy-code" data-i18n="net.copyCode">COPY SQUAD CODE</button>
 
           <div>
-            <span class="cap">Internet link &mdash; via Tailscale</span>
+            <span class="cap" data-i18n="cap.internetLink">Internet link</span>
             <div class="step" id="step-install">
               <i class="step__mark"></i><span class="step__n">01</span>
               <span class="step__title">TAILSCALE</span>
@@ -112,15 +119,15 @@
 
           <div class="cellrow">
             <div class="cell">
-              <span class="cap">Port</span>
+              <span class="cap" data-i18n="cap.port">Port</span>
               <span class="cell__val cell__val--mono" id="net-port"></span>
             </div>
             <div class="cell">
-              <span class="cap">Token</span>
+              <span class="cap" data-i18n="cap.token">Token</span>
               <span class="cell__val cell__val--mono" id="net-token"></span>
             </div>
           </div>
-          <button class="key key--sm" id="btn-new-token">NEW TOKEN &mdash; INVALIDATES EVERY CODE</button>
+          <button class="key key--sm" id="btn-new-token" data-i18n="net.newToken">NEW TOKEN</button>
         </div>
 
         <!-- ---------------- JOIN path: same step idiom ---------------- -->
@@ -128,73 +135,73 @@
           <div class="step step--tall is-running" id="join-step1">
             <i class="step__mark"></i><span class="step__n">01</span>
             <div class="step__body">
-              <span class="step__title">PASTE THE SQUAD CODE</span>
+              <span class="step__title" data-i18n="step.pasteCode">PASTE THE SQUAD CODE</span>
               <div class="step__row">
                 <div class="field field--mono selectable">
                   <input id="in-code" placeholder="IB1-&hellip;" />
                 </div>
-                <button class="key key--sm" id="btn-paste">PASTE</button>
+                <button class="key key--sm" id="btn-paste" data-i18n="net.paste">PASTE</button>
               </div>
             </div>
           </div>
           <div class="step step--tall" id="join-step2">
             <i class="step__mark"></i><span class="step__n">02</span>
             <div class="step__body">
-              <span class="step__title">CONNECT</span>
+              <span class="step__title" data-i18n="step.connect">CONNECT</span>
               <div class="meta" id="join-resolved" style="margin-top:.3rem">PASTE A CODE TO CONNECT</div>
               <div class="step__row step__row--full">
-                <button class="key key--primary" id="btn-connect" disabled>CONNECT</button>
+                <button class="key key--primary" id="btn-connect" disabled data-i18n="net.connect">CONNECT</button>
               </div>
             </div>
           </div>
-          <div class="meta">THE CODE CARRIES HOST, PORT AND TOKEN<br />NOTHING ELSE TO TYPE</div>
+          <div class="meta"><span data-i18n="net.codeCarries">THE CODE CARRIES HOST, PORT AND TOKEN</span><br /><span data-i18n="net.nothingElse">NOTHING ELSE TO TYPE</span></div>
         </div>
 
         <div>
-          <span class="cap">Pilots on net &mdash; <span id="net-count">0</span></span>
+          <span class="cap"><span data-i18n="cap.pilots">Pilots on net &mdash;</span> <span id="net-count">0</span></span>
           <div class="well" id="net-pilots"></div>
         </div>
       </section>
 
       <!-- ============================================ KEYBINDS ========= -->
       <section class="page page--pad stack" data-page="keys">
-        <span class="cap">Global keybinds &mdash; this machine</span>
+        <span class="cap" data-i18n="cap.keybinds">Global keybinds</span>
 
-        <div class="bind2"><span class="cap">Reveal</span>
+        <div class="bind2"><span class="cap" data-i18n="bind.reveal">Reveal</span>
           <div class="bind2__row"><div class="field field--mono"></div><button class="key key--sm" data-record="reveal">RECORD</button></div></div>
-        <div class="bind2"><span class="cap">Previous</span>
+        <div class="bind2"><span class="cap" data-i18n="bind.prev">Previous</span>
           <div class="bind2__row"><div class="field field--mono"></div><button class="key key--sm" data-record="prev">RECORD</button></div></div>
-        <div class="bind2"><span class="cap">Next</span>
+        <div class="bind2"><span class="cap" data-i18n="bind.next">Next</span>
           <div class="bind2__row"><div class="field field--mono"></div><button class="key key--sm" data-record="next">RECORD</button></div></div>
-        <div class="bind2"><span class="cap">Hide chrome</span>
+        <div class="bind2"><span class="cap" data-i18n="bind.hide">Hide chrome</span>
           <div class="bind2__row"><div class="field field--mono"></div><button class="key key--sm" data-record="hide">RECORD</button></div></div>
-        <div class="bind2"><span class="cap">Open setup</span>
+        <div class="bind2"><span class="cap" data-i18n="bind.settings">Open setup</span>
           <div class="bind2__row"><div class="field field--mono"></div><button class="key key--sm" data-record="settings">RECORD</button></div></div>
 
-        <div class="meta">ONE APP OWNS A GLOBAL KEY AT A TIME</div>
+        <div class="meta" data-i18n="bind.oneOwner">ONE APP OWNS A GLOBAL KEY AT A TIME</div>
       </section>
 
       <!-- ============================================ LOG ============== -->
       <section class="page page--pad stack" data-page="log">
         <div class="cellrow">
-          <div class="cell"><span class="cap">Version</span><span class="cell__val cell__val--mono" id="log-version"></span></div>
-          <div class="cell"><span class="cap">Sent</span><span class="cell__val cell__val--mono" id="log-sent"></span></div>
-          <div class="cell"><span class="cap">Received</span><span class="cell__val cell__val--mono" id="log-recv"></span></div>
-          <div class="cell"><span class="cap">Drops</span><span class="cell__val cell__val--mono" id="log-drops"></span></div>
+          <div class="cell"><span class="cap" data-i18n="cap.version">Version</span><span class="cell__val cell__val--mono" id="log-version"></span></div>
+          <div class="cell"><span class="cap" data-i18n="cap.sent">Sent</span><span class="cell__val cell__val--mono" id="log-sent"></span></div>
+          <div class="cell"><span class="cap" data-i18n="cap.received">Received</span><span class="cell__val cell__val--mono" id="log-recv"></span></div>
+          <div class="cell"><span class="cap" data-i18n="cap.drops">Drops</span><span class="cell__val cell__val--mono" id="log-drops"></span></div>
         </div>
 
         <div>
-          <span class="cap">Log file</span>
+          <span class="cap" data-i18n="cap.logFile">Log file</span>
           <div class="field field--mono truncate selectable" id="log-path"></div>
         </div>
 
         <div class="keyrow">
-          <button class="key key--sm" id="btn-open-log">OPEN LOG</button>
-          <button class="key key--sm" id="btn-copy-path">COPY PATH</button>
+          <button class="key key--sm" id="btn-open-log" data-i18n="log.open">OPEN LOG</button>
+          <button class="key key--sm" id="btn-copy-path" data-i18n="log.copyPath">COPY PATH</button>
         </div>
 
         <div>
-          <span class="cap">Last events</span>
+          <span class="cap" data-i18n="cap.lastEvents">Last events</span>
           <div class="tail" id="log-tail"></div>
         </div>
       </section>
@@ -207,11 +214,12 @@
        there is something to commit (callsign or relay mode). -->
   <footer class="savebar">
     <div class="savebar__state">
-      <span class="cap" id="save-state">ALL CHANGES APPLIED</span>
+      <span class="cap" id="save-state"></span>
     </div>
-    <button class="key key--cta" id="btn-save" disabled>SAVE &amp; APPLY</button>
+    <button class="key key--cta" id="btn-save" disabled data-i18n="save.cta">SAVE &amp; APPLY</button>
   </footer>
 </div>
+<script src="i18n.js"></script>
 <script src="viewer/format.js"></script>
 <script src="settings/settings.js"></script>
 </body>

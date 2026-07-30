@@ -70,9 +70,9 @@
         </div>
         <div class="stage__standby" id="stage-standby">
           <div class="plate stage__standby-plate">
-            <p class="plate__title">STANDBY</p>
-            <p class="plate__sub" id="standby-line1">NO INTEL RECEIVED</p>
-            <p class="plate__sub" id="standby-line2">SINCE POWER UP</p>
+            <p class="plate__title" data-i18n="standby.title">STANDBY</p>
+            <p class="plate__sub" id="standby-line1"></p>
+            <p class="plate__sub" id="standby-line2"></p>
           </div>
         </div>
       </div>
@@ -88,8 +88,8 @@
            settings: one tap, ground use. OFF still shows the QUEUED banner,
            so an arrival is never silent. -->
       <div class="toggle toggle--flush" id="tg-autoshow" role="switch" aria-checked="true">
-        <span class="toggle__label">SHOW NEW INTEL ON ARRIVAL
-          <span class="meta toggle__hint">SWITCHES THE BRIEF FOR YOU · OFF = BANNER ONLY</span></span>
+        <span class="toggle__label"><span data-i18n="received.autoshow">SHOW NEW INTEL ON ARRIVAL</span>
+          <span class="meta toggle__hint" data-i18n="received.autoshowHint">SWITCHES THE BRIEF FOR YOU · OFF = BANNER ONLY</span></span>
         <i class="switch"></i>
       </div>
       <div id="batches"></div>
@@ -99,11 +99,11 @@
     <section class="page page--pad stack" data-page="share">
       <div class="cellrow">
         <div class="cell">
-          <span class="cap">Folder</span>
+          <span class="cap" data-i18n="cap.folder">Folder</span>
           <span class="cell__val truncate" id="share-folder"></span>
         </div>
         <div class="cell">
-          <span class="cap">Selected</span>
+          <span class="cap" data-i18n="cap.selected">Selected</span>
           <span class="cell__val" id="share-count"></span>
         </div>
       </div>
@@ -111,11 +111,11 @@
       <div class="tiles" id="share-grid"></div>
 
       <div class="keyrow">
-        <button class="key--sm key" id="share-all">SELECT ALL</button>
-        <button class="key--sm key" id="share-none">NONE</button>
-        <button class="key--sm key" id="share-rescan">RESCAN</button>
+        <button class="key--sm key" id="share-all" data-i18n="share.all">SELECT ALL</button>
+        <button class="key--sm key" id="share-none" data-i18n="share.none">NONE</button>
+        <button class="key--sm key" id="share-rescan" data-i18n="share.rescan">RESCAN</button>
         <!-- The folder lives here, next to what it feeds — not in settings. -->
-        <button class="key--sm key" id="share-folder-btn">FOLDER&hellip;</button>
+        <button class="key--sm key" id="share-folder-btn" data-i18n="share.folderBtn">FOLDER&hellip;</button>
       </div>
 
       <!-- No printed hotkey here: bindings live in SETUP → KEYS. -->
@@ -126,33 +126,33 @@
          The only screen in the app that uses the fault hue. -->
     <section class="page page--pad stack" data-page="fault">
       <div class="plate plate--fault">
-        <p class="plate__title">RELAY LOST</p>
-        <p class="plate__sub">RECONNECTING</p>
+        <p class="plate__title" data-i18n="fault.title">RELAY LOST</p>
+        <p class="plate__sub" data-i18n="fault.reconnecting">RECONNECTING</p>
         <p class="meta" id="fault-attempt" style="margin-top:.5rem"></p>
       </div>
 
       <div class="cellrow">
         <div class="cell">
-          <span class="cap">Last contact</span>
+          <span class="cap" data-i18n="cap.lastContact">Last contact</span>
           <span class="cell__val cell__val--mono" id="fault-last"></span>
         </div>
         <div class="cell">
-          <span class="cap">Relay</span>
+          <span class="cap" data-i18n="cap.relay">Relay</span>
           <span class="cell__val truncate" id="fault-relay"></span>
         </div>
       </div>
 
       <div>
-        <span class="cap">Still available offline</span>
+        <span class="cap" data-i18n="cap.offline">Still available offline</span>
         <div class="well" style="padding:var(--sp-4)">
           <div class="val" style="font-size:var(--fs-key)" id="fault-cached"></div>
-          <div class="meta" style="margin-top:.35rem">BROWSE AND SHARE STILL WORK</div>
+          <div class="meta" style="margin-top:.35rem" data-i18n="fault.offlineHint">BROWSE AND SHARE STILL WORK</div>
         </div>
       </div>
 
       <div class="keyrow">
-        <button class="key" id="fault-retry">RETRY NOW</button>
-        <button class="key" id="fault-setup">OPEN SETUP</button>
+        <button class="key" id="fault-retry" data-i18n="fault.retry">RETRY NOW</button>
+        <button class="key" id="fault-setup" data-i18n="fault.openSetup">OPEN SETUP</button>
       </div>
     </section>
 
@@ -162,24 +162,25 @@
   <nav class="tabbar">
     <button class="tab is-active" data-tab="brief">
       <svg class="tab__icon" viewBox="0 0 20 20"><rect x="3" y="2" width="14" height="16"/><path d="M6 7h8M6 11h8M6 15h5"/></svg>
-      BRIEF
+      <span data-i18n="tab.brief">BRIEF</span>
     </button>
     <button class="tab" data-tab="received">
       <svg class="tab__icon" viewBox="0 0 20 20"><path d="M10 2v9M6 8l4 4 4-4" stroke-linecap="round"/><path d="M3 14h14v4H3z"/></svg>
-      RECEIVED
+      <span data-i18n="tab.received">RECEIVED</span>
     </button>
     <button class="tab" data-tab="share">
       <svg class="tab__icon" viewBox="0 0 20 20"><path d="M10 13V4M6 7l4-4 4 4" stroke-linecap="round"/><path d="M3 14h14v4H3z"/></svg>
-      SHARE
+      <span data-i18n="tab.share">SHARE</span>
     </button>
     <!-- opens the SEPARATE settings window; does not switch a page here -->
     <button class="tab" data-tab="setup" id="tab-setup">
       <svg class="tab__icon" viewBox="0 0 20 20"><path d="M2 5h16M2 10h16M2 15h16"/><circle cx="7" cy="5" r="2" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="2" fill="currentColor" stroke="none"/><circle cx="6" cy="15" r="2" fill="currentColor" stroke="none"/></svg>
-      SETUP
+      <span data-i18n="tab.setup">SETUP</span>
     </button>
   </nav>
 
 </div>
+<script src="i18n.js"></script>
 <script src="viewer/format.js"></script>
 <script src="viewer/viewer.js"></script>
 </body>

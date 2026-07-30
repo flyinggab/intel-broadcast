@@ -50,7 +50,7 @@ child.on('exit', () => {
   let failed = false;
 
   for (const r of results) {
-    const label = `${r.file} @ ${r.scale}`;
+    const label = `${r.file} @ ${r.scale} [${r.locale}]`;
 
     // §6.8 — the vendored font actually loaded (no network involved here).
     if (!r.font.loaded) {

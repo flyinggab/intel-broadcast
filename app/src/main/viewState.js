@@ -43,6 +43,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     chromeHidden: false,
     focused: true,
     autoShow: true,
+    locale: 'en', // display language; both renderers translate through it
     banner: null, // { who, count, switched, at } — at keys the renderer's dismiss timer
 
     // received — the queue's backing store.
@@ -266,6 +267,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
       chromeHidden: state.chromeHidden,
       focused: state.focused,
       autoShow: state.autoShow,
+      locale: state.locale,
       banner: state.banner,
 
       queue: {

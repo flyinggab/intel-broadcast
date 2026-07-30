@@ -15,6 +15,7 @@ const { createViewState } = require('./viewState');
 const { createImagePrep } = require('./imagePrep');
 const squad = require('./squadCode');
 const { createTray } = require('./tray');
+const i18n = require('../renderer/i18n');
 const { initFileLogging, getLogFilePath, recentLines } = require('./logger');
 const tailscale = require('./tailscale');
 const {
@@ -44,6 +45,7 @@ protocol.registerSchemesAsPrivileged([
 
 let config = loadConfig();
 let viewer = null;
+let tray = null;
 let relayServer = null;
 let relayClient = null;
 
@@ -53,6 +55,18 @@ const prep = createImagePrep({ onLog: (msg) => console.log(`[prep] ${msg}`) });
 
 function isHost() {
   return config.relayHostEnabled === true;
+}
+/** Explicit config wins; otherwise follow the OS, defaulting to English. */
+function effectiveLocale() {
+  if (config.locale === 'en' || config.locale === 'it') return config.locale;
+  return String(app.getLocale() || '').toLowerCase().startsWith('it') ? 'it' : 'en';
+}
+/** Applies the locale to view state and to main's own strings (tray, menu). */
+function applyLocale() {
+  const locale = effectiveLocale();
+  view.state.locale = locale;
+  i18n.setLocale(locale);
+  return locale;
 }
 function effectiveRelayUrl() {
   return isHost() ? `ws://127.0.0.1:${config.gm.relayPort}` : config.relayUrl;
@@ -427,12 +441,16 @@ async function handleTailscaleAction(action) {
 
 function applyNewConfig(newConfig) {
   const old = config;
+  const oldLocale = view.state.locale;
   config = newConfig;
 
   view.state.callsign = config.callsign;
   view.state.isHost = isHost();
   view.state.autoShow = config.autoShow !== false;
   view.state.profile = config.sendProfile || 'kneeboard';
+  // The menu and tray are built by main, so they need rebuilding by hand;
+  // the renderers pick the locale up from the next snapshot.
+  if (applyLocale() !== oldLocale) buildAppMenu();
 
   registerHotkeys();
 
@@ -595,6 +613,10 @@ async function handleSettingsIntent(intent, payload) {
       );
       return;
     }
+    case 'set-locale':
+      // A display preference, applied immediately — not a form value.
+      applyNewConfig(saveSettingsValues({ locale: payload === 'it' ? 'it' : 'en' }));
+      return;
     case 'set-hotkey':
       if (payload && payload.key && payload.accelerator) {
         applyNewConfig(saveSettingsValues({ hotkeys: { [payload.key]: payload.accelerator } }));
@@ -672,19 +694,8 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('settings:read-clipboard', () => clipboard.readText());
 
-  Menu.setApplicationMenu(
-    Menu.buildFromTemplate([
-      {
-        label: 'Intel Broadcast',
-        submenu: [
-          { label: 'Settings', click: openSettings },
-          { type: 'separator' },
-          { label: 'Quit', role: 'quit' },
-        ],
-      },
-    ]),
-  );
-  createTray({ onOpenSettings: openSettings });
+  buildAppMenu();
+  tray = createTray({ onOpenSettings: openSettings, t: i18n.t });
 
   view.state.callsign = config.callsign;
   view.state.isHost = isHost();
@@ -692,6 +703,7 @@ app.whenReady().then(() => {
   view.state.profile = config.sendProfile || 'kneeboard';
   view.state.logPath = getLogFilePath() || '';
   view.state.version = app.getVersion();
+  applyLocale();
 
   const initialPosition = isHost() ? { x: 80, y: 80 } : { x: 460, y: 200 };
   viewer = createViewerWindow({
@@ -817,6 +829,23 @@ function attachViewerProbe() {
       )
       .catch(() => {});
   }, 400);
+}
+
+/** The app menu, in the current language. Rebuilt when the locale changes. */
+function buildAppMenu() {
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: 'Intel Broadcast',
+        submenu: [
+          { label: i18n.t('menu.settings'), click: openSettings },
+          { type: 'separator' },
+          { label: i18n.t('menu.quit'), role: 'quit' },
+        ],
+      },
+    ]),
+  );
+  if (tray) tray.retranslate(i18n.t);
 }
 
 app.on('will-quit', () => {

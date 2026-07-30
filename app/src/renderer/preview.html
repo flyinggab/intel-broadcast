@@ -55,6 +55,8 @@
         <!-- scenario buttons are generated from PreviewState.viewer -->
         <button data-flag="is-chrome-hidden">chrome hidden</button>
         <button data-flag="is-unfocused">unfocused</button>
+        <button data-locale="en" class="on">EN</button>
+        <button data-locale="it">IT</button>
       </div>
       <div class="device"><iframe id="fv" src="viewer.html"></iframe></div>
       <div class="note">Check "chrome hidden" against "queue": that is what reaches the
@@ -89,12 +91,21 @@
       ctl.insertBefore(b, first);
     }
 
+    let locale = 'en';
+    let scenario = 'queue';
     const apply = (name) => {
+      scenario = name || scenario;
       const win = frame.contentWindow;
       if (!win.__preview) return; // frame still loading
-      win.__preview.render(PreviewState.viewer[name]);
+      win.__preview.render({ ...PreviewState.viewer[scenario], locale });
       ctl.querySelectorAll('[data-scenario]').forEach((x) =>
-        x.classList.toggle('on', x.dataset.scenario === name));
+        x.classList.toggle('on', x.dataset.scenario === scenario));
+    };
+    // shared by both frames, so the whole preview switches language at once
+    window.__setLocale = (l) => {
+      locale = l;
+      ctl.querySelectorAll('[data-locale]').forEach((x) => x.classList.toggle('on', x.dataset.locale === l));
+      apply();
     };
 
     ctl.addEventListener('click', (e) => {
@@ -106,6 +117,10 @@
         body.classList.toggle(b.dataset.flag);
         b.classList.toggle('on', body.classList.contains(b.dataset.flag));
       }
+      if (b.dataset.locale) {
+        window.__setLocale(b.dataset.locale);
+        window.__renderSettings(b.dataset.locale);
+      }
     });
 
     frame.addEventListener('load', () => apply('queue'));
@@ -114,9 +129,14 @@
 
   function wireSettings() {
     const frame = document.getElementById('fs');
+    let locale = 'en';
     const apply = () => {
       const win = frame.contentWindow;
-      if (win.__preview) win.__preview.render(PreviewState.settings);
+      if (win.__preview) win.__preview.render({ ...PreviewState.settings, locale });
+    };
+    window.__renderSettings = (l) => {
+      locale = l;
+      apply();
     };
     frame.addEventListener('load', apply);
     if (frame.contentWindow.__preview) apply();

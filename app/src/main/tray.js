@@ -14,17 +14,22 @@ const PLACEHOLDER_ICON_DATA_URL =
  * Returns null (and logs) instead of throwing if Tray isn't supported on
  * this platform/session, so it can never take the whole app down.
  */
-function createTray({ onOpenSettings }) {
+function createTray({ onOpenSettings, t = (key) => key }) {
   try {
     const tray = new Tray(nativeImage.createFromDataURL(PLACEHOLDER_ICON_DATA_URL));
     tray.setToolTip('Intel Broadcast');
-    tray.setContextMenu(
-      Menu.buildFromTemplate([
-        { label: 'Settings', click: onOpenSettings },
-        { type: 'separator' },
-        { label: 'Quit', click: () => app.quit() },
-      ]),
-    );
+    const buildMenu = (translate) =>
+      tray.setContextMenu(
+        Menu.buildFromTemplate([
+          { label: translate('menu.settings'), click: onOpenSettings },
+          { type: 'separator' },
+          { label: translate('menu.quit'), click: () => app.quit() },
+        ]),
+      );
+    buildMenu(t);
+    // A tray menu is built once and cached by the OS, so a locale change has
+    // to rebuild it — nothing re-renders it the way a snapshot does.
+    tray.retranslate = buildMenu;
     return tray;
   } catch (err) {
     console.error(`[tray] failed to create tray icon (unsupported on this platform/session?): ${err.message}`);
