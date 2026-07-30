@@ -1,11 +1,12 @@
 # Intel Photo Broadcast System (keybind-triggered, cross-client)
 
-## Session status / how to resume (2026-07-29)
+## Session status / how to resume (2026-07-30)
 
 **Read this section first in a fresh session.** Everything below it is the original design
 writeup — still accurate architecturally, but some implementation details (`--gm` flag, fixed
-window frame) it describes were later superseded; the "How it works" section of `README.md` and
-this section reflect current reality more precisely than the body text further down.
+window frame, restart-to-apply settings, fixed 850×1202 window size) it describes were later
+superseded; the "How it works" section of `README.md` and this section reflect current reality
+more precisely than the body text further down.
 
 **Repo**: `~/intel-broadcast`, pushed to `https://github.com/flyinggab/intel-broadcast` (public).
 Current `main` HEAD as of this writing: `6fa5d9f`. Run `git log --oneline` for the authoritative
@@ -13,11 +14,13 @@ list — don't trust hardcoded hashes here once more commits land.
 
 **⚠️ The published release is stale — rebuild before further cross-machine/Tailscale testing.**
 `v0.1.0` (https://github.com/flyinggab/intel-broadcast/releases/tag/v0.1.0) is tagged at commit
-`d1ed98d`, which is **missing the two most recent feature commits**:
+`d1ed98d`, which is **missing every feature commit since**, including:
 - `bb80b7e` — replaced the `--gm` launch flag with a Settings checkbox (`gmModeEnabled` in config).
   The released build still needs `--gm` on the command line to enable GM mode at all — there's no
   way to turn it on from the UI in that build.
 - `6fa5d9f` — `INTEL_BROADCAST_LOCAL_CONFIG_PATH` for testing two instances on one machine.
+- the 2026-07-30 session's work: display-proportional UI scaling (4K fix), live settings apply
+  (no more restart), and the Connected-clients list — see "What's built" below.
 
 To cut a fresh release: bump/retag `v0.1.0` (delete the old release + tag first —
 `gh release delete v0.1.0 --repo flyinggab/intel-broadcast --yes --cleanup-tag`, then
@@ -41,11 +44,37 @@ round-trip.
 - Phase 2 — GM hotkey + embedded relay, fan-out to viewers. `dev-e2e-gm-test.js` (now runs GM +
   viewer as genuinely concurrent processes with isolated configs).
 - Settings window: folder picker, relay port/token, click-to-record hotkeys (not typed
-  accelerator strings), GM-mode toggle. `dev-e2e-settings-test.js` (real IPC path),
-  `dev-e2e-hotkey-record-test.js` (real click + synthetic keydown → capture),
+  accelerator strings), GM-mode toggle, callsign/username field. `dev-e2e-settings-test.js`
+  (real IPC path), `dev-e2e-hotkey-record-test.js` (real click + synthetic keydown → capture),
   `dev-settings-save-test.js` (deep-merge unit test), `dev-hotkey-config-load-test.js` (fresh
-  process picks up saved hotkeys), `dev-e2e-relaunch-test.js` (the *actual* save → `app.relaunch()`
-  → re-register cycle, not a shortcut around it).
+  process picks up saved hotkeys).
+- **Live settings apply (2026-07-30)** — saving no longer relaunches the app. index.js was
+  restructured around mutable state + `applyNewConfig()`: hotkeys always re-register
+  (unregisterAll → re-register); the embedded relay server stops/starts on GM-toggle or
+  port/token change (relayServer.close() now *terminates* client sockets and takes a completion
+  callback — `wss.close()` alone leaves the port held and old sockets dangling); the relay
+  client reconnects on URL/token/callsign change; photos folder is resolved at reveal time.
+  `dev-e2e-live-apply-test.js` (replaced `dev-e2e-relaunch-test.js`, which tested the removed
+  relaunch flow) proves the same process swaps the reveal hotkey AND restarts the relay on a new
+  port/token, with a real ws probe receiving a broadcast. `dev-e2e-settings-test.js` now *fails*
+  if the app exits after a save.
+- **Display-proportional UI scaling (2026-07-30, the "text is tiny on 4K" fix)** — `scaling.js`
+  (pure math, no Electron): windows are sized from the display's DIP work area (viewer keeps A4
+  portrait at 85% of work height; settings scales from its 480×760 design size vs. a
+  1080p-baseline 1040px work height, clamped [1,3]) and renderer content is zoomed to match via
+  `webFrame.setZoomFactor` in the preloads (per-window; `webContents` zoom is per-origin and
+  both windows share `file://`, so one would clobber the other). Zoom value travels via a
+  `uiZoom` load-URL query param. `"uiScale": <number>` in config.local.json overrides
+  auto-detection; saves preserve it (tested). `dev-scaling-test.js` (unit math),
+  `dev-e2e-settings-test.js`'s ZOOM_PROBE (renderer innerWidth confirms the zoom really applied).
+  This sandbox's WSLg reports a 3840×2160 work area at scale factor 1 — exactly the reported bug.
+- **Connected-clients list in Settings (2026-07-30)** — relayServer tracks authenticated
+  clients' `{role, callsign, connectedAt}` (Map, was a bare Set), exposes `getConnectedClients()`
+  + an `onClientsChanged` callback; index forwards to the settings window via
+  `pushConnectedClients()` and the init payload. GM-mode Settings renders the live list
+  (callsigns are remote strings — rendered with textContent, never innerHTML). Pilot field
+  relabeled "Callsign / username (shown to your GM)". `dev-e2e-clients-list-test.js` (join AND
+  leave reach the settings DOM).
 
 **Real bugs found and fixed this session** (via the tests above, not just code review — worth
 knowing the *shape* of what broke, since it's the kind of thing that could regress):
@@ -62,11 +91,11 @@ knowing the *shape* of what broke, since it's the kind of thing that could regre
    the way `app.quit()` does, so the cleanup handler that unregisters hotkeys never ran on that
    path, and the old process's registrations could linger through the handoff to the relaunched
    process. Fixed by calling `globalShortcut.unregisterAll()` explicitly in the save handler.
-   Verified with `dev-e2e-relaunch-test.js`, which drives the *real* relaunch (not
-   `INTEL_BROADCAST_NO_RELAUNCH`-suppressed) and confirms the second-generation process registers
-   the new value. **This was reported fixed by testing in this sandbox, but the user has not yet
-   explicitly re-confirmed it's resolved on their end** after the subsequent GM-mode-via-settings
-   change landed on top of it — worth a direct check if picking this back up.
+   **2026-07-30: this whole class of bug is gone** — the save → relaunch flow was removed
+   entirely (settings apply live in the same process now; `INTEL_BROADCAST_NO_RELAUNCH` and
+   `dev-e2e-relaunch-test.js` no longer exist), so there is no process handoff for registrations
+   to linger through. Kept here because the `app.exit()`-doesn't-fire-`will-quit` asymmetry is
+   still true and worth remembering if a relaunch path ever comes back.
 4. Release pipeline: `mac.arch` isn't a valid top-level property (must nest under
    `mac.target[].arch`); npm script CLI args silently override `package.json` build config;
    electron-builder's GitHub publisher defaults to draft releases with a placeholder
@@ -154,7 +183,7 @@ intel-broadcast/                    # ~/intel-broadcast, sibling to ~/dcs-worksp
     │   │   ├── viewerWindow.js      # capture-friendly BrowserWindow
     │   │   ├── gmHotkey.js          # registers globalShortcut, reads photo folder, sends + shows locally
     │   │   ├── tray.js              # Tray icon + "Settings"/"Quit" context menu
-    │   │   └── settingsWindow.js    # GM/pilot config form -> config.local.json, restart to apply
+    │   │   └── settingsWindow.js    # GM/pilot config form -> config.local.json, applies live
     │   ├── preload/
     │   └── renderer/
     │       ├── viewer/              # fullscreen <img>, idle/disconnected states
@@ -190,12 +219,12 @@ Photos: for quick testing, `app/photos/<mission-name>/` holds bundled JPEGs (e.g
 
 **GM hotkey behavior** (`gmHotkey.js`): registers a single global shortcut (default `Ctrl+Shift+I`, configurable) via Electron's `globalShortcut` module — fires regardless of which window/app has OS focus, including while DCS is fullscreen. On press: reads every file in the configured photos folder (see Settings page below), updates the GM's own viewer window immediately with the full batch (direct IPC, no network round-trip needed for self), and hands the same batch to the local `relayServer` for fan-out to everyone else. The GM's machine therefore runs the exact same viewer window (with the same next/prev browsing hotkeys) as everyone else, plus the embedded relay server and this one extra reveal hotkey — not a separate UI, just extra background responsibilities enabled by `--gm`.
 
-**Settings page** (new, added after initial Phases 0–2 build-and-test; superseded the `--gm` launch flag entirely afterward — see below): rather than requiring anyone to hand-edit `config.local.json`, a small settings window — reached via a system Tray icon, the app's own minimal menu bar, or a configurable hotkey (default `Ctrl+Shift+O`) — lets each role configure what it needs through a normal form, saved to `config.local.json` (already the established override mechanism) and applied via restart:
+**Settings page** (new, added after initial Phases 0–2 build-and-test; superseded the `--gm` launch flag entirely afterward — see below): rather than requiring anyone to hand-edit `config.local.json`, a small settings window — reached via a system Tray icon, the app's own minimal menu bar, or a configurable hotkey (default `Ctrl+Shift+O`) — lets each role configure what it needs through a normal form, saved to `config.local.json` (already the established override mechanism) and applied live on save (see last bullet):
 - **A "Enable Game Master mode" checkbox is the mode switch now, not a launch flag.** One app, one shortcut/build for everyone — checking the box and saving is how a session's GM is designated, toggleable live in the same settings window (fields for both roles are always in the DOM; the checkbox just shows/hides them).
 - **GM fields**: which folder to share (native folder picker, `dialog.showOpenDialog`, replaces the earlier fixed `photos/<mission-name>/` convention with an arbitrary absolute path so nothing needs to be copied into the app's own directory), the embedded relay's listen port, and the shared token. Also surfaces read-only guidance for the Tailscale Funnel step (the local `ws://localhost:<port>` address, and instructions for running `tailscale funnel <port>` so pilots outside the LAN can reach it) — full Tailscale CLI automation is out of scope, this is guidance text plus the values needed, not a driver for the `tailscale` binary.
 - **Pilot fields**: relay URL, token, callsign — lets them override a squad build's baked-in defaults without needing a rebuild if the GM's Funnel hostname ever changes.
 - **Hotkeys** (reveal, next/prev browsing, open-settings) are click-to-record, not typed accelerator strings: click "Record," press the combo, it's captured and formatted automatically (Escape cancels).
-- Settings changes require an app restart to take effect (`app.relaunch()` + `app.exit()`) rather than hot-reloading config mid-session — simplest correct behavior given how little the settings change. `app.exit()` does *not* fire Electron's `will-quit` the way `app.quit()` does, so the save handler explicitly calls `globalShortcut.unregisterAll()` itself before relaunching — otherwise stale registrations from the old process could linger through the handoff.
+- Settings changes apply live on save *(superseded the original restart-to-apply design on 2026-07-30)*: hotkeys re-register, the embedded relay server restarts only when its port/token/GM-toggle changed, and the relay client reconnects only when URL/token/callsign changed — an unrelated save never drops anyone's connection. The GM's settings window also shows a live "Connected clients" list (each client's callsign/username, pushed on join/leave).
 
 ## Installation/distribution
 

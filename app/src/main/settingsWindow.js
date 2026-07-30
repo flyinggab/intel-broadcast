@@ -2,8 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const { BrowserWindow, ipcMain, dialog, app, globalShortcut } = require('electron');
+const { BrowserWindow, ipcMain, dialog, screen } = require('electron');
 const { LOCAL_CONFIG_PATH } = require('./config');
+const { computeSettingsBounds } = require('./scaling');
 
 let settingsWindow = null;
 
@@ -33,8 +34,13 @@ function saveSettingsValues(values) {
   return merged;
 }
 
-/** Registers the IPC handlers the settings renderer talks to. Call once at startup. */
-function registerSettingsIpc() {
+/**
+ * Registers the IPC handlers the settings renderer talks to. Call once at
+ * startup. `onSaved` is index.js's live-apply entry point: it re-loads the
+ * config and restarts whatever the changed values affect (hotkeys, relay
+ * server, relay client) in-process — saves no longer relaunch the app.
+ */
+function registerSettingsIpc({ onSaved }) {
   ipcMain.handle('settings:browse-folder', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const result = await dialog.showOpenDialog(win, { properties: ['openDirectory'] });
@@ -44,32 +50,43 @@ function registerSettingsIpc() {
 
   ipcMain.handle('settings:save', (_event, values) => {
     saveSettingsValues(values);
-    // app.exit() (needed for an immediate restart) does NOT fire 'will-quit'
-    // the way app.quit() does, so the app-level cleanup handler that
-    // unregisters hotkeys on normal quit never runs on this path — without
-    // this explicit call, the old process's hotkey registrations could still
-    // be held during the handoff to the relaunched process.
-    globalShortcut.unregisterAll();
-    // Dev/test-only: skips the relaunch so an automated test doesn't spawn an
-    // orphaned second instance it then has to hunt down and kill.
-    if (!process.env.INTEL_BROADCAST_NO_RELAUNCH) app.relaunch();
-    app.exit(0);
+    onSaved();
+    // Close after the invoke's reply has gone back to the renderer, so its
+    // save() promise resolves instead of dying with the window.
+    setImmediate(() => {
+      if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.close();
+    });
   });
 }
 
+/**
+ * Pushes a fresh connected-clients list ([{role, callsign, connectedAt}]) to
+ * the settings window, if one is open. No-op otherwise — the window gets a
+ * current snapshot in its init payload when (re)opened.
+ */
+function pushConnectedClients(clients) {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.webContents.send('connected-clients', clients);
+  }
+}
+
 /** Opens the settings window (or focuses it if already open). */
-function openSettingsWindow({ isGmMode, config }) {
+function openSettingsWindow({ isGmMode, config, getConnectedClients = () => [] }) {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.focus();
     return settingsWindow;
   }
 
+  const { width, height, zoom } = computeSettingsBounds(
+    screen.getPrimaryDisplay().workAreaSize,
+    config.uiScale,
+  );
+  console.log(`[settingsWindow] window ${width}x${height}, zoom ${zoom.toFixed(2)}`);
+
   settingsWindow = new BrowserWindow({
     title: 'Intel Broadcast Settings',
-    width: 480,
-    // Tall enough for GM fields, since the mode toggle is now live in-session
-    // (not fixed at launch) — switching to GM mode shouldn't clip content.
-    height: 680,
+    width,
+    height,
     resizable: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'settings-preload.js'),
@@ -78,12 +95,14 @@ function openSettingsWindow({ isGmMode, config }) {
     },
   });
   settingsWindow.setMenuBarVisibility(false);
-  settingsWindow.loadFile(path.join(__dirname, '..', 'renderer', 'settings', 'index.html'));
+  settingsWindow.loadFile(path.join(__dirname, '..', 'renderer', 'settings', 'index.html'), {
+    query: { uiZoom: String(zoom) },
+  });
   settingsWindow.webContents.on('did-finish-load', () => {
-    settingsWindow.webContents.send('init', { isGmMode, config });
+    settingsWindow.webContents.send('init', { isGmMode, config, connectedClients: getConnectedClients() });
   });
 
   return settingsWindow;
 }
 
-module.exports = { openSettingsWindow, registerSettingsIpc, saveSettingsValues };
+module.exports = { openSettingsWindow, registerSettingsIpc, saveSettingsValues, pushConnectedClients };

@@ -18,24 +18,38 @@ const ITEM_ID_LENGTH = 36; // ASCII UUID prefix on each binary frame
  * called in-process by gmHotkey.js in Electron, or via the standalone dev CLI
  * below when testing without Electron.
  */
-function createRelayServer({ port, token, onLog = () => {} }) {
+function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = () => {} }) {
   const wss = new WebSocketServer({ port });
-  const clients = new Set();
+  // ws -> { role, callsign, connectedAt } for every authenticated client —
+  // identity kept so the GM's settings window can show who's connected.
+  const clients = new Map();
+
+  // Without a handler, an 'error' event (e.g. EADDRINUSE when a live settings
+  // apply picks a port something else holds) would throw and take down the
+  // whole app instead of just logging.
+  wss.on('error', (err) => onLog(`server error: ${err.message}`));
 
   wss.on('connection', (ws) => {
     authenticateConnection(ws, token)
       .then((authMsg) => {
-        clients.add(ws);
+        clients.set(ws, { role: authMsg.role, callsign: authMsg.callsign || '', connectedAt: Date.now() });
         onLog(`client connected: role=${authMsg.role} callsign=${authMsg.callsign || '(none)'}`);
+        onClientsChanged(getConnectedClients());
         ws.on('close', () => {
           clients.delete(ws);
           onLog(`client disconnected: role=${authMsg.role} callsign=${authMsg.callsign || '(none)'}`);
+          onClientsChanged(getConnectedClients());
         });
       })
       .catch((err) => {
         onLog(`auth failed: ${err.message}`);
       });
   });
+
+  /** Snapshot of every authenticated client, ordered by connect time. */
+  function getConnectedClients() {
+    return [...clients.values()].sort((a, b) => a.connectedAt - b.connectedAt);
+  }
 
   /**
    * items: [{ filename, mimeType, buffer }]
@@ -64,7 +78,7 @@ function createRelayServer({ port, token, onLog = () => {} }) {
       return Buffer.concat([idBuf, item.buffer]);
     });
 
-    for (const ws of clients) {
+    for (const ws of clients.keys()) {
       if (ws.readyState !== ws.OPEN) continue;
       ws.send(metaFrame);
       for (const frame of binaryFrames) ws.send(frame, { binary: true });
@@ -74,11 +88,19 @@ function createRelayServer({ port, token, onLog = () => {} }) {
     return batchId;
   }
 
-  function close() {
-    wss.close();
+  /**
+   * Closes the server. wss.close() alone only stops the listener — it leaves
+   * established client sockets connected (to a server object nothing will
+   * ever broadcast through again), so terminate them explicitly. `done` fires
+   * once the port is fully released, which is what lets a live settings apply
+   * restart the relay on the same port without hitting EADDRINUSE.
+   */
+  function close(done = () => {}) {
+    for (const ws of wss.clients) ws.terminate();
+    wss.close(done);
   }
 
-  return { broadcastRevealBatch, close, wss };
+  return { broadcastRevealBatch, getConnectedClients, close, wss };
 }
 
 /**

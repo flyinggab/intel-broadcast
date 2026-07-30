@@ -20,7 +20,6 @@ const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
     ...process.env,
     INTEL_BROADCAST_OPEN_SETTINGS: '1',
     INTEL_BROADCAST_HOTKEY_RECORD_TEST: '1',
-    INTEL_BROADCAST_NO_RELAUNCH: '1',
   },
 });
 

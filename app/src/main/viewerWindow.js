@@ -1,26 +1,35 @@
 'use strict';
 
 const path = require('path');
-const { BrowserWindow, globalShortcut } = require('electron');
+const { BrowserWindow, screen } = require('electron');
+const { computeViewerBounds } = require('./scaling');
 
 /**
- * Creates the OpenKneeboard-Window-Capture-friendly viewer window, and
- * registers this pilot's own local next/prev browsing hotkeys (never touches
- * the network — purely local UI state in the renderer). Uses a normal, framed
- * OS window — OpenKneeboard's Window Capture doesn't need a frameless window
- * (it captures WhatsApp, which has a titlebar, without issue), and a normal
- * frame gets drag/resize/minimize for free instead of reimplementing it.
+ * Creates the OpenKneeboard-Window-Capture-friendly viewer window. Uses a
+ * normal, framed OS window — OpenKneeboard's Window Capture doesn't need a
+ * frameless window (it captures WhatsApp, which has a titlebar, without
+ * issue), and a normal frame gets drag/resize/minimize for free instead of
+ * reimplementing it.
+ *
+ * A4-portrait proportions (210mm x 297mm, ~1:1.4142 — kneeboard-page
+ * orientation), sized relative to the display's work area so it looks the
+ * same on a 4K screen as on 1080p instead of rendering tiny (see scaling.js).
+ * Next/prev browsing hotkeys are registered centrally by index.js (so a
+ * settings save can re-register them live) and arrive via navigate().
  */
-// A4 portrait proportions (210mm x 297mm, ~1:1.4142) — matches kneeboard-page
-// orientation rather than a landscape default.
-const A4_PORTRAIT_WIDTH = 850;
-const A4_PORTRAIT_HEIGHT = 1202;
+function createViewerWindow({ title, initialPosition, uiScale }) {
+  const display = initialPosition
+    ? screen.getDisplayNearestPoint(initialPosition)
+    : screen.getPrimaryDisplay();
+  const { width, height, zoom } = computeViewerBounds(display.workAreaSize, uiScale);
+  console.log(
+    `[viewerWindow] work area ${display.workAreaSize.width}x${display.workAreaSize.height} -> window ${width}x${height}, zoom ${zoom.toFixed(2)}`,
+  );
 
-function createViewerWindow({ title, hotkeys, initialPosition }) {
   const window = new BrowserWindow({
     title,
-    width: A4_PORTRAIT_WIDTH,
-    height: A4_PORTRAIT_HEIGHT,
+    width,
+    height,
     ...(initialPosition ? { x: initialPosition.x, y: initialPosition.y } : {}),
     backgroundColor: '#000000',
     webPreferences: {
@@ -34,16 +43,9 @@ function createViewerWindow({ title, hotkeys, initialPosition }) {
   // OpenKneeboard's Window Capture source targets it at configuration time.
   window.setTitle(title);
 
-  window.loadFile(path.join(__dirname, '..', 'renderer', 'viewer', 'index.html'));
-
-  if (hotkeys.next) {
-    const ok = globalShortcut.register(hotkeys.next, () => window.webContents.send('navigate', 'next'));
-    console.log(`[viewerWindow] register next "${hotkeys.next}": ${ok ? 'OK' : 'FAILED (already taken by another app?)'}`);
-  }
-  if (hotkeys.prev) {
-    const ok = globalShortcut.register(hotkeys.prev, () => window.webContents.send('navigate', 'prev'));
-    console.log(`[viewerWindow] register prev "${hotkeys.prev}": ${ok ? 'OK' : 'FAILED (already taken by another app?)'}`);
-  }
+  window.loadFile(path.join(__dirname, '..', 'renderer', 'viewer', 'index.html'), {
+    query: { uiZoom: String(zoom) },
+  });
 
   function toDataUrl(item) {
     return `data:${item.mimeType};base64,${item.buffer.toString('base64')}`;
@@ -62,7 +64,12 @@ function createViewerWindow({ title, hotkeys, initialPosition }) {
     window.webContents.send('connection-state', state);
   }
 
-  return { window, showBatch, setConnectionState };
+  function navigate(direction) {
+    if (window.isDestroyed()) return;
+    window.webContents.send('navigate', direction);
+  }
+
+  return { window, showBatch, setConnectionState, navigate };
 }
 
 module.exports = { createViewerWindow };

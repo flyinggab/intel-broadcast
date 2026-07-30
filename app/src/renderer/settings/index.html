@@ -85,6 +85,33 @@
   }
   .gm-toggle input { margin: 0; }
   .gm-toggle label { margin: 0; color: #ddd; }
+
+  #connected-clients {
+    background: #262626;
+    border-radius: 4px;
+    padding: 4px 10px;
+  }
+  .clients-empty { color: #777; padding: 6px 0; font-size: 0.85rem; }
+  .client-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid #2f2f2f;
+  }
+  .client-row:last-child { border-bottom: none; }
+  .client-callsign { flex: 1; color: #ddd; }
+  .client-callsign.unnamed { color: #888; font-style: italic; }
+  .client-role {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #9bc4a8;
+    background: #223327;
+    border: 1px solid #2f4f3a;
+    border-radius: 3px;
+    padding: 2px 6px;
+  }
 </style>
 </head>
 <body>
@@ -106,13 +133,18 @@
     <input type="number" id="relayPort" />
 
     <div id="tailscale-hint" class="hint"></div>
+
+    <h3>Connected clients</h3>
+    <div id="connected-clients">
+      <div class="clients-empty">No one connected yet.</div>
+    </div>
   </div>
 
   <div id="pilot-fields" style="display:none">
     <label for="relayUrl">Relay URL (from your GM)</label>
     <input type="text" id="relayUrl" placeholder="wss://your-gm-machine.tailnet.ts.net" />
 
-    <label for="callsign">Callsign (optional)</label>
+    <label for="callsign">Callsign / username (shown to your GM)</label>
     <input type="text" id="callsign" />
   </div>
 
@@ -143,7 +175,7 @@
     </div>
   </div>
 
-  <button id="save">Save &amp; Restart</button>
+  <button id="save">Save &amp; Apply</button>
 
   <script src="settings.js"></script>
 </body>

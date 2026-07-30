@@ -20,15 +20,23 @@ design writeup).
 Everyone runs the exact same app — there's no separate launch flag or build for the GM. Whoever's
 running the mission opens Settings (tray icon, the "Intel Broadcast" menu, or `Ctrl+Shift+O`) and
 checks "Enable Game Master mode," which starts an embedded WebSocket relay server and registers the
-reveal hotkey (default `Ctrl+Shift+I`) after a restart.
+reveal hotkey (default `Ctrl+Shift+I`). Settings apply immediately on save — no restart; only the
+pieces a changed value affects (hotkeys, relay server, relay connection) are restarted in-process.
 
 1. The GM picks a folder of photos for the mission via Settings' folder picker.
 2. Every other pilot just runs the plain app (GM mode left unchecked) — a normal, movable viewer
    window that connects out to the GM's relay over a public
-   [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) URL baked into the build config.
+   [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) URL baked into the build config. Each
+   pilot can set a callsign/username in Settings; the GM's Settings window shows a live
+   "Connected clients" list of everyone currently on the relay, by that name.
 3. Pressing the reveal hotkey sends every photo in the mission folder to all connected viewers at
    once. Each pilot can browse the received set with their own local hotkeys
    (`Ctrl+Shift+Right` / `Ctrl+Shift+Left`) without touching the network or affecting anyone else.
+
+Windows size themselves to the screen: the viewer keeps A4-portrait kneeboard proportions at
+~85% of the work-area height and the UI text zooms to match, so nothing renders tiny on a 4K
+display at 100% OS scaling (nor overflows a 1080p one). If the automatic choice is ever wrong for
+a setup, set `"uiScale": <number>` in `config.local.json` to override it.
 
 ## Local testing (two instances, one machine)
 
@@ -41,7 +49,7 @@ own config file via `INTEL_BROADCAST_LOCAL_CONFIG_PATH`:
 # Terminal 1 — GM
 cd app
 INTEL_BROADCAST_LOCAL_CONFIG_PATH=/tmp/gm-config.json npm start
-# open Settings, enable GM mode, save & restart
+# open Settings, enable GM mode, save — applies immediately
 
 # Terminal 2 — viewer
 cd app

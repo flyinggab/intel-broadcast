@@ -4,6 +4,7 @@
   "token": "dev-secret",
   "callsign": "",
   "windowTitle": "Intel Broadcast Viewer",
+  "uiScale": null,
   "hotkeys": {
     "reveal": "Ctrl+Shift+I",
     "next": "Ctrl+Shift+Right",

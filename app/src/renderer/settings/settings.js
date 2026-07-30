@@ -5,6 +5,7 @@ const gmFields = document.getElementById('gm-fields');
 const pilotFields = document.getElementById('pilot-fields');
 const tailscaleHint = document.getElementById('tailscale-hint');
 
+const connectedClientsEl = document.getElementById('connected-clients');
 const photosFolderInput = document.getElementById('photosFolder');
 const relayPortInput = document.getElementById('relayPort');
 const relayUrlInput = document.getElementById('relayUrl');
@@ -35,10 +36,38 @@ gmModeToggle.addEventListener('change', () => {
   updateFieldVisibility();
 });
 
-window.settingsAPI.onInit(({ isGmMode: gm, config }) => {
+/** Renders the GM's live "Connected clients" list. Built with textContent
+ *  (never innerHTML) — callsigns are remote-supplied strings. */
+function renderConnectedClients(clients) {
+  connectedClientsEl.textContent = '';
+  if (!clients || clients.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'clients-empty';
+    empty.textContent = 'No one connected yet.';
+    connectedClientsEl.appendChild(empty);
+    return;
+  }
+  for (const client of clients) {
+    const row = document.createElement('div');
+    row.className = 'client-row';
+    const name = document.createElement('span');
+    name.className = 'client-callsign' + (client.callsign ? '' : ' unnamed');
+    name.textContent = client.callsign || 'unnamed pilot';
+    const role = document.createElement('span');
+    role.className = 'client-role';
+    role.textContent = client.role;
+    row.append(name, role);
+    connectedClientsEl.appendChild(row);
+  }
+}
+
+window.settingsAPI.onConnectedClients(renderConnectedClients);
+
+window.settingsAPI.onInit(({ isGmMode: gm, config, connectedClients }) => {
   isGmMode = gm;
   gmModeToggle.checked = gm;
   updateFieldVisibility();
+  renderConnectedClients(connectedClients);
 
   tokenInput.value = config.token || '';
 
