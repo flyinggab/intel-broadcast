@@ -24,11 +24,16 @@ and the packaging bug post-mortem, wrong about current state. Trust
 
 ## 1. Where the project is
 
-**Current release: `v0.4.0`.** Phase 1 shipped 2026-07-30 as `v0.3.0`; the
-2026-07-31 refinement pass (queue-first BRIEF, RECEIVED as curation, settings
-save bar — see the `v0.4` commit message for the full model) shipped as
-`v0.4.0`. Verify with `git log --oneline -5`; don't trust hashes written down
-anywhere.
+**Current release: `v0.5.0`.** Phase 1 shipped 2026-07-30 as `v0.3.0`. The
+2026-07-31 refinement pass shipped as two releases: `v0.4.0` (queue-first
+BRIEF, RECEIVED as curation, settings save bar) and `v0.5.0` (settings
+navigation rail, three settings removed, EN/IT internationalisation). The
+commit messages carry the full models. Verify with `git log --oneline -5`;
+don't trust hashes written down anywhere.
+
+**Adding a user-facing string?** It goes in `app/src/renderer/i18n.js`, in
+BOTH locales — `dev-i18n-test` fails on a key present in one and not the
+other. Console and log lines stay English on purpose.
 
 The app is an Electron companion for DCS. Any pilot hits a hotkey and their
 selected photos appear on every connected pilot's kneeboard, captured by
@@ -117,12 +122,13 @@ for nothing.
 
 ## 3. Your task
 
-### Right now: refining phase 1 (current, 2026-07-30)
+### Right now: refining phase 1 (current, 2026-07-31)
 
-**Phase 2 has not started.** Phase 1 shipped as `v0.3.0`, but it shipped without
-ever having been looked at — see §5, the UI was designed by measurement and
-never seen rendered. The immediate work is small corrections to what is already
-there, driven by what the app actually looks like when it runs.
+**Phase 2 has not started.** Phase 1 shipped as `v0.3.0` without ever having
+been looked at — the UI was designed by measurement and never seen rendered.
+It has now been seen, and two rounds of corrections shipped as `v0.4.0` and
+`v0.5.0`. The work continues in that mode: small corrections driven by what
+the app actually looks like when it runs.
 
 That makes §4's two by-eye checks the starting point, not an afterthought, and
 it makes §2 the binding constraint: a refinement that reintroduces renderer
@@ -200,12 +206,15 @@ every UI state at true size without launching Electron.
 
 ## 5. Honest gaps
 
-- **The UI was designed without ever being seen rendered.** It was verified by
-  measurement — string widths against containers, contrast ratios, tone bands.
-  Geometry is sound; trust your eyes over the numbers.
-- **`imagePrep`'s `prepareOne` has never run in Electron.** The pure decision
-  logic is tested; the actual `nativeImage.resize()` and `toJPEG()` behaviour is
-  not. Verify output sizes against a real folder.
+- ~~The UI was designed without ever being seen rendered.~~ **Closed
+  2026-07-31.** It has been seen, at 430×604 and in Electron, in both locales.
+  `preview.html` drives the REAL render functions with fake snapshots
+  (`preview-state.js`), so the harness exercises renderer code rather than
+  parallel markup that drifts. Still: trust your eyes over the numbers.
+- ~~`imagePrep`'s `prepareOne` has never run in Electron.~~ **Closed
+  2026-07-31**, on macOS against real files: 311KB→140KB, a 6366KB PNG→263KB,
+  and the two-condition passthrough firing correctly. Not yet exercised on
+  Windows.
 - **Phase 1 deleted several e2e tests** — `dev-e2e-panel-test`,
   `dev-e2e-live-apply-test`, `dev-e2e-clients-list-test` — because the side
   panel they covered is gone. Check nothing still-relevant went with them.
@@ -217,3 +226,9 @@ every UI state at true size without launching Electron.
   app.
 - **No telemetry seam yet.** `ROADMAP.md` §5.5 defines the `NullTelemetry`
   interface to add before phase 3 so DCS integration can be optional.
+- **`dev-packaged-config-test` asserts a `dist/linux-unpacked/` path**, which
+  electron-builder only produces on x64 — on arm64 it writes
+  `dist/linux-arm64-unpacked/`. A WSL-era hardcoding; the test fails on this
+  Mac for that reason alone. One line to derive the suffix.
+- **Nothing is verified on Windows**, which is the only platform where the
+  capture path (DCS + OpenKneeboard) actually exists.

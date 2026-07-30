@@ -31,6 +31,9 @@ value affects (hotkeys, relay server, relay connection) restart in-process.
 
 Settings → NETWORK shows a live list of everyone currently on the net, by callsign.
 
+The interface is available in **English and Italian**; it follows your OS language by default and
+can be switched at the foot of the settings rail.
+
 ### The interface
 
 The viewer window is a four-tab instrument panel — BRIEF, RECEIVED, SHARE and SETUP — styled
@@ -108,9 +111,9 @@ intel-broadcast/
 
 ## Status
 
-**Current release: `v0.4.0`** — the queue-first viewer: BRIEF is the kneeboard (one photo queue,
-newest first), RECEIVED curates it, SAVE & APPLY on every settings page. Shipped 2026-07-31, on
-top of phase 1's EFB UI, content-addressed blobs, squad codes and transport hardening.
+**Current release: `v0.5.0`** — English and Italian throughout, and the settings window rebuilt
+around a navigation rail (NETWORK · KEYBINDS · LOG). Shipped 2026-07-31, on top of v0.4.0's
+queue-first viewer and phase 1's EFB UI, content-addressed blobs, squad codes and hardening.
 
 See [HANDOFF.md](./HANDOFF.md) for what's verified, what the known gaps are, and what's next.
 `app/PLAN.md` is **historical** and reports a release two versions old — don't resume from it.
