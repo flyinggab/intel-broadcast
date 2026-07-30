@@ -2,6 +2,8 @@
 
 const hostFields = document.getElementById('host-fields');
 const connectFields = document.getElementById('connect-fields');
+const relayUrlNote = document.getElementById('relayUrl-note');
+const saveStatusEl = document.getElementById('save-status');
 
 const connectedClientsEl = document.getElementById('connected-clients');
 const photosFolderInput = document.getElementById('photosFolder');
@@ -28,10 +30,17 @@ function renderHotkeyValue(key) {
 /** Applies the current isHost to field visibility — called on init AND
  *  whenever the checkbox changes, since hosting is a live, in-session choice.
  *  Everything else (callsign, photos folder, reveal hotkey) belongs to
- *  everyone in unified mode. */
+ *  everyone in unified mode.
+ *
+ *  The relay URL stays VISIBLE even while hosting (it used to be hidden,
+ *  which made the app look like it had nowhere to paste a host's link) — it's
+ *  just annotated as unused, since a host connects to its own relay. */
 function updateFieldVisibility() {
   hostFields.style.display = isHost ? 'block' : 'none';
-  connectFields.style.display = isHost ? 'none' : 'block';
+  relayUrlInput.disabled = isHost;
+  relayUrlNote.textContent = isHost
+    ? "Not used while you're hosting — your app connects to its own relay. Others paste YOUR link (below, once sharing is on) into this field on their machine."
+    : 'Ask whoever is hosting for their wss:// link, or use their "Copy invite".';
 }
 
 hostToggle.addEventListener('change', () => {
@@ -78,6 +87,15 @@ function tsButton(label, action) {
  *  status line, the public URL when shared, and only the action buttons that
  *  make sense in the current state. All text via textContent (CLI output and
  *  URLs are not our strings). */
+/** Monospace detail block under the status line — raw CLI output and paths.
+ *  Only rendered when there's something diagnostic to say. */
+function tsDetail(text) {
+  const box = document.createElement('div');
+  box.className = 'ts-detail';
+  box.textContent = text;
+  return box;
+}
+
 function renderTailscaleState(state) {
   tsActions.textContent = '';
   tsUrlRow.style.display = 'none';
@@ -86,21 +104,32 @@ function renderTailscaleState(state) {
   if (!state.installed) {
     tsDot.className = 'ts-dot bad';
     tsStatusText.textContent =
-      'Tailscale is not installed on this machine. Install it, then come back — this panel detects it automatically.';
-    tsActions.append(tsButton('Open download page…', 'open-download'));
+      'No tailscale command found on this machine. If you just installed it, click Re-check — and if you installed it while this app was already running, restart the app so it picks up the new PATH.';
+    tsActions.append(tsButton('Open download page…', 'open-download'), tsButton('Re-check', 'refresh'));
+    if (state.triedPaths && state.triedPaths.length) {
+      tsActions.append(tsDetail(`Looked in:\n${state.triedPaths.join('\n')}`));
+    }
+    return;
+  }
+  if (state.error) {
+    tsDot.className = 'ts-dot bad';
+    tsStatusText.textContent = 'Tailscale is installed but the command failed:';
+    tsActions.append(tsDetail(state.error), tsButton('Re-check', 'refresh'));
     return;
   }
   if (!state.loggedIn) {
     tsDot.className = 'ts-dot warn';
-    tsStatusText.textContent = `Tailscale is installed but not logged in (state: ${state.backendState || 'unknown'}).`;
-    tsActions.append(tsButton('Log in to Tailscale…', 'login'));
+    tsStatusText.textContent = `Tailscale is installed but not logged in (state: ${state.backendState || 'unknown'}). Log in here, or from the Tailscale icon in your system tray — either way this panel notices.`;
+    tsActions.append(tsButton('Log in to Tailscale…', 'login'), tsButton('Re-check', 'refresh'));
+    if (state.binaryPath) tsActions.append(tsDetail(`Using: ${state.binaryPath}`));
     return;
   }
   if (state.funnelOn) {
     tsDot.className = 'ts-dot ok';
-    tsStatusText.textContent = 'Shared publicly — squad members outside your network use this relay URL:';
+    tsStatusText.textContent = 'Shared publicly — squad members outside your network paste this into their Relay URL:';
     tsUrl.textContent = state.wssUrl || '';
     tsUrlRow.style.display = 'flex';
+    tsActions.append(tsButton('Re-check', 'refresh'));
     return;
   }
   if (state.enableUrl) {
@@ -108,22 +137,27 @@ function renderTailscaleState(state) {
     tsStatusText.textContent =
       'Funnel needs enabling for your tailnet — a one-time approval in the Tailscale admin console, then it retries automatically.';
     tsActions.append(tsButton('Enable Funnel in admin console…', 'open-enable-url'), tsButton('Retry now', 'refresh'));
+    if (state.funnelError) tsActions.append(tsDetail(state.funnelError));
     return;
   }
-  if (state.error) {
+  if (state.funnelError) {
     tsDot.className = 'ts-dot warn';
-    tsStatusText.textContent = `Tailscale problem: ${state.error}`;
-    tsActions.append(tsButton('Retry', 'refresh'));
+    tsStatusText.textContent = 'Turning on public sharing failed. Raw output from the tailscale command:';
+    tsActions.append(tsDetail(state.funnelError), tsButton('Retry now', 'refresh'));
     return;
   }
   tsDot.className = 'ts-dot';
-  tsStatusText.textContent = `Logged in as ${state.dnsName || '(unknown)'} — not shared publicly. Tick the box below and Save to share.`;
+  tsStatusText.textContent = `Logged in as ${state.dnsName || '(unknown)'} — not shared publicly yet. Tick the box below, then Save & Apply.`;
+  tsActions.append(tsButton('Re-check', 'refresh'));
 }
 
 window.settingsAPI.onTailscaleState(renderTailscaleState);
 document.getElementById('ts-copy-invite').addEventListener('click', () => window.settingsAPI.tailscaleAction('copy-invite'));
 
-window.settingsAPI.onInit(({ isHost: host, config, connectedClients }) => {
+window.settingsAPI.onInit(({ isHost: host, config, connectedClients, logPath }) => {
+  const logPathEl = document.getElementById('log-path');
+  logPathEl.textContent = logPath || '';
+  logPathEl.title = logPath || '';
   isHost = host;
   hostToggle.checked = host;
   updateFieldVisibility();
@@ -241,6 +275,7 @@ document.getElementById('save').addEventListener('click', () => {
   // checkbox only decides whether this machine also runs the relay. Values
   // for the hidden section are sent too (deep merge keeps them consistent
   // with what the form showed).
+  saveStatusEl.textContent = 'Saved — applying…';
   window.settingsAPI.save({
     relayHostEnabled: isHost,
     callsign: callsignInput.value.trim(),
@@ -249,5 +284,23 @@ document.getElementById('save').addEventListener('click', () => {
     relayUrl: relayUrlInput.value.trim(),
     gm: { relayPort: Number(relayPortInput.value) || 8787, funnelEnabled: funnelToggle.checked },
     hotkeys: nonEmptyHotkeys(hotkeyValues),
+  }).then((result) => {
+    if (result && result.ok === false) {
+      saveStatusEl.style.color = '#e08a7a';
+      saveStatusEl.textContent = result.error || 'Save failed.';
+      return;
+    }
+    // The window stays open on purpose — for a host turning on public
+    // sharing, the result (URL or error) lands in the panel above a moment
+    // from now, and closing would hide exactly what the save produced.
+    saveStatusEl.style.color = '';
+    saveStatusEl.textContent = isHost && funnelToggle.checked
+      ? 'Saved. Setting up public sharing — watch the Internet sharing panel above.'
+      : 'Saved and applied.';
+    setTimeout(() => {
+      if (saveStatusEl.textContent.startsWith('Saved and applied')) saveStatusEl.textContent = '';
+    }, 4000);
   });
 });
+
+document.getElementById('open-log').addEventListener('click', () => window.settingsAPI.openLog());

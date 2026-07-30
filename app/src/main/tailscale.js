@@ -2,6 +2,7 @@
 
 const { execFile, execFileSync, spawn } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 
 // Drives the Tailscale CLI on the HOST machine so the settings window can walk
 // the user from "not installed" all the way to a public wss:// Funnel URL.
@@ -23,34 +24,65 @@ const fs = require('fs');
 
 const DOWNLOAD_URL = 'https://tailscale.com/download';
 
-const WELL_KNOWN_PATHS = {
-  win32: ['C:\\Program Files\\Tailscale\\tailscale.exe'],
-  darwin: [
-    '/Applications/Tailscale.app/Contents/MacOS/Tailscale',
-    '/opt/homebrew/bin/tailscale',
-    '/usr/local/bin/tailscale',
-  ],
-  linux: ['/usr/bin/tailscale', '/usr/sbin/tailscale'],
-};
+/**
+ * Where to look when `tailscale` isn't on PATH. A GUI app inherits the PATH
+ * it was *launched* with, so installing Tailscale while the app is already
+ * running (exactly what a first-time setup does) leaves the PATH lookup
+ * failing until relaunch — these keep it working anyway.
+ */
+function wellKnownPaths() {
+  if (process.platform === 'win32') {
+    const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
+    const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+    const localAppData = process.env.LOCALAPPDATA || '';
+    return [
+      path.join(programFiles, 'Tailscale', 'tailscale.exe'),
+      path.join(programFilesX86, 'Tailscale', 'tailscale.exe'),
+      localAppData ? path.join(localAppData, 'Tailscale', 'tailscale.exe') : null,
+    ].filter(Boolean);
+  }
+  if (process.platform === 'darwin') {
+    return [
+      '/Applications/Tailscale.app/Contents/MacOS/Tailscale',
+      '/usr/local/bin/tailscale',
+      '/opt/homebrew/bin/tailscale',
+    ];
+  }
+  return ['/usr/bin/tailscale', '/usr/sbin/tailscale', '/usr/local/bin/tailscale'];
+}
 
-/** Absolute path of the tailscale CLI, or null if not installed. */
-function findBinary() {
+/**
+ * Absolute path of the tailscale CLI, or null if not installed. Also reports
+ * where it looked, so the settings panel can say something more useful than
+ * "not installed" when a real install exists somewhere unexpected.
+ */
+function findBinaryDetailed() {
   const override = process.env.INTEL_BROADCAST_TAILSCALE_BIN;
-  if (override) return fs.existsSync(override) ? override : null;
+  if (override) {
+    return { binary: fs.existsSync(override) ? override : null, source: 'env override', tried: [override] };
+  }
 
+  const tried = [];
   try {
     const probeCmd = process.platform === 'win32' ? 'where' : 'which';
-    const out = execFileSync(probeCmd, ['tailscale'], { encoding: 'utf8', timeout: 3000 })
+    const out = execFileSync(probeCmd, ['tailscale'], { encoding: 'utf8', timeout: 5000 })
       .split(/\r?\n/)[0]
       .trim();
-    if (out) return out;
+    tried.push(`${probeCmd} tailscale`);
+    if (out && fs.existsSync(out)) return { binary: out, source: 'PATH', tried };
   } catch {
-    // not on PATH — fall through to well-known locations
+    tried.push(`${process.platform === 'win32' ? 'where' : 'which'} tailscale (not found)`);
   }
-  for (const candidate of WELL_KNOWN_PATHS[process.platform] || []) {
-    if (fs.existsSync(candidate)) return candidate;
+
+  for (const candidate of wellKnownPaths()) {
+    tried.push(candidate);
+    if (fs.existsSync(candidate)) return { binary: candidate, source: 'well-known path', tried };
   }
-  return null;
+  return { binary: null, source: null, tried };
+}
+
+function findBinary() {
+  return findBinaryDetailed().binary;
 }
 
 function run(bin, args, timeoutMs = 10000) {
@@ -104,23 +136,33 @@ function deriveWssUrl(dnsName) {
  *   funnelOn?, funnelTarget?, error? }
  */
 async function getState() {
-  const bin = findBinary();
-  if (!bin) return { installed: false, downloadUrl: DOWNLOAD_URL };
+  const found = findBinaryDetailed();
+  const bin = found.binary;
+  if (!bin) {
+    // Report what was searched — "not installed" is unhelpful (and wrong) when
+    // a real install lives somewhere this didn't look.
+    return { installed: false, downloadUrl: DOWNLOAD_URL, triedPaths: found.tried };
+  }
 
   const status = await run(bin, ['status', '--json']);
   if (!status.ok) {
-    return { installed: true, error: `tailscale status failed: ${(status.stderr || status.error || '').trim()}` };
+    return {
+      installed: true,
+      binaryPath: bin,
+      error: `"${bin} status --json" failed: ${(status.stderr || status.error || '').trim() || 'no output'}`,
+    };
   }
   let parsed;
   try {
     parsed = parseStatus(status.stdout);
   } catch (err) {
-    return { installed: true, error: `unparseable tailscale status: ${err.message}` };
+    return { installed: true, binaryPath: bin, error: `unparseable tailscale status: ${err.message}` };
   }
 
   const loggedIn = parsed.backendState === 'Running';
   const state = {
     installed: true,
+    binaryPath: bin,
     backendState: parsed.backendState,
     loggedIn,
     dnsName: parsed.dnsName,
@@ -144,12 +186,16 @@ async function getState() {
 async function startFunnel(port) {
   const bin = findBinary();
   if (!bin) return { ok: false, message: 'tailscale is not installed' };
+  console.log(`[tailscale] running: ${bin} funnel --bg ${port}`);
   const res = await run(bin, ['funnel', '--bg', String(port)], 20000);
-  if (res.ok) return { ok: true };
   const combined = `${res.stdout}\n${res.stderr}`.trim();
+  console.log(`[tailscale] funnel --bg exited ${res.ok ? 'ok' : 'non-zero'}; output: ${combined || '(none)'}`);
+  if (res.ok) return { ok: true };
   return {
+    // Whole output, not just the last line: the real CLI's wording is
+    // unverified, and a truncated message is useless in a bug report.
     ok: false,
-    message: combined.split('\n').filter(Boolean).pop() || res.error || 'funnel failed',
+    message: combined || res.error || 'funnel failed with no output',
     enableUrl: extractUrl(combined),
   };
 }
@@ -209,6 +255,7 @@ function login({ onAuthUrl = () => {}, timeoutMs = 5 * 60 * 1000 } = {}) {
 
 module.exports = {
   findBinary,
+  findBinaryDetailed,
   getState,
   startFunnel,
   stopFunnel,

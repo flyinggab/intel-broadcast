@@ -123,6 +123,54 @@
   .ts-actions:empty { display: none; }
   .ts-funnel-toggle { margin: 10px 0 0; background: #1f1f1f; }
 
+  .field-note {
+    margin-top: 4px;
+    color: #8a8a8a;
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+  #save-status {
+    margin-top: 8px;
+    min-height: 16px;
+    text-align: center;
+    font-size: 0.8rem;
+    color: #7fc79a;
+  }
+  #diagnostics {
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid #2a2a2a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #diagnostics button { font-size: 0.75rem; padding: 4px 8px; }
+  #log-path {
+    color: #6d6d6d;
+    font-size: 0.68rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: left;
+    flex: 1;
+  }
+  .ts-detail {
+    margin-top: 6px;
+    padding: 6px 8px;
+    background: #1d1d1d;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    color: #a9a9a9;
+    font-family: "Consolas", "SF Mono", monospace;
+    font-size: 0.68rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 130px;
+    overflow-y: auto;
+  }
+
   #connected-clients {
     background: #262626;
     border-radius: 4px;
@@ -198,9 +246,10 @@
     </div>
   </div>
 
-  <div id="connect-fields" style="display:none">
-    <label for="relayUrl">Relay URL (from whoever hosts the relay)</label>
+  <div id="connect-fields">
+    <label for="relayUrl">Relay URL &mdash; paste the link from whoever hosts the relay</label>
     <input type="text" id="relayUrl" placeholder="wss://host-machine.tailnet.ts.net" />
+    <div id="relayUrl-note" class="field-note"></div>
   </div>
 
   <h3>Hotkeys (this machine)</h3>
@@ -228,6 +277,11 @@
   </div>
 
   <button id="save">Save &amp; Apply</button>
+  <div id="save-status"></div>
+  <div id="diagnostics">
+    <button id="open-log" type="button">Open log file&hellip;</button>
+    <span id="log-path"></span>
+  </div>
 
   <script src="settings.js"></script>
 </body>

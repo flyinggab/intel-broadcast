@@ -46,6 +46,9 @@ const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
     INTEL_BROADCAST_OPEN_SETTINGS: '1',
     INTEL_BROADCAST_SETTINGS_AUTOSAVE_JSON: JSON.stringify(SAVE_PAYLOAD),
     INTEL_BROADCAST_ZOOM_PROBE: '1',
+    // Ticks only while the settings window is alive — used below to prove the
+    // window survives a save.
+    INTEL_BROADCAST_CLIENTS_PROBE: '1',
   },
 });
 
@@ -121,8 +124,30 @@ const poll = setInterval(() => {
       );
 
       assert.ok(!/Uncaught|TypeError|ReferenceError/.test(stderr), 'no uncaught renderer/main errors');
-      console.log('[e2e] PASS: save applied live (no restart), config merged, zoom applied in renderer');
-      finish(0);
+
+      // The settings window must STAY OPEN after a save. It used to close
+      // (a leftover from restart-to-apply), which hid the Tailscale panel
+      // exactly when a save had just produced the public URL — the user hit
+      // this as "I ticked the box, nothing changed, where's my URL?".
+      // CLIENTS_PROBE only ticks while the window is alive.
+      // Note: probesBefore may legitimately be 0 — the save can be detected
+      // before the first 400ms probe tick. What matters is that ticks keep
+      // coming AFTER the save, which only happens if the window is alive.
+      const probesBefore = (output.match(/CLIENTS_PROBE/g) || []).length;
+      setTimeout(() => {
+        try {
+          const probesAfter = (output.match(/CLIENTS_PROBE/g) || []).length;
+          assert.ok(
+            probesAfter > probesBefore,
+            `settings window closed after saving (probe ticks stopped at ${probesBefore}) — it must stay open so the Tailscale panel can show the result`,
+          );
+          console.log('[e2e] PASS: save applied live, window stayed open, config merged, zoom applied');
+          finish(0);
+        } catch (err) {
+          console.error(`[e2e] FAIL: ${err.message}`);
+          finish(1);
+        }
+      }, 1500);
     } catch (err) {
       console.error(`[e2e] FAIL: ${err.message}`);
       finish(1);

@@ -2,9 +2,10 @@
 
 const fs = require('fs');
 const path = require('path');
-const { BrowserWindow, ipcMain, dialog, screen } = require('electron');
+const { BrowserWindow, ipcMain, dialog, screen, shell } = require('electron');
 const { LOCAL_CONFIG_PATH } = require('./config');
 const { computeSettingsBounds } = require('./scaling');
+const { getLogFilePath } = require('./logger');
 
 let settingsWindow = null;
 
@@ -52,14 +53,31 @@ function registerSettingsIpc({ onSaved, onTailscaleAction = () => {} }) {
 
   ipcMain.handle('settings:tailscale-action', (_event, action) => onTailscaleAction(String(action)));
 
+  // Packaged builds have no console, so the log file is the only way a user
+  // can show us what actually happened. Reveal it in the file manager rather
+  // than opening it, so it can be attached to a report.
+  ipcMain.handle('settings:open-log', () => {
+    const logPath = getLogFilePath();
+    if (logPath) shell.showItemInFolder(logPath);
+  });
+
   ipcMain.handle('settings:save', (_event, values) => {
-    saveSettingsValues(values);
+    // A save that can't be written must never look like it worked — that was
+    // the v0.2.0 packaging bug (config path inside the read-only asar), where
+    // every setting appeared to be accepted and silently vanished.
+    try {
+      saveSettingsValues(values);
+    } catch (err) {
+      console.error(`[settings] SAVE FAILED writing ${LOCAL_CONFIG_PATH}: ${err.message}`);
+      return { ok: false, error: `Could not save to ${LOCAL_CONFIG_PATH}: ${err.message}` };
+    }
+    console.log(`[settings] saved to ${LOCAL_CONFIG_PATH}`);
     onSaved();
-    // Close after the invoke's reply has gone back to the renderer, so its
-    // save() promise resolves instead of dying with the window.
-    setImmediate(() => {
-      if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.close();
-    });
+    // The window deliberately STAYS OPEN. It used to close here, left over
+    // from when saving relaunched the app — but with live apply that hid the
+    // very thing a save produces: the Tailscale panel's public URL (or the
+    // error explaining why there isn't one) lands moments after this returns.
+    return { ok: true };
   });
 }
 
@@ -111,7 +129,12 @@ function openSettingsWindow({ isHost, config, getConnectedClients = () => [] }) 
     query: { uiZoom: String(zoom) },
   });
   settingsWindow.webContents.on('did-finish-load', () => {
-    settingsWindow.webContents.send('init', { isHost, config, connectedClients: getConnectedClients() });
+    settingsWindow.webContents.send('init', {
+      isHost,
+      config,
+      connectedClients: getConnectedClients(),
+      logPath: getLogFilePath(),
+    });
   });
 
   return settingsWindow;

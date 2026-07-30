@@ -15,5 +15,6 @@ contextBridge.exposeInMainWorld('settingsAPI', {
   onTailscaleState: (callback) => ipcRenderer.on('tailscale-state', (_event, state) => callback(state)),
   browseFolder: () => ipcRenderer.invoke('settings:browse-folder'),
   tailscaleAction: (action) => ipcRenderer.invoke('settings:tailscale-action', action),
+  openLog: () => ipcRenderer.invoke('settings:open-log'),
   save: (values) => ipcRenderer.invoke('settings:save', values),
 });

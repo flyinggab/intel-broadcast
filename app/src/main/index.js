@@ -4,13 +4,14 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { app, globalShortcut, Menu, shell, clipboard, ipcMain } = require('electron');
-const { loadConfig } = require('./config');
+const { loadConfig, LOCAL_CONFIG_PATH } = require('./config');
 const { createViewerWindow } = require('./viewerWindow');
 const { RelayClient } = require('./relayClient');
 const { createRelayServer } = require('./relayServer');
 const { revealPhotosFolder } = require('./reveal');
 const { buildGallery } = require('./photoLibrary');
 const { createTray } = require('./tray');
+const { initFileLogging } = require('./logger');
 const tailscale = require('./tailscale');
 const {
   openSettingsWindow,
@@ -134,15 +135,17 @@ async function refreshTailscaleState({ reconcile = false } = {}) {
           console.log(`[tailscale] funnel started: public :443 -> 127.0.0.1:${config.gm.relayPort}`);
           state = await tailscale.getState();
         } else {
+          // funnelError, not error: `error` means the status command itself
+          // failed, which the panel reports differently.
           state.enableUrl = res.enableUrl || null;
-          state.error = res.message;
+          state.funnelError = res.message;
           console.log(`[tailscale] funnel start failed: ${res.message}`);
         }
       } else if (lastTailscaleState) {
-        // between retries, keep showing the last error/enableUrl instead of
+        // between retries, keep showing the last failure instead of
         // flickering back to a clean "not shared" state
         state.enableUrl = lastTailscaleState.enableUrl || null;
-        state.error = lastTailscaleState.error || null;
+        state.funnelError = lastTailscaleState.funnelError || null;
       }
     } else if (reconcile && !wantFunnel() && state.funnelOn) {
       await tailscale.stopFunnel();
@@ -375,6 +378,15 @@ function takeDevScreenshotAndQuit(viewer) {
 }
 
 app.whenReady().then(() => {
+  // First thing: a packaged build has no console, so without this a user
+  // hitting trouble has nothing to send back.
+  initFileLogging(app.getPath('userData'));
+  console.log(
+    `[index] Intel Broadcast ${app.getVersion()} on ${process.platform} — packaged=${app.isPackaged} hosting=${isHost()} funnelEnabled=${config.gm.funnelEnabled === true}`,
+  );
+  console.log(`[index] settings file: ${LOCAL_CONFIG_PATH}`);
+  console.log(`[index] photos folder: ${currentPhotosFolder()}`);
+
   registerSettingsIpc({
     onSaved: () => applyNewConfig(loadConfig()),
     onTailscaleAction: handleTailscaleAction,
