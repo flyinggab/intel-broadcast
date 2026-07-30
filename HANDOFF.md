@@ -24,11 +24,11 @@ and the packaging bug post-mortem, wrong about current state. Trust
 
 ## 1. Where the project is
 
-**Current release: `v0.5.0`.** Phase 1 shipped 2026-07-30 as `v0.3.0`. The
+**Current release: `v0.5.1`.** Phase 1 shipped 2026-07-30 as `v0.3.0`. The
 2026-07-31 refinement pass shipped as two releases: `v0.4.0` (queue-first
-BRIEF, RECEIVED as curation, settings save bar) and `v0.5.0` (settings
-navigation rail, three settings removed, EN/IT internationalisation). The
-commit messages carry the full models. Verify with `git log --oneline -5`;
+BRIEF, RECEIVED as curation, settings save bar), `v0.5.0` (settings
+navigation rail, three settings removed, EN/IT internationalisation) and
+`v0.5.1` (the app icon). The commit messages carry the full models. Verify with `git log --oneline -5`;
 don't trust hashes written down anywhere.
 
 **Adding a user-facing string?** It goes in `app/src/renderer/i18n.js`, in

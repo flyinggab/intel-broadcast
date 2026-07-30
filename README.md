@@ -113,9 +113,10 @@ intel-broadcast/
 
 ## Status
 
-**Current release: `v0.5.0`** — English and Italian throughout, and the settings window rebuilt
-around a navigation rail (NETWORK · KEYBINDS · LOG). Shipped 2026-07-31, on top of v0.4.0's
-queue-first viewer and phase 1's EFB UI, content-addressed blobs, squad codes and hardening.
+**Current release: `v0.5.1`** — a real app icon, in the dock, taskbar, tray and title bar. On
+top of v0.5.0's English/Italian support and the settings navigation rail (NETWORK · KEYBINDS ·
+LOG), v0.4.0's queue-first viewer, and phase 1's EFB UI, content-addressed blobs, squad codes
+and transport hardening.
 
 See [HANDOFF.md](./HANDOFF.md) for what's verified, what the known gaps are, and what's next.
 `app/PLAN.md` is **historical** and reports a release two versions old — don't resume from it.
