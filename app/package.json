@@ -1,6 +1,6 @@
 {
   "name": "intel-broadcast",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "DCS intel photo broadcast companion app (viewer + GM relay)",
   "main": "src/main/index.js",
