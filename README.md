@@ -32,45 +32,38 @@ value affects (hotkeys, relay server, relay connection) restart in-process.
 The host's Settings window shows a live "Connected clients" list of everyone currently on the
 relay, by callsign.
 
-### The side panel
+### The interface
 
-The viewer window has a collapsible panel on its right edge, reachable from the narrow rail
-(which fades out while another app has focus, so it stays invisible in the OpenKneeboard
-capture). It has two tabs plus a Settings button — handy when the tray icon is hard to spot or
-another app already owns the settings hotkey:
+The viewer window is a four-tab instrument panel — BRIEF, RECEIVED, SHARE and SETUP — styled
+after a cockpit EFB, in B612 (the typeface Airbus commissioned for flight decks). It is the
+window OpenKneeboard captures, so **Ctrl+Shift+H blanks every bit of chrome** and leaves just the
+photo: that is the state that matters in the air. The chrome also dims on its own whenever DCS
+has focus.
 
-- **Received** — one line per incoming batch: who shared it, how many photos, and the time it
-  arrived. New intel gets a red bubble until you've looked at it, with the unread count on the
-  rail. Clicking a line brings that batch back, so a later reveal no longer buries an earlier
-  one you hadn't read.
-- **Share** — a thumbnail gallery of your photos folder. Everything starts selected; untick what
-  you don't want, or use "Select all" / "None". **The reveal hotkey shares exactly this
-  selection**, so you can set it up before a flight and still trigger it by keystroke mid-air.
-  The "Share" button does the same thing with the mouse.
+- **BRIEF** — who is on the net, which folder is staged, whether the funnel is up.
+- **RECEIVED** — one row per batch: who shared it, how many photos, the time it landed. Unread
+  rows carry a bar and the tab carries a count. Clicking a row brings that batch back, so a later
+  reveal never buries one you hadn't read.
+- **SHARE** — a thumbnail grid of your folder. Tick what you want; your reveal hotkey sends
+  exactly that selection.
+- **SETUP** opens the *separate* settings window rather than switching a page — putting a
+  settings form on the pilot's knee mid-flight is not a feature.
 
-Windows size themselves to the screen: the viewer keeps A4-portrait kneeboard proportions at
-~85% of the work-area height and the UI text zooms to match, so nothing renders tiny on a 4K
-display at 100% OS scaling (nor overflows a 1080p one). If the automatic choice is ever wrong for
-a setup, set `"uiScale": <number>` in `config.local.json` to override it.
+When intel arrives the viewer switches to it and says so in a banner — unless you were doing
+something in the last few seconds, in which case it just badges the tab and holds still. You can
+turn the switching off entirely in Setup.
 
-## Sharing over the internet (Tailscale Funnel)
+### Joining a squad
 
-Only the **host** machine needs Tailscale; everyone else just needs the app and a URL. When
-hosting is enabled, Settings shows an "Internet sharing" panel that walks the whole setup:
+One string carries everything:
 
-1. **Not installed** → the panel links to the Tailscale download page and detects the install
-   automatically once it's done (nothing to restart).
-2. **Not logged in** → "Log in to Tailscale…" opens the browser auth page for you.
-3. **Ready** → tick "Share the relay publicly while the app runs" and Save. The app runs
-   `tailscale funnel --bg <relay port>` for you. The first time, Tailscale requires a one-time
-   approval for your tailnet — the panel detects that, links straight to the right admin-console
-   page, and retries by itself once you've approved.
-4. **Shared** → the panel shows your public `wss://<machine>.<tailnet>.ts.net` URL and a
-   **Copy invite** button (URL + token, ready to paste into Discord). Squad members paste the URL
-   into their own Settings' "Relay URL" field.
+```
+IB1-Z2FiLXBjLnRhaWw5ZjJiLnRzLm5ldDo4MTQwOmtkOTM
+```
 
-The public endpoint follows the host's session: it's taken down when the app quits or when you
-untick the box, and a leftover funnel from a crash is cleaned up at the next startup.
+The host copies it from Setup → NET; everyone else pastes it into the same page and hits CONNECT.
+It encodes the host, port and token, so there is nothing else to type. **Treat it as a password** —
+anyone holding it can join. Rotating the token in Setup invalidates every code previously issued.
 
 ## Local testing (two instances, one machine)
 

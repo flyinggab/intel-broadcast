@@ -55,6 +55,62 @@ footguns already hit and fixed once — don't reintroduce them: (a) CLI args lik
 from `app/` — validates the *entire* config object (all platforms) without needing a real CI
 round-trip.
 
+## Phase 1 of the UI roadmap — landed 2026-07-30
+
+`BRIEF.md` and `ROADMAP.md` (repo root) are the user's own design package, written in a Claude
+web session; the `ui/` folder that came with them is installed into `app/src/renderer/` and
+`app/src/main/imagePrep.js`. **The original `intel-broadcast-ui/` directory is gitignored on
+purpose** — keeping it would be a second copy of files the app actually loads, free to drift.
+`ROADMAP.md` §5 is the part to re-read before touching the renderer: six decisions that are free
+now and expensive later.
+
+**What phase 1 changed**, beyond the visible UI:
+
+- **The renderer owns no state (§5.2).** `viewState.js` in main holds which batch is open, which
+  frame within it, the share selection and what's unread. Both windows receive complete snapshots
+  (`state` IPC) and send back *intents* (`viewer:intent` / `settings:intent`) — they decide
+  nothing. This is what lets phase 4 render the same markup to a VR quad alongside the desktop
+  window. **Don't reintroduce a `let currentIndex` in a renderer**; that's the specific mistake
+  the roadmap calls out as easiest to make.
+- **`intel://blob/<sha256>` replaced base64 data URLs (§9.1 + §5.1).** `blobStore.js` is keyed by
+  content hash, so phase 2's content addressing is a wire change rather than a storage rewrite,
+  and identical photos dedupe for free. Thumbnails go through it too — no pixels cross IPC.
+- **Squad codes** (`squadCode.js`) replaced the relay-URL and token fields. `IB1-` + base64url of
+  `host:port:token`, split from the right. **It is a password**: never log it. The dev probe was
+  deliberately changed to report only its length and prefix after the leak check caught it
+  echoing into the log file, and a test now asserts it appears in neither stdout nor the log.
+- **Auto-switch rule C**: an arrival takes the screen unless the pilot interacted in the last 8s
+  (`INTERACTION_GRACE_MS`), with a mandatory banner when it does switch and the `SHOW NEW INTEL
+  ON ARRIVAL` toggle as the escape hatch.
+- **Hardening**: `maxPayload` 32 MiB (the `ws` default is 100 MiB), a `bufferedAmount` ceiling in
+  the fan-out that drops a batch for a client too far behind rather than growing the host's queue,
+  `timingSafeEqual` token comparison (both sides hashed first, so unequal lengths don't throw),
+  per-IP failed-attempt limiting, and a minimum generated-token length.
+- **`HELLO`/`HELLO_ACK`** is an optional pre-auth frame. v1 had no version field anywhere; this
+  is what makes any later protocol change safe. A client that never sends it is unaffected.
+
+**Answers to the two things `BRIEF.md` flagged as unverified:**
+1. `imagePrep.prepareOne` — marked "never run" — **works** on a real Electron runtime:
+   311KB→140KB (−55%) and 462KB→232KB (−50%) on the repo's own fixtures. The §8 estimates hold.
+2. Measured geometry (`dev-ui-geometry-test.js`, which loads the real HTML and measures it):
+   every viewer target is ≥44px at `--ui-scale: 1`, nothing overflows at 0.8/1/1.4, and B612
+   loads from the vendored woff2. **One finding for the designer**: the *settings* window has 20
+   sub-44px targets at scale 1 — `.subtab` is 34px by design (`--h-sub`), plus the bare `<input>`
+   inside `.field--lead` at 22px and `.step` at 36px. Left as designed rather than restyled: the
+   44px floor exists for VR controller-ray pointing, and settings is never captured, never in the
+   headset. Raise `--h-sub` if you disagree — the test reports it either way.
+
+**Bugs found while testing phase 1** (both in code I'd just written, both caught by the tests):
+- Rule C left a *stale* banner up: a batch that switched the page announced itself, and when a
+  later arrival was suppressed the old banner stayed, describing the wrong batch. An arrival now
+  always supersedes the banner.
+- Picking JOIN in NET was silently reverted to HOST by the next state push, because `render()`
+  drove the mode from saved config. Mode is an unsaved form choice until you press save, and is
+  now guarded like the callsign field already was.
+
+**Not phase 1, deliberately left alone**: protocol v2 bulk transfer, content-addressed *transfer*
+(§9.2), no-re-hash-on-rebroadcast (§9.3), Rust, DCS hooks, voice, the EFB pages in `ROADMAP` §2.
+
 **What's built and verified** (all via automated `dev-e2e-*.js`/`dev-*-test.js` scripts in
 `app/scripts/`, run with plain `node`, no test framework):
 - Phase 0 — relay protocol (`relayServer.js`, `auth.js`): token auth, `reveal-batch` broadcast,
