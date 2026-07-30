@@ -25,7 +25,7 @@ const CALLSIGN = 'Ghostrider-1';
 
 fs.writeFileSync(
   CONFIG_PATH,
-  JSON.stringify({ gmModeEnabled: true, token: TOKEN, gm: { relayPort: RELAY_PORT } }, null, 2),
+  JSON.stringify({ relayHostEnabled: true, token: TOKEN, callsign: 'host-self', gm: { relayPort: RELAY_PORT } }, null, 2),
 );
 
 const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
@@ -47,18 +47,20 @@ function cleanup(exitCode) {
   setTimeout(() => process.exit(exitCode), 200);
 }
 
-// Stages: 0 = waiting for the settings DOM probe to report at all (empty
-// list), 1 = client connected, waiting for its callsign to show up, 2 =
-// client closed, waiting for the callsign to disappear again.
+// Stages: 0 = waiting for the DOM to show the host's OWN client (in unified
+// mode the host's app connects to its own relay, so it appears in its own
+// list), 1 = external client connected, waiting for its callsign to show up
+// alongside, 2 = client closed, waiting for its callsign to disappear while
+// the host's own entry remains.
 let stage = 0;
 child.stdout.on('data', (d) => {
   const text = d.toString();
   process.stdout.write(`[app] ${text}`);
   for (const line of text.split('\n')) {
     if (!line.includes('CLIENTS_PROBE')) continue;
-    if (stage === 0) {
+    if (stage === 0 && line.includes('host-self')) {
       stage = 1;
-      console.log('[e2e] settings DOM probe is live — connecting a client');
+      console.log('[e2e] host sees itself in its own client list — connecting an external client');
       probeClient = new RelayClient({
         url: `ws://localhost:${RELAY_PORT}`,
         token: TOKEN,
@@ -66,12 +68,12 @@ child.stdout.on('data', (d) => {
         callsign: CALLSIGN,
       });
       probeClient.connect();
-    } else if (stage === 1 && line.includes(CALLSIGN)) {
+    } else if (stage === 1 && line.includes(CALLSIGN) && line.includes('host-self')) {
       stage = 2;
-      console.log('[e2e] callsign appeared in the settings DOM — disconnecting the client');
+      console.log('[e2e] external callsign appeared in the settings DOM — disconnecting it');
       probeClient.close();
-    } else if (stage === 2 && !line.includes(CALLSIGN)) {
-      console.log('[e2e] PASS: connected client (with username) shown live in Settings, and removed on disconnect');
+    } else if (stage === 2 && !line.includes(CALLSIGN) && line.includes('host-self')) {
+      console.log('[e2e] PASS: live list showed host-self + external client, and removed the client on disconnect');
       cleanup(0);
       return;
     }

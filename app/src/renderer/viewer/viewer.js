@@ -7,6 +7,7 @@ const disconnectedEl = document.getElementById('disconnected-banner');
 
 let items = [];
 let currentIndex = 0;
+let sharedBy = '';
 
 function render() {
   if (items.length === 0) {
@@ -19,12 +20,18 @@ function render() {
   idleEl.style.display = 'none';
   photoEl.style.display = 'block';
   photoEl.src = items[currentIndex].dataUrl;
-  indexEl.style.display = items.length > 1 ? 'block' : 'none';
-  indexEl.textContent = `${currentIndex + 1} / ${items.length}`;
+  // Position within the batch, plus who shared it (any client can, in
+  // unified mode) — kept to one unobtrusive corner line.
+  const position = items.length > 1 ? `${currentIndex + 1} / ${items.length}` : '';
+  const attribution = sharedBy ? `from ${sharedBy}` : '';
+  const label = [position, attribution].filter(Boolean).join(' — ');
+  indexEl.style.display = label ? 'block' : 'none';
+  indexEl.textContent = label;
 }
 
 window.viewerAPI.onShowBatch((batch) => {
   items = batch.items;
+  sharedBy = batch.sharedBy || '';
   currentIndex = 0;
   render();
 });

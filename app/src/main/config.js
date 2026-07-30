@@ -22,12 +22,20 @@ function loadConfig() {
   if (!fs.existsSync(LOCAL_CONFIG_PATH)) return defaults;
 
   const local = JSON.parse(fs.readFileSync(LOCAL_CONFIG_PATH, 'utf8'));
-  return {
+  const merged = {
     ...defaults,
     ...local,
     hotkeys: { ...defaults.hotkeys, ...(local.hotkeys || {}) },
     gm: { ...defaults.gm, ...(local.gm || {}) },
   };
+  // Legacy: pre-unification configs used `gmModeEnabled` for what is now
+  // `relayHostEnabled` (every instance shares AND receives; the old "GM"
+  // distinction reduced to "hosts the relay"). Honor the old key when a
+  // local file predates the rename.
+  if (local.relayHostEnabled === undefined && typeof local.gmModeEnabled === 'boolean') {
+    merged.relayHostEnabled = local.gmModeEnabled;
+  }
+  return merged;
 }
 
 module.exports = { loadConfig, LOCAL_CONFIG_PATH };

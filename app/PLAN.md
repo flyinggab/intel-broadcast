@@ -1,26 +1,30 @@
 # Intel Photo Broadcast System (keybind-triggered, cross-client)
 
-## Session status / how to resume (2026-07-30)
+## Session status / how to resume (2026-07-30, second session)
 
 **Read this section first in a fresh session.** Everything below it is the original design
-writeup — still accurate architecturally, but some implementation details (`--gm` flag, fixed
-window frame, restart-to-apply settings, fixed 850×1202 window size) it describes were later
-superseded; the "How it works" section of `README.md` and this section reflect current reality
-more precisely than the body text further down.
+writeup — still accurate on transport/architecture, but several implementation details it
+describes were superseded: the `--gm` flag, the **GM-vs-viewer role split itself**,
+restart-to-apply settings, and the fixed 850×1202 window size. `README.md`'s "How it works" +
+"Sharing over the internet" sections and this section reflect current reality; `PROTOCOL.md` is
+current and authoritative for the wire format.
+
+**⚠️ Biggest architectural change since the original design: GM mode is gone.** Every instance
+now both shares and receives (unified mode). The only role distinction left is "Host the relay on
+this machine" (`relayHostEnabled`) — the center node that runs the embedded WebSocket server and
+the Tailscale Funnel. Any client can press the reveal hotkey; its batch goes **up** to the host,
+which fans it out to everyone including the sender (the echo is the sharer's own render path).
+Read "Unified mode" below before changing anything in `relayServer.js`/`relayClient.js`.
 
 **Repo**: `~/intel-broadcast`, pushed to `https://github.com/flyinggab/intel-broadcast` (public).
-Current `main` HEAD as of this writing: `6fa5d9f`. Run `git log --oneline` for the authoritative
-list — don't trust hardcoded hashes here once more commits land.
+Run `git log --oneline` for the authoritative commit list — don't trust hardcoded hashes here.
 
-**⚠️ The published release is stale — rebuild before further cross-machine/Tailscale testing.**
+**⚠️ The published release is very stale — rebuild before any cross-machine/Tailscale testing.**
 `v0.1.0` (https://github.com/flyinggab/intel-broadcast/releases/tag/v0.1.0) is tagged at commit
-`d1ed98d`, which is **missing every feature commit since**, including:
-- `bb80b7e` — replaced the `--gm` launch flag with a Settings checkbox (`gmModeEnabled` in config).
-  The released build still needs `--gm` on the command line to enable GM mode at all — there's no
-  way to turn it on from the UI in that build.
-- `6fa5d9f` — `INTEL_BROADCAST_LOCAL_CONFIG_PATH` for testing two instances on one machine.
-- the 2026-07-30 session's work: display-proportional UI scaling (4K fix), live settings apply
-  (no more restart), and the Connected-clients list — see "What's built" below.
+`d1ed98d` and is missing **every** feature commit since: the Settings-checkbox mode switch,
+`INTEL_BROADCAST_LOCAL_CONFIG_PATH`, the 4K scaling fix, live settings apply, the
+connected-clients list, unified share/receive mode, and the whole Tailscale panel. That build is
+only useful as a historical artifact — nobody should be testing against it.
 
 To cut a fresh release: bump/retag `v0.1.0` (delete the old release + tag first —
 `gh release delete v0.1.0 --repo flyinggab/intel-broadcast --yes --cleanup-tag`, then
@@ -41,13 +45,15 @@ round-trip.
   binary-frame reassembly. `dev-e2e-test.js`, `dev-auth-test.js`.
 - Phase 1 — Electron viewer window, renders received batches, next/prev local browsing.
   `dev-e2e-electron-test.js`.
-- Phase 2 — GM hotkey + embedded relay, fan-out to viewers. `dev-e2e-gm-test.js` (now runs GM +
-  viewer as genuinely concurrent processes with isolated configs).
+- Phase 2 — reveal hotkey + embedded relay, fan-out to everyone. `dev-e2e-host-test.js` (was
+  `dev-e2e-gm-test.js`): host + another pilot as genuinely concurrent processes with isolated
+  configs; the reveal is triggered on the NON-host instance and asserted to arrive at the host
+  with correct `sharedBy` — the defining property of unified mode.
 - Settings window: folder picker, relay port/token, click-to-record hotkeys (not typed
-  accelerator strings), GM-mode toggle, callsign/username field. `dev-e2e-settings-test.js`
+  accelerator strings), host toggle, callsign/username field. `dev-e2e-settings-test.js`
   (real IPC path), `dev-e2e-hotkey-record-test.js` (real click + synthetic keydown → capture),
   `dev-settings-save-test.js` (deep-merge unit test), `dev-hotkey-config-load-test.js` (fresh
-  process picks up saved hotkeys).
+  process picks up saved hotkeys), `dev-config-test.js` (legacy `gmModeEnabled` fallback).
 - **Live settings apply (2026-07-30)** — saving no longer relaunches the app. index.js was
   restructured around mutable state + `applyNewConfig()`: hotkeys always re-register
   (unregisterAll → re-register); the embedded relay server stops/starts on GM-toggle or
@@ -71,13 +77,53 @@ round-trip.
 - **Connected-clients list in Settings (2026-07-30)** — relayServer tracks authenticated
   clients' `{role, callsign, connectedAt}` (Map, was a bare Set), exposes `getConnectedClients()`
   + an `onClientsChanged` callback; index forwards to the settings window via
-  `pushConnectedClients()` and the init payload. GM-mode Settings renders the live list
-  (callsigns are remote strings — rendered with textContent, never innerHTML). Pilot field
-  relabeled "Callsign / username (shown to your GM)". `dev-e2e-clients-list-test.js` (join AND
-  leave reach the settings DOM).
+  `pushConnectedClients()` and the init payload. The host's Settings renders the live list
+  (callsigns are remote strings — rendered with textContent, never innerHTML).
+  `dev-e2e-clients-list-test.js` (join AND leave reach the settings DOM). Note the host now
+  appears in its **own** list, since its app connects to its own relay as a client.
+- **Unified share/receive mode (2026-07-30, session 2 — the big one)**. GM/viewer roles merged:
+  every instance runs a RelayClient and can originate reveals; `relayHostEnabled` only decides
+  who runs the server. Key pieces:
+  - New `src/main/protocol.js` — the single source of truth for reveal-batch framing
+    (`buildRevealFrames`) and reassembly (`BatchReassembler`, with 100-item / 256 MB caps).
+    Both the client (receiving fan-outs, sending shares) and the server (reassembling
+    client-originated batches, one reassembler **per connection** so concurrent senders can't
+    interleave-corrupt each other) use it. `dev-protocol-test.js` covers round-trip,
+    out-of-order frames, stray/replacement frames, caps, and a lying `count`.
+  - `relayClient.sendRevealBatch()` sends up; the server rebroadcasts to **everyone including
+    the sender** and stamps `sharedBy` from the *authenticated* callsign (a spoofed `sharedBy`
+    in the incoming frame is ignored — tested). The viewer shows "2 / 5 — from Ghostrider-1".
+  - **Subtle bug caught while writing this**: the server originally attached its message
+    listener inside the auth `.then()`. Auth resolution is a microtask, but `ws` can emit
+    several buffered frames synchronously — a client that shares immediately after
+    authenticating would have had its frames dropped. Fixed with a bounded pre-auth queue
+    flushed on auth; `dev-e2e-share-test.js` case 2 pins this exact race.
+  - `gmHotkey.js` → `reveal.js` (sends via the client instead of broadcasting in-process);
+    config `gmModeEnabled` → `relayHostEnabled` with a legacy fallback in `loadConfig()`.
+  - `dev-e2e-share-test.js` (pure node: two clients through a real relay) and the reworked
+    `dev-e2e-host-test.js` (real Electron, non-host initiates).
+- **Tailscale Funnel panel (2026-07-30, session 2 — Phase 3)** — `src/main/tailscale.js` drives
+  the CLI (no Electron imports, so it's unit-testable): `findBinary()`
+  (`INTEL_BROADCAST_TAILSCALE_BIN` override → PATH → well-known per-platform paths),
+  `getState()` (composes `status --json` + `funnel status --json` into
+  `{installed, loggedIn, dnsName, wssUrl, funnelOn, enableUrl, error}`), `login()` (scrapes the
+  auth URL → `shell.openExternal`), `startFunnel(port)`/`stopFunnel()`/`stopFunnelSync()`.
+  Settings' "Internet sharing" panel renders that state as a 4-step walkthrough (not installed →
+  download page; not logged in → login; blocked → admin-console enable link + auto-retry every
+  10s; shared → public `wss://` URL + Copy invite). Funnel lifetime follows the host session:
+  reconciled at startup (kills a leftover `--bg` funnel from a crash), on every save, on a 3s
+  poll while Settings is open, and stopped in `will-quit`. Tests: `dev-tailscale-parse-test.js`
+  (parsing + a full cycle against the stub) and `dev-e2e-funnel-flow-test.js` (real app +
+  `scripts/fixtures/fake-tailscale` stub: blocked → admin approves → auto-retry → live URL in
+  the DOM → `funnel off` on quit; plus the startup-reconcile scenario).
+  **Verified facts** (July 2026): funnel must use HTTP-proxy mode (`funnel --bg <port>`), which
+  passes WebSocket upgrades; do NOT use `--tls-terminated-tcp` (PROXY-protocol header the relay
+  can't parse). Public ports are limited to 443/8443/10000. The known "funnel strips WS query
+  params" issue doesn't affect us — auth is a first-frame JSON message, not a URL param.
 
-**Real bugs found and fixed this session** (via the tests above, not just code review — worth
-knowing the *shape* of what broke, since it's the kind of thing that could regress):
+**Real bugs found and fixed** (via the tests above, not just code review — worth knowing the
+*shape* of what broke, since it's the kind of thing that could regress). See also the pre-auth
+frame race in the "Unified share/receive mode" bullet above:
 1. `render()` toggled `photoEl.style.display = ''` to show the image, but CSS had
    `#photo { display: none }` as a stylesheet rule — clearing an inline style doesn't override a
    stylesheet rule, so the image (and index indicator) never actually appeared. Fixed by using
@@ -121,14 +167,34 @@ npm's install-script allowlist by default) — already done, recorded in `app/pa
 `allowScripts` field, shouldn't need repeating.
 
 **Not yet done / open items**:
-- Rebuild and republish the GitHub release (see above) once ready to resume cross-machine testing.
-- Phase 3 (Tailscale Funnel on the GM's real machine) and Phase 4 (full squad rehearsal) haven't
-  started for real — everything so far has been local/WSL testing plus one release build cycle.
+- **The Tailscale panel has never touched a real `tailscale` binary** — all of Phase 3 was
+  developed against `scripts/fixtures/fake-tailscale`, since this WSL sandbox has no Tailscale
+  install and no way to reach a real tailnet. The stub encodes the CLI's *documented* behavior
+  (verified against Tailscale docs, July 2026), but the first real run on the user's Windows PC
+  is where the remaining risk lives. Specifically worth watching: exact stderr wording/URL shape
+  when the funnel node attribute is missing (`extractUrl` grabs the first `https://` — fine for
+  the documented message, unconfirmed against the real one), whether `tailscale login` on
+  Windows prints the auth URL to stdout at all (the GUI client may open the browser itself), and
+  whether `where tailscale` resolves in a packaged app's environment (the well-known
+  `C:\Program Files\Tailscale\tailscale.exe` fallback exists for that).
+- Phase 4 (full squad rehearsal, DCS actually running) — not started. Phase 3's two-network test
+  (home WiFi + phone hotspot) is the next real-machine milestone.
+- Rebuild and republish the GitHub release (see above) before any cross-machine testing.
+- The relay-port setting is the *local* listen port; the public funnel is always :443 (Tailscale
+  only allows 443/8443/10000). Nothing surfaces that in the UI yet — harmless today, but a
+  confusing detail if someone sets a port expecting it to appear in the public URL.
 - Window size/position persistence (`%APPDATA%`) mentioned in the design below was never
   implemented — flagged as a TODO back in Phase 2, still outstanding.
+- GM-side image pre-resize (~2000px long edge / q85, `nativeImage`) recommended in the design
+  below was never implemented; with unified mode, *any* client's uplink can now be the one doing
+  the upload, so this matters slightly more than it did.
 - No icon asset for the app/tray — currently a 1x1 placeholder PNG scaled up (`tray.js`).
 
 ## Context
+
+*(Historical design writeup — kept for the reasoning. Where it says "the GM presses the hotkey",
+current reality is "any pilot presses the hotkey"; where it says "GM mode", read "hosts the
+relay". See the status section above.)*
 
 The user wants to share a recon/intel photo with their whole flight during a DCS multiplayer mission: one person (the GM, who is also flying) presses a keybind and the photo pops up simultaneously on every connected pilot's screen — pilots are on separate physical PCs spread across the internet, not a LAN party. Each pilot's screen shows the photo in an Electron window that OpenKneeboard's Window Capture source can grab and present as a virtual kneeboard page in the cockpit.
 
@@ -181,7 +247,10 @@ intel-broadcast/                    # ~/intel-broadcast, sibling to ~/dcs-worksp
     │   │   ├── relayClient.js       # ws client (every instance, incl. GM's own, connects as a viewer too)
     │   │   ├── auth.js              # token check on connect (relayServer side)
     │   │   ├── viewerWindow.js      # capture-friendly BrowserWindow
-    │   │   ├── gmHotkey.js          # registers globalShortcut, reads photo folder, sends + shows locally
+    │   │   ├── reveal.js            # reads photo folder, sends the batch up via relayClient
+    │   │   ├── protocol.js          # reveal-batch framing + reassembly, shared by both sides
+    │   │   ├── tailscale.js         # drives the Tailscale CLI for the host's Funnel panel
+    │   │   ├── scaling.js           # display-proportional window sizing + zoom
     │   │   ├── tray.js              # Tray icon + "Settings"/"Quit" context menu
     │   │   └── settingsWindow.js    # GM/pilot config form -> config.local.json, applies live
     │   ├── preload/
@@ -217,7 +286,7 @@ Photos: for quick testing, `app/photos/<mission-name>/` holds bundled JPEGs (e.g
 - Window is kept open and restored (not minimized) during a session — same as any other app the user already runs behind OpenKneeboard's Window Capture (e.g. WhatsApp), so no special-casing needed. Always-on-top default OFF.
 - Window size/position persisted to `%APPDATA%` so OpenKneeboard's capture region stays valid across restarts. *(Not yet implemented as of Phase 2 — still a TODO, tracked separately from the settings page below.)*
 
-**GM hotkey behavior** (`gmHotkey.js`): registers a single global shortcut (default `Ctrl+Shift+I`, configurable) via Electron's `globalShortcut` module — fires regardless of which window/app has OS focus, including while DCS is fullscreen. On press: reads every file in the configured photos folder (see Settings page below), updates the GM's own viewer window immediately with the full batch (direct IPC, no network round-trip needed for self), and hands the same batch to the local `relayServer` for fan-out to everyone else. The GM's machine therefore runs the exact same viewer window (with the same next/prev browsing hotkeys) as everyone else, plus the embedded relay server and this one extra reveal hotkey — not a separate UI, just extra background responsibilities enabled by `--gm`.
+**Reveal hotkey behavior** (`reveal.js`) *(updated 2026-07-30: every instance has this, not just a GM)*: a single global shortcut (default `Ctrl+Shift+I`, configurable) registered via Electron's `globalShortcut` — fires regardless of which window/app has OS focus, including while DCS is fullscreen. On press: reads every file in *this machine's* configured photos folder and sends the batch **up to the relay** through this instance's own `relayClient`. The host fans it out to everyone, sender included — so the sharer's own window renders from the echo, exactly like everyone else's, rather than via a separate local path. The host machine differs only in additionally running the embedded relay server and the Tailscale Funnel.
 
 **Settings page** (new, added after initial Phases 0–2 build-and-test; superseded the `--gm` launch flag entirely afterward — see below): rather than requiring anyone to hand-edit `config.local.json`, a small settings window — reached via a system Tray icon, the app's own minimal menu bar, or a configurable hotkey (default `Ctrl+Shift+O`) — lets each role configure what it needs through a normal form, saved to `config.local.json` (already the established override mechanism) and applied live on save (see last bullet):
 - **A "Enable Game Master mode" checkbox is the mode switch now, not a launch flag.** One app, one shortcut/build for everyone — checking the box and saving is how a session's GM is designated, toggleable live in the same settings window (fields for both roles are always in the DOM; the checkbox just shows/hides them).
@@ -236,7 +305,7 @@ Photos: for quick testing, `app/photos/<mission-name>/` holds bundled JPEGs (e.g
 0. **Relay skeleton** — embedded Node `ws` server module + `PROTOCOL.md`. Test standalone (`node relayServer.js` or equivalent) with `wscat`/test scripts simulating a `reveal-batch` (metadata frame + a couple binary frames) and a viewer receive, no Electron GUI yet.
 1. **Viewer app MVP** — connects to a local relay instance, renders a received batch correctly (idle/disconnected/aspect states, index indicator, next/prev local hotkeys). Test by pushing 2-3 sample images (e.g. `dcs-workspace/briefings/src/roman-sead-joker1-intel1.jpg` plus a couple more) as a batch via a Phase-0 test script. Quick sanity check as part of this phase: add the running viewer as an OpenKneeboard Window Capture source once, just to confirm the fixed-title/frameless setup captures cleanly — not treated as a separate high-risk phase, since Window Capture itself is already proven (the user runs it for WhatsApp today).
 2. **GM hotkey + embedded relay** — wire `globalShortcut` + folder read (all files) + immediate local display + the app's own embedded `relayServer`. Test solo: one `--gm` instance + one viewer instance, both on one machine, DCS not even running.
-3. **Tailscale Funnel on the GM's machine**, tested across two networks (e.g. home WiFi + phone hotspot) to validate genuine internet round-trip through the tunnel, not just localhost.
+3. **Tailscale Funnel on the host's machine**, tested across two networks (e.g. home WiFi + phone hotspot) to validate genuine internet round-trip through the tunnel, not just localhost. *(Built and stub-tested 2026-07-30 — driven from the Settings panel rather than the CLI by hand; the two-network run on real hardware is still outstanding.)*
 4. **Full squad rehearsal** — the only phase that needs the whole squad online: 2+ remote pilots on the pre-built viewer exe, GM presses the hotkey (with DCS actually running and in focus, to confirm the global hotkey really fires through it), confirm simultaneous reveal.
 5. *(Explicitly out of scope for this plan, but protocol-compatible)* — swap the pre-bundled-file read behind the hotkey for a live TARPS/FLIR capture source feeding the same `reveal` message shape (`sourceType:"live-capture"`).
 

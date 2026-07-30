@@ -39,14 +39,18 @@ function saveSettingsValues(values) {
  * startup. `onSaved` is index.js's live-apply entry point: it re-loads the
  * config and restarts whatever the changed values affect (hotkeys, relay
  * server, relay client) in-process — saves no longer relaunch the app.
+ * `onTailscaleAction` handles the Tailscale panel's buttons (login, open
+ * download/admin pages, copy invite, refresh).
  */
-function registerSettingsIpc({ onSaved }) {
+function registerSettingsIpc({ onSaved, onTailscaleAction = () => {} }) {
   ipcMain.handle('settings:browse-folder', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const result = await dialog.showOpenDialog(win, { properties: ['openDirectory'] });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
   });
+
+  ipcMain.handle('settings:tailscale-action', (_event, action) => onTailscaleAction(String(action)));
 
   ipcMain.handle('settings:save', (_event, values) => {
     saveSettingsValues(values);
@@ -70,8 +74,16 @@ function pushConnectedClients(clients) {
   }
 }
 
+/** Pushes a fresh Tailscale state snapshot (see tailscale.js getState()) to
+ *  the settings window, if one is open. */
+function pushTailscaleState(state) {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.webContents.send('tailscale-state', state);
+  }
+}
+
 /** Opens the settings window (or focuses it if already open). */
-function openSettingsWindow({ isGmMode, config, getConnectedClients = () => [] }) {
+function openSettingsWindow({ isHost, config, getConnectedClients = () => [] }) {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.focus();
     return settingsWindow;
@@ -99,10 +111,16 @@ function openSettingsWindow({ isGmMode, config, getConnectedClients = () => [] }
     query: { uiZoom: String(zoom) },
   });
   settingsWindow.webContents.on('did-finish-load', () => {
-    settingsWindow.webContents.send('init', { isGmMode, config, connectedClients: getConnectedClients() });
+    settingsWindow.webContents.send('init', { isHost, config, connectedClients: getConnectedClients() });
   });
 
   return settingsWindow;
 }
 
-module.exports = { openSettingsWindow, registerSettingsIpc, saveSettingsValues, pushConnectedClients };
+module.exports = {
+  openSettingsWindow,
+  registerSettingsIpc,
+  saveSettingsValues,
+  pushConnectedClients,
+  pushTailscaleState,
+};

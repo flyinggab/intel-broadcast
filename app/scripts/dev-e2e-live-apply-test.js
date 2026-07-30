@@ -29,19 +29,29 @@ const TRIGGER_PORT = 8793;
 const NEW_TOKEN = 'live-apply-token-2';
 
 const SAVE_PAYLOAD = {
-  gmModeEnabled: true,
+  relayHostEnabled: true,
   token: NEW_TOKEN,
   gm: { relayPort: NEW_PORT },
   hotkeys: { reveal: 'Ctrl+Shift+U' },
 };
 
 fs.rmSync(MARKER_PATH, { force: true });
-// Boot as GM on the OLD port/token with the default reveal hotkey; the save
+// Boot as host on the OLD port/token with the default reveal hotkey; the save
 // then moves all three live. missionName keeps the bundled 2-photo fixture as
 // the reveal source (photosFolder is never set).
 fs.writeFileSync(
   CONFIG_PATH,
-  JSON.stringify({ gmModeEnabled: true, token: 'live-apply-token-1', missionName: 'roman-sead-joker1', gm: { relayPort: OLD_PORT } }, null, 2),
+  JSON.stringify(
+    {
+      relayHostEnabled: true,
+      token: 'live-apply-token-1',
+      callsign: 'live-host',
+      missionName: 'roman-sead-joker1',
+      gm: { relayPort: OLD_PORT },
+    },
+    null,
+    2,
+  ),
 );
 
 const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
@@ -63,6 +73,7 @@ let relayProbe = null;
 function cleanup(exitCode) {
   fs.rmSync(CONFIG_PATH, { force: true });
   fs.rmSync(MARKER_PATH, { force: true });
+  if (triggerTimer) clearInterval(triggerTimer);
   if (relayProbe) relayProbe.close();
   child.kill();
   // Safety sweep: if a regression brought app.relaunch() back, its child is
@@ -93,8 +104,11 @@ function fail(msg) {
 
 // Step 2 (runs after the marker confirms the live hotkey swap): connect to the
 // NEW port with the NEW token — RelayClient's own retry/backoff absorbs the
-// small window while the relay finishes restarting — then fire the trigger
-// and expect the 2-photo fixture batch.
+// small window while the relay finishes restarting. The reveal now flows
+// through the app's OWN relay client (unified mode), which also has to finish
+// reconnecting to the new port — so keep re-firing the trigger until a batch
+// arrives instead of betting on one lucky shot.
+let triggerTimer = null;
 function verifyRelayRestarted() {
   relayProbe = new RelayClient({
     url: `ws://localhost:${NEW_PORT}`,
@@ -104,13 +118,14 @@ function verifyRelayRestarted() {
   });
   relayProbe.on('connected', () => {
     console.log('[e2e] probe connected to relay on NEW port with NEW token');
-    setTimeout(() => {
+    triggerTimer = setInterval(() => {
       require('http').get(`http://127.0.0.1:${TRIGGER_PORT}`, () => console.log('[e2e] hit trigger endpoint'));
-    }, 500);
+    }, 1000);
   });
   relayProbe.on('reveal-batch', (batch) => {
-    if (batch.items.length === 2) pass();
-    else fail(`expected the 2-photo fixture batch, got ${batch.items.length} item(s)`);
+    clearInterval(triggerTimer);
+    if (batch.items.length === 2 && batch.sharedBy === 'live-host') pass();
+    else fail(`expected the 2-photo fixture batch shared by "live-host", got ${batch.items.length} item(s) from "${batch.sharedBy}"`);
   });
   relayProbe.connect();
 }

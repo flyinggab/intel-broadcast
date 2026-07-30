@@ -1,0 +1,183 @@
+'use strict';
+
+// Funnel-lifecycle e2e against the stub tailscale binary
+// (scripts/fixtures/fake-tailscale via INTEL_BROADCAST_TAILSCALE_BIN):
+//
+// Scenario 1 — the host's happy-path walk, with the one-time admin hurdle:
+//   boot a host with funnelEnabled -> funnel start is BLOCKED (node attribute
+//   not set) -> settings DOM shows "needs enabling" -> admin "approves" (test
+//   flips the stub state) -> app retries automatically -> DOM shows the
+//   public wss:// URL -> app is terminated -> the app must have run
+//   `funnel --https=443 off` on the way out (session-only funnel lifetime).
+//
+// Scenario 2 — startup reconcile: a leftover --bg funnel from a crash is
+//   turned OFF at boot when config doesn't want it.
+//
+// Usage: node scripts/dev-e2e-funnel-flow-test.js
+
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
+
+const APP_DIR = path.join(__dirname, '..');
+const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
+const STUB_BIN = path.join(APP_DIR, 'scripts', 'fixtures', 'fake-tailscale');
+const CONFIG_PATH = path.join(APP_DIR, 'funnel-e2e-config.local.json');
+const STATE_PATH = path.join(APP_DIR, 'funnel-e2e-tailscale-state.json');
+const LOG_PATH = path.join(APP_DIR, 'funnel-e2e-tailscale-log.txt');
+
+const RELAY_PORT = 8797;
+const WSS_URL = 'wss://fake-host.tail1234.ts.net';
+
+function baseEnv() {
+  return {
+    ...process.env,
+    INTEL_BROADCAST_LOCAL_CONFIG_PATH: CONFIG_PATH,
+    INTEL_BROADCAST_TAILSCALE_BIN: STUB_BIN,
+    INTEL_BROADCAST_FUNNEL_RETRY_MS: '1500',
+    FAKE_TAILSCALE_STATE_PATH: STATE_PATH,
+    FAKE_TAILSCALE_LOG_PATH: LOG_PATH,
+  };
+}
+
+function cleanupFiles() {
+  fs.rmSync(CONFIG_PATH, { force: true });
+  fs.rmSync(STATE_PATH, { force: true });
+  fs.rmSync(LOG_PATH, { force: true });
+}
+
+function offInvocations() {
+  try {
+    return fs
+      .readFileSync(LOG_PATH, 'utf8')
+      .split('\n')
+      .filter((l) => l.trim() === 'funnel --https=443 off').length;
+  } catch {
+    return 0;
+  }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function waitFor(desc, predicate, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await sleep(300);
+  }
+  throw new Error(`timed out waiting for: ${desc}`);
+}
+
+async function scenario1() {
+  cleanupFiles();
+  fs.writeFileSync(
+    CONFIG_PATH,
+    JSON.stringify({
+      relayHostEnabled: true,
+      token: 'funnel-e2e',
+      gm: { relayPort: RELAY_PORT, funnelEnabled: true },
+    }),
+  );
+  // Logged in, funnel not yet permitted by the tailnet admin.
+  fs.writeFileSync(
+    STATE_PATH,
+    JSON.stringify({ backendState: 'Running', dnsName: 'fake-host.tail1234.ts.net.', funnelOn: false, funnelAllowed: false }),
+  );
+
+  let output = '';
+  const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
+    cwd: APP_DIR,
+    env: { ...baseEnv(), INTEL_BROADCAST_OPEN_SETTINGS: '1', INTEL_BROADCAST_TAILSCALE_PROBE: '1' },
+  });
+  child.stdout.on('data', (d) => {
+    output += d.toString();
+    process.stdout.write(`[app] ${d}`);
+  });
+  child.stderr.on('data', (d) => process.stderr.write(`[app] ${d}`));
+
+  try {
+    await waitFor(
+      'settings DOM to show the funnel needs enabling',
+      () => output.includes('TS_PROBE') && output.includes('needs enabling'),
+      15000,
+    );
+    console.log('[e2e] blocked state surfaced in the DOM — "approving" funnel in the fake admin console');
+
+    const state = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
+    state.funnelAllowed = true;
+    fs.writeFileSync(STATE_PATH, JSON.stringify(state));
+
+    await waitFor(
+      'automatic retry to bring the funnel up and show the wss URL in the DOM',
+      () => output.includes(`| ${WSS_URL}`),
+      15000,
+    );
+    console.log('[e2e] funnel live, wss URL rendered — terminating the app');
+
+    const offsBefore = offInvocations();
+    child.kill(); // SIGTERM -> Electron graceful quit -> will-quit -> stopFunnelSync
+    await waitFor('the quit path to run `funnel --https=443 off`', () => offInvocations() > offsBefore, 8000);
+    console.log('[e2e] scenario 1 OK (blocked -> enabled -> live -> off on quit)');
+  } finally {
+    child.kill('SIGKILL');
+  }
+}
+
+async function scenario2() {
+  cleanupFiles();
+  // Hosting, but funnel sharing NOT wanted — yet a stale --bg funnel is still
+  // up (crash last session). Startup reconcile must turn it off.
+  fs.writeFileSync(
+    CONFIG_PATH,
+    JSON.stringify({
+      relayHostEnabled: true,
+      token: 'funnel-e2e',
+      gm: { relayPort: RELAY_PORT, funnelEnabled: false },
+    }),
+  );
+  fs.writeFileSync(
+    STATE_PATH,
+    JSON.stringify({
+      backendState: 'Running',
+      dnsName: 'fake-host.tail1234.ts.net.',
+      funnelOn: true,
+      funnelPort: RELAY_PORT,
+      funnelAllowed: true,
+    }),
+  );
+
+  const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], { cwd: APP_DIR, env: baseEnv() });
+  child.stdout.on('data', (d) => process.stdout.write(`[app2] ${d}`));
+  child.stderr.on('data', (d) => process.stderr.write(`[app2] ${d}`));
+
+  try {
+    await waitFor(
+      'startup reconcile to stop the leftover funnel',
+      () => {
+        try {
+          return JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')).funnelOn === false && offInvocations() > 0;
+        } catch {
+          return false;
+        }
+      },
+      15000,
+    );
+    console.log('[e2e] scenario 2 OK (leftover funnel reconciled off at startup)');
+  } finally {
+    child.kill('SIGKILL');
+  }
+}
+
+(async () => {
+  try {
+    await scenario1();
+    await scenario2();
+    console.log('[dev-e2e-funnel-flow-test] PASS');
+    cleanupFiles();
+    setTimeout(() => process.exit(0), 300);
+  } catch (err) {
+    console.error(`[e2e] FAIL: ${err.message}`);
+    cleanupFiles();
+    setTimeout(() => process.exit(1), 300);
+  }
+})();

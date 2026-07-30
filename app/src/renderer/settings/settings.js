@@ -1,9 +1,7 @@
 'use strict';
 
-const heading = document.getElementById('heading');
-const gmFields = document.getElementById('gm-fields');
-const pilotFields = document.getElementById('pilot-fields');
-const tailscaleHint = document.getElementById('tailscale-hint');
+const hostFields = document.getElementById('host-fields');
+const connectFields = document.getElementById('connect-fields');
 
 const connectedClientsEl = document.getElementById('connected-clients');
 const photosFolderInput = document.getElementById('photosFolder');
@@ -11,32 +9,37 @@ const relayPortInput = document.getElementById('relayPort');
 const relayUrlInput = document.getElementById('relayUrl');
 const callsignInput = document.getElementById('callsign');
 const tokenInput = document.getElementById('token');
-const rowReveal = document.getElementById('row-reveal');
-const gmModeToggle = document.getElementById('gmModeToggle');
+const hostToggle = document.getElementById('hostToggle');
+const funnelToggle = document.getElementById('funnelToggle');
 
-let isGmMode = false;
+const tsDot = document.getElementById('ts-dot');
+const tsStatusText = document.getElementById('ts-status-text');
+const tsUrlRow = document.getElementById('ts-url-row');
+const tsUrl = document.getElementById('ts-url');
+const tsActions = document.getElementById('ts-actions');
+
+let isHost = false;
 const hotkeyValues = { reveal: '', prev: '', next: '', settings: '' };
 
 function renderHotkeyValue(key) {
   document.getElementById(`value-${key}`).textContent = hotkeyValues[key] || '—';
 }
 
-/** Applies the current isGmMode to field visibility — called on init AND
- *  whenever the checkbox changes, since toggling GM mode is now a live,
- *  in-session choice rather than something fixed at launch. */
+/** Applies the current isHost to field visibility — called on init AND
+ *  whenever the checkbox changes, since hosting is a live, in-session choice.
+ *  Everything else (callsign, photos folder, reveal hotkey) belongs to
+ *  everyone in unified mode. */
 function updateFieldVisibility() {
-  heading.textContent = isGmMode ? 'GM Settings' : 'Pilot Settings';
-  gmFields.style.display = isGmMode ? 'block' : 'none';
-  pilotFields.style.display = isGmMode ? 'none' : 'block';
-  rowReveal.style.display = isGmMode ? 'flex' : 'none';
+  hostFields.style.display = isHost ? 'block' : 'none';
+  connectFields.style.display = isHost ? 'none' : 'block';
 }
 
-gmModeToggle.addEventListener('change', () => {
-  isGmMode = gmModeToggle.checked;
+hostToggle.addEventListener('change', () => {
+  isHost = hostToggle.checked;
   updateFieldVisibility();
 });
 
-/** Renders the GM's live "Connected clients" list. Built with textContent
+/** Renders the host's live "Connected clients" list. Built with textContent
  *  (never innerHTML) — callsigns are remote-supplied strings. */
 function renderConnectedClients(clients) {
   connectedClientsEl.textContent = '';
@@ -63,12 +66,71 @@ function renderConnectedClients(clients) {
 
 window.settingsAPI.onConnectedClients(renderConnectedClients);
 
-window.settingsAPI.onInit(({ isGmMode: gm, config, connectedClients }) => {
-  isGmMode = gm;
-  gmModeToggle.checked = gm;
+function tsButton(label, action) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = label;
+  button.addEventListener('click', () => window.settingsAPI.tailscaleAction(action));
+  return button;
+}
+
+/** Renders the Tailscale panel from a main-process state snapshot — one
+ *  status line, the public URL when shared, and only the action buttons that
+ *  make sense in the current state. All text via textContent (CLI output and
+ *  URLs are not our strings). */
+function renderTailscaleState(state) {
+  tsActions.textContent = '';
+  tsUrlRow.style.display = 'none';
+  if (!state) return;
+
+  if (!state.installed) {
+    tsDot.className = 'ts-dot bad';
+    tsStatusText.textContent =
+      'Tailscale is not installed on this machine. Install it, then come back — this panel detects it automatically.';
+    tsActions.append(tsButton('Open download page…', 'open-download'));
+    return;
+  }
+  if (!state.loggedIn) {
+    tsDot.className = 'ts-dot warn';
+    tsStatusText.textContent = `Tailscale is installed but not logged in (state: ${state.backendState || 'unknown'}).`;
+    tsActions.append(tsButton('Log in to Tailscale…', 'login'));
+    return;
+  }
+  if (state.funnelOn) {
+    tsDot.className = 'ts-dot ok';
+    tsStatusText.textContent = 'Shared publicly — squad members outside your network use this relay URL:';
+    tsUrl.textContent = state.wssUrl || '';
+    tsUrlRow.style.display = 'flex';
+    return;
+  }
+  if (state.enableUrl) {
+    tsDot.className = 'ts-dot warn';
+    tsStatusText.textContent =
+      'Funnel needs enabling for your tailnet — a one-time approval in the Tailscale admin console, then it retries automatically.';
+    tsActions.append(tsButton('Enable Funnel in admin console…', 'open-enable-url'), tsButton('Retry now', 'refresh'));
+    return;
+  }
+  if (state.error) {
+    tsDot.className = 'ts-dot warn';
+    tsStatusText.textContent = `Tailscale problem: ${state.error}`;
+    tsActions.append(tsButton('Retry', 'refresh'));
+    return;
+  }
+  tsDot.className = 'ts-dot';
+  tsStatusText.textContent = `Logged in as ${state.dnsName || '(unknown)'} — not shared publicly. Tick the box below and Save to share.`;
+}
+
+window.settingsAPI.onTailscaleState(renderTailscaleState);
+document.getElementById('ts-copy-invite').addEventListener('click', () => window.settingsAPI.tailscaleAction('copy-invite'));
+
+window.settingsAPI.onInit(({ isHost: host, config, connectedClients }) => {
+  isHost = host;
+  hostToggle.checked = host;
   updateFieldVisibility();
   renderConnectedClients(connectedClients);
 
+  callsignInput.value = config.callsign || '';
+  photosFolderInput.value = config.photosFolder || '';
   tokenInput.value = config.token || '';
 
   for (const key of Object.keys(hotkeyValues)) {
@@ -76,19 +138,12 @@ window.settingsAPI.onInit(({ isGmMode: gm, config, connectedClients }) => {
     renderHotkeyValue(key);
   }
 
-  // Both sets of fields are populated regardless of current mode, so
+  // Both host and connect fields are populated regardless of current mode, so
   // switching the toggle mid-session shows correct values immediately
   // instead of blank fields.
-  photosFolderInput.value = config.photosFolder || '';
   relayPortInput.value = config.gm?.relayPort || '';
-  tailscaleHint.style.display = 'block';
-  tailscaleHint.innerHTML =
-    `Local relay: <code>ws://localhost:${config.gm?.relayPort || ''}</code>. ` +
-    `To let pilots outside your network reach it, install Tailscale on this machine and run ` +
-    `<code>tailscale funnel ${config.gm?.relayPort || ''}</code>, then share the printed ` +
-    `<code>https://...</code> URL and this token with your pilots.`;
+  funnelToggle.checked = config.gm?.funnelEnabled === true;
   relayUrlInput.value = config.relayUrl || '';
-  callsignInput.value = config.callsign || '';
 });
 
 document.getElementById('browse').addEventListener('click', async () => {
@@ -182,23 +237,17 @@ function nonEmptyHotkeys(fields) {
 }
 
 document.getElementById('save').addEventListener('click', () => {
-  const hotkeys = isGmMode ? nonEmptyHotkeys(hotkeyValues) : nonEmptyHotkeys({ ...hotkeyValues, reveal: undefined });
-
-  const values = isGmMode
-    ? {
-        gmModeEnabled: true,
-        photosFolder: photosFolderInput.value.trim() || null,
-        token: tokenInput.value.trim(),
-        gm: { relayPort: Number(relayPortInput.value) || 8787 },
-        hotkeys,
-      }
-    : {
-        gmModeEnabled: false,
-        relayUrl: relayUrlInput.value.trim(),
-        token: tokenInput.value.trim(),
-        callsign: callsignInput.value.trim(),
-        hotkeys,
-      };
-
-  window.settingsAPI.save(values);
+  // One unified payload: every field applies to every instance now; the host
+  // checkbox only decides whether this machine also runs the relay. Values
+  // for the hidden section are sent too (deep merge keeps them consistent
+  // with what the form showed).
+  window.settingsAPI.save({
+    relayHostEnabled: isHost,
+    callsign: callsignInput.value.trim(),
+    photosFolder: photosFolderInput.value.trim() || null,
+    token: tokenInput.value.trim(),
+    relayUrl: relayUrlInput.value.trim(),
+    gm: { relayPort: Number(relayPortInput.value) || 8787, funnelEnabled: funnelToggle.checked },
+    hotkeys: nonEmptyHotkeys(hotkeyValues),
+  });
 });

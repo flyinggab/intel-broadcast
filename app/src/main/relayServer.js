@@ -1,27 +1,29 @@
 'use strict';
 
 const { WebSocketServer } = require('ws');
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
 const { authenticateConnection } = require('./auth');
-
-const ITEM_ID_LENGTH = 36; // ASCII UUID prefix on each binary frame
+const { buildRevealFrames, BatchReassembler, ITEM_ID_LENGTH } = require('./protocol');
 
 /**
  * Starts the embedded relay: a WebSocket server that authenticates connections
  * with a shared token, then fans out `reveal-batch` broadcasts (one JSON text
  * frame + one binary frame per item) to every currently-connected client.
  *
- * Only the process holding this server ever originates a broadcast — it's
- * called in-process by gmHotkey.js in Electron, or via the standalone dev CLI
- * below when testing without Electron.
+ * Any authenticated client may originate a reveal: the server reassembles the
+ * client's frames (per-connection BatchReassembler, so concurrent senders
+ * can't interleave-corrupt each other) and re-broadcasts the batch to every
+ * client, INCLUDING the sender — the echo is each sharer's own render path
+ * and delivery confirmation. `sharedBy` on the fan-out is stamped from the
+ * sender's authenticated callsign, never trusted from the incoming frame.
  */
 function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = () => {} }) {
   const wss = new WebSocketServer({ port });
   // ws -> { role, callsign, connectedAt } for every authenticated client —
-  // identity kept so the GM's settings window can show who's connected.
+  // identity kept so the settings window can show who's connected and so
+  // rebroadcasts can be attributed to their sender.
   const clients = new Map();
 
   // Without a handler, an 'error' event (e.g. EADDRINUSE when a live settings
@@ -30,14 +32,54 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
   wss.on('error', (err) => onLog(`server error: ${err.message}`));
 
   wss.on('connection', (ws) => {
+    const reassembler = new BatchReassembler();
+    let senderCallsign = null; // set once authenticated
+
+    function handleFrame(data, isBinary) {
+      let batch;
+      try {
+        batch = reassembler.feed(data, isBinary);
+      } catch (err) {
+        onLog(`rejected batch from ${senderCallsign || '(none)'}: ${err.message}`);
+        return;
+      }
+      if (!batch) return;
+      // sharedBy is stamped from the AUTHENTICATED callsign — whatever the
+      // incoming frame claimed is ignored.
+      broadcastRevealBatch(batch.items, { sourceType: batch.sourceType, sharedBy: senderCallsign || '' });
+    }
+
+    // The listener is attached NOW, not after auth resolves: auth resolution
+    // is a microtask, and ws can emit several already-buffered frames
+    // synchronously back-to-back — frames right behind the auth frame would
+    // otherwise be emitted with no listener and silently lost. Until auth
+    // completes, frames are queued (bounded); the auth frame itself also
+    // lands in the queue (auth.js consumes it via its own once-listener) and
+    // is harmlessly ignored by the reassembler on flush.
+    const preAuthQueue = [];
+    let authed = false;
+    ws.on('message', (data, isBinary) => {
+      if (!authed) {
+        if (preAuthQueue.length < 200) preAuthQueue.push([data, isBinary]);
+        return;
+      }
+      handleFrame(data, isBinary);
+    });
+
     authenticateConnection(ws, token)
       .then((authMsg) => {
-        clients.set(ws, { role: authMsg.role, callsign: authMsg.callsign || '', connectedAt: Date.now() });
-        onLog(`client connected: role=${authMsg.role} callsign=${authMsg.callsign || '(none)'}`);
+        senderCallsign = authMsg.callsign || '';
+        clients.set(ws, { role: authMsg.role, callsign: senderCallsign, connectedAt: Date.now() });
+        onLog(`client connected: role=${authMsg.role} callsign=${senderCallsign || '(none)'}`);
         onClientsChanged(getConnectedClients());
+
+        authed = true;
+        for (const [data, isBinary] of preAuthQueue) handleFrame(data, isBinary);
+        preAuthQueue.length = 0;
+
         ws.on('close', () => {
           clients.delete(ws);
-          onLog(`client disconnected: role=${authMsg.role} callsign=${authMsg.callsign || '(none)'}`);
+          onLog(`client disconnected: role=${authMsg.role} callsign=${senderCallsign || '(none)'}`);
           onClientsChanged(getConnectedClients());
         });
       })
@@ -54,29 +96,8 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
   /**
    * items: [{ filename, mimeType, buffer }]
    */
-  function broadcastRevealBatch(items, { sourceType = 'prebundled' } = {}) {
-    const batchId = crypto.randomUUID();
-    const itemsWithIds = items.map((item) => ({
-      itemId: crypto.randomUUID(),
-      filename: item.filename,
-      mimeType: item.mimeType,
-      byteLength: item.buffer.length,
-      sha256: crypto.createHash('sha256').update(item.buffer).digest('hex'),
-    }));
-
-    const metaFrame = JSON.stringify({
-      type: 'reveal-batch',
-      batchId,
-      count: items.length,
-      sourceType,
-      ts: new Date().toISOString(),
-      items: itemsWithIds,
-    });
-
-    const binaryFrames = items.map((item, i) => {
-      const idBuf = Buffer.from(itemsWithIds[i].itemId, 'ascii');
-      return Buffer.concat([idBuf, item.buffer]);
-    });
+  function broadcastRevealBatch(items, { sourceType = 'prebundled', sharedBy = '' } = {}) {
+    const { batchId, metaFrame, binaryFrames } = buildRevealFrames(items, { sourceType, sharedBy });
 
     for (const ws of clients.keys()) {
       if (ws.readyState !== ws.OPEN) continue;
@@ -84,7 +105,10 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
       for (const frame of binaryFrames) ws.send(frame, { binary: true });
     }
 
-    onLog(`broadcast reveal-batch ${batchId}: ${items.length} item(s) to ${clients.size} client(s)`);
+    onLog(
+      `broadcast reveal-batch ${batchId}: ${items.length} item(s) to ${clients.size} client(s)` +
+        (sharedBy ? ` (shared by ${sharedBy})` : ''),
+    );
     return batchId;
   }
 
@@ -125,8 +149,8 @@ module.exports = { createRelayServer, readPhotoFolder, ITEM_ID_LENGTH };
 
 // Standalone dev mode: `node relayServer.js` (or `npm run relay:standalone`).
 // Starts the server, then lets you trigger broadcasts by typing a folder path
-// + Enter on stdin — mirrors what gmHotkey.js will do in the real app, without
-// needing Electron for Phase 0 testing.
+// + Enter on stdin — mirrors what a reveal hotkey does in the real app,
+// without needing Electron.
 if (require.main === module) {
   const port = Number(process.env.RELAY_PORT) || 8787;
   const token = process.env.RELAY_TOKEN || 'dev-secret';

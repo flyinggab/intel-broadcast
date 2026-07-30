@@ -2,17 +2,19 @@
 
 const { EventEmitter } = require('events');
 const WebSocket = require('ws');
+const { buildRevealFrames, BatchReassembler } = require('./protocol');
 
-const ITEM_ID_LENGTH = 36;
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 16000, 30000]; // caps at 30s
 
 /**
- * WebSocket client for the relay: authenticates, reassembles reveal-batch
- * messages (metadata frame + N binary frames matched by itemId), and
- * reconnects with exponential backoff on disconnect. Emits:
+ * WebSocket client for the relay: authenticates, reassembles incoming
+ * reveal-batch fan-outs (via protocol.js), can originate its own reveal
+ * upstream (sendRevealBatch — any client may share, the relay fans it out to
+ * everyone including the sender), and reconnects with exponential backoff on
+ * disconnect. Emits:
  *   - 'connected'
  *   - 'disconnected'
- *   - 'reveal-batch' ({ batchId, sourceType, ts, items: [{filename, mimeType, buffer}] })
+ *   - 'reveal-batch' ({ batchId, sourceType, sharedBy, ts, items: [{filename, mimeType, buffer}] })
  */
 class RelayClient extends EventEmitter {
   constructor({ url, token, role, callsign }) {
@@ -24,8 +26,7 @@ class RelayClient extends EventEmitter {
     this.reconnectAttempt = 0;
     this.closedByUser = false;
     this.ws = null;
-    this.pendingMeta = null;
-    this.pendingBuffers = new Map();
+    this.reassembler = new BatchReassembler();
   }
 
   connect() {
@@ -38,6 +39,27 @@ class RelayClient extends EventEmitter {
     if (this.ws) this.ws.close();
   }
 
+  get connected() {
+    return !!this.ws && this.ws.readyState === WebSocket.OPEN;
+  }
+
+  /**
+   * Sends a reveal batch UP to the relay, which fans it out to every
+   * connected client — including this one (the echo is the single render
+   * path: what comes back is what everyone sees). Returns the batchId, or
+   * null when not connected.
+   */
+  sendRevealBatch(items, { sourceType = 'prebundled' } = {}) {
+    if (!this.connected) return null;
+    const { batchId, metaFrame, binaryFrames } = buildRevealFrames(items, {
+      sourceType,
+      sharedBy: this.callsign || '',
+    });
+    this.ws.send(metaFrame);
+    for (const frame of binaryFrames) this.ws.send(frame, { binary: true });
+    return batchId;
+  }
+
   _openSocket() {
     const ws = new WebSocket(this.url);
     this.ws = ws;
@@ -48,7 +70,17 @@ class RelayClient extends EventEmitter {
       this.emit('connected');
     });
 
-    ws.on('message', (data, isBinary) => this._handleMessage(data, isBinary));
+    ws.on('message', (data, isBinary) => {
+      let batch;
+      try {
+        batch = this.reassembler.feed(data, isBinary);
+      } catch (err) {
+        // Cap violation on an incoming fan-out — drop it, stay connected.
+        console.error(`[relayClient] dropped incoming batch: ${err.message}`);
+        return;
+      }
+      if (batch) this.emit('reveal-batch', batch);
+    });
 
     ws.on('close', () => {
       this.emit('disconnected');
@@ -66,39 +98,6 @@ class RelayClient extends EventEmitter {
     setTimeout(() => {
       if (!this.closedByUser) this._openSocket();
     }, delay);
-  }
-
-  _handleMessage(data, isBinary) {
-    if (!isBinary) {
-      const msg = JSON.parse(data.toString('utf8'));
-      if (msg.type === 'reveal-batch') {
-        this.pendingMeta = msg;
-        this.pendingBuffers = new Map();
-      }
-      return;
-    }
-
-    if (!this.pendingMeta) return; // binary frame with no matching batch in flight, ignore
-
-    const itemId = data.subarray(0, ITEM_ID_LENGTH).toString('ascii');
-    const bytes = Buffer.from(data.subarray(ITEM_ID_LENGTH));
-    this.pendingBuffers.set(itemId, bytes);
-
-    if (this.pendingBuffers.size === this.pendingMeta.count) {
-      const items = this.pendingMeta.items.map((item) => ({
-        filename: item.filename,
-        mimeType: item.mimeType,
-        buffer: this.pendingBuffers.get(item.itemId),
-      }));
-      this.emit('reveal-batch', {
-        batchId: this.pendingMeta.batchId,
-        sourceType: this.pendingMeta.sourceType,
-        ts: this.pendingMeta.ts,
-        items,
-      });
-      this.pendingMeta = null;
-      this.pendingBuffers = new Map();
-    }
   }
 }
 

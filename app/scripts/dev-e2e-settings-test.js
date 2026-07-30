@@ -27,7 +27,7 @@ const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
 const UI_SCALE = 1.6; // pre-seeded so the zoom probe checks a non-trivial factor
 
 const SAVE_PAYLOAD = {
-  gmModeEnabled: true,
+  relayHostEnabled: true,
   photosFolder: '/tmp/some-mission-photos',
   token: 'settings-e2e-token',
   gm: { relayPort: 9123 },
@@ -83,7 +83,7 @@ const poll = setInterval(() => {
       }
     })();
   const applied =
-    output.includes('GM mode enabled — embedded relay started') &&
+    output.includes('hosting enabled — embedded relay started') &&
     output.includes('register reveal "Ctrl+Shift+U": OK');
 
   if (saved && applied) {
@@ -93,7 +93,7 @@ const poll = setInterval(() => {
       assert.strictEqual(child.exitCode, null, 'app must still be running (no relaunch)');
 
       const written = JSON.parse(fs.readFileSync(LOCAL_CONFIG_PATH, 'utf8'));
-      assert.strictEqual(written.gmModeEnabled, true);
+      assert.strictEqual(written.relayHostEnabled, true);
       assert.strictEqual(written.photosFolder, SAVE_PAYLOAD.photosFolder);
       assert.strictEqual(written.token, SAVE_PAYLOAD.token);
       assert.strictEqual(written.gm.relayPort, SAVE_PAYLOAD.gm.relayPort);

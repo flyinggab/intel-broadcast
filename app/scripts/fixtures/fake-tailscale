@@ -1,0 +1,81 @@
+#!/usr/bin/env node
+'use strict';
+
+// Stub `tailscale` CLI for tests (pointed at via INTEL_BROADCAST_TAILSCALE_BIN).
+// Behavior is driven by a JSON state file (FAKE_TAILSCALE_STATE_PATH):
+//   { backendState, dnsName, funnelOn, funnelPort, funnelAllowed }
+// and every invocation is appended to FAKE_TAILSCALE_LOG_PATH so tests can
+// assert exactly which commands the app ran (e.g. the `funnel ... off` on quit).
+
+const fs = require('fs');
+
+const STATE_PATH = process.env.FAKE_TAILSCALE_STATE_PATH;
+const LOG_PATH = process.env.FAKE_TAILSCALE_LOG_PATH;
+const args = process.argv.slice(2);
+
+if (LOG_PATH) fs.appendFileSync(LOG_PATH, `${args.join(' ')}\n`);
+
+function readState() {
+  try {
+    return JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
+  } catch {
+    return { backendState: 'NeedsLogin', dnsName: 'fake-host.tail1234.ts.net.', funnelOn: false, funnelAllowed: true };
+  }
+}
+function writeState(state) {
+  if (STATE_PATH) fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
+}
+
+const state = readState();
+const cmd = args.join(' ');
+
+if (cmd === 'status --json') {
+  process.stdout.write(JSON.stringify({ BackendState: state.backendState, Self: { DNSName: state.dnsName } }));
+  process.exit(0);
+}
+
+if (cmd === 'funnel status --json') {
+  const host = state.dnsName.replace(/\.$/, '');
+  if (state.funnelOn) {
+    process.stdout.write(
+      JSON.stringify({
+        AllowFunnel: { [`${host}:443`]: true },
+        Web: { [`${host}:443`]: { Handlers: { '/': { Proxy: `http://127.0.0.1:${state.funnelPort || 0}` } } } },
+      }),
+    );
+  } else {
+    process.stdout.write('{}');
+  }
+  process.exit(0);
+}
+
+if (args[0] === 'funnel' && args[1] === '--bg') {
+  if (state.funnelAllowed === false) {
+    process.stderr.write(
+      'Funnel not available; "funnel" node attribute not set. To enable, visit:\n\n' +
+        '\thttps://login.tailscale.com/f/funnel?node=fake-node-id\n',
+    );
+    process.exit(1);
+  }
+  state.funnelOn = true;
+  state.funnelPort = Number(args[2]);
+  writeState(state);
+  process.stdout.write(`Available on the internet:\n\nhttps://${state.dnsName.replace(/\.$/, '')}/\n`);
+  process.exit(0);
+}
+
+if (args[0] === 'funnel' && args[1] === '--https=443' && args[2] === 'off') {
+  state.funnelOn = false;
+  writeState(state);
+  process.exit(0);
+}
+
+if (args[0] === 'login') {
+  process.stdout.write('To authenticate, visit:\n\n\thttps://login.tailscale.com/a/fake-auth-123\n');
+  state.backendState = 'Running';
+  writeState(state);
+  process.exit(0);
+}
+
+process.stderr.write(`fake-tailscale: unhandled command: ${cmd}\n`);
+process.exit(2);

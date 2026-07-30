@@ -3,33 +3,47 @@
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
-const { app, globalShortcut, Menu } = require('electron');
+const { app, globalShortcut, Menu, shell, clipboard } = require('electron');
 const { loadConfig } = require('./config');
 const { createViewerWindow } = require('./viewerWindow');
 const { RelayClient } = require('./relayClient');
 const { createRelayServer } = require('./relayServer');
-const { revealPhotosFolder } = require('./gmHotkey');
+const { revealPhotosFolder } = require('./reveal');
 const { createTray } = require('./tray');
-const { openSettingsWindow, registerSettingsIpc, pushConnectedClients } = require('./settingsWindow');
+const tailscale = require('./tailscale');
+const {
+  openSettingsWindow,
+  registerSettingsIpc,
+  pushConnectedClients,
+  pushTailscaleState,
+} = require('./settingsWindow');
 
 const BUNDLED_PHOTOS_DIR = path.join(__dirname, '..', '..', 'photos');
 
 // Mutable session state: a settings save re-loads `config` and live-restarts
 // just the pieces the changed values affect (hotkey registrations, embedded
 // relay server, relay client) via applyNewConfig() — no app relaunch.
+//
+// Unified mode: EVERY instance runs a RelayClient and can both share and
+// receive. The instance with "Host the relay" checked additionally runs the
+// embedded relay server (the center node — the only machine that needs
+// Tailscale), and its own client simply connects to localhost.
 let config = loadConfig();
 let viewer = null;
-let relayServer = null; // present iff GM mode is currently on
-let relayClient = null; // present iff GM mode is currently off
+let relayServer = null; // present iff this instance hosts the relay
+let relayClient = null; // always present once the app is ready
 
-// GM mode is a config value the Settings window toggles (a checkbox, saved to
-// config.local.json like everything else), not a launch flag — and since a
-// save applies live, it can now flip mid-session.
-function isGmMode() {
-  return config.gmModeEnabled === true;
+function isHost() {
+  return config.relayHostEnabled === true;
 }
 
-// GM's settings page can point photosFolder at any arbitrary absolute path;
+// The host's own client talks to its own embedded server; everyone else uses
+// the configured (usually wss://…ts.net) relay URL.
+function effectiveRelayUrl() {
+  return isHost() ? `ws://127.0.0.1:${config.gm.relayPort}` : config.relayUrl;
+}
+
+// The settings page can point photosFolder at any arbitrary absolute path;
 // falls back to the bundled test-fixture convention (photos/<mission-name>/)
 // until it's been set once. Resolved at reveal time, so a folder change in
 // Settings applies from the very next hotkey press.
@@ -38,24 +52,126 @@ function currentPhotosFolder() {
 }
 
 function openSettings() {
-  return openSettingsWindow({
-    isGmMode: isGmMode(),
+  const win = openSettingsWindow({
+    isHost: isHost(),
     config,
     getConnectedClients: () => (relayServer ? relayServer.getConnectedClients() : []),
   });
+  // Keep the Tailscale panel fresh while the settings window is open — the
+  // poll also auto-detects a just-completed install/login and (re)applies the
+  // funnel whenever config wants it on but it isn't yet.
+  if (!tailscalePollTimer) {
+    refreshTailscaleState({ reconcile: true });
+    tailscalePollTimer = setInterval(() => refreshTailscaleState({ reconcile: true }), 3000);
+    win.on('closed', () => {
+      clearInterval(tailscalePollTimer);
+      tailscalePollTimer = null;
+    });
+  }
+  return win;
 }
 
 function doReveal() {
-  if (!relayServer) {
-    console.log('[gmHotkey] reveal ignored — GM mode is off');
-    return;
-  }
   revealPhotosFolder({
     photosFolder: currentPhotosFolder(),
-    viewer,
-    relayServer,
-    onLog: (msg) => console.log(`[gmHotkey] ${msg}`),
+    relayClient,
+    onLog: (msg) => console.log(`[reveal] ${msg}`),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Tailscale Funnel (host machine only) — the panel in Settings drives this.
+// The funnel's lifetime follows the host session: reconciliation turns it on
+// while `relayHostEnabled` + `gm.funnelEnabled` are both set, off otherwise,
+// and will-quit shuts it down when the app exits.
+// ---------------------------------------------------------------------------
+
+let lastTailscaleState = null;
+let tailscalePollTimer = null;
+let lastFunnelAttempt = 0;
+let loginInFlight = false;
+// Failed funnel starts (e.g. waiting for the one-time admin-console enable)
+// are retried on this cadence rather than every poll tick.
+const FUNNEL_RETRY_MS = Number(process.env.INTEL_BROADCAST_FUNNEL_RETRY_MS) || 10000;
+
+function wantFunnel() {
+  return isHost() && config.gm.funnelEnabled === true;
+}
+
+/**
+ * Fetches the current Tailscale state, optionally reconciling reality with
+ * config (start the funnel if wanted-but-off, stop it if off-but-running),
+ * and pushes the result to the settings window if one is open.
+ */
+async function refreshTailscaleState({ reconcile = false } = {}) {
+  let state;
+  try {
+    state = await tailscale.getState();
+    if (reconcile && wantFunnel() && state.installed && state.loggedIn && !state.funnelOn) {
+      if (Date.now() - lastFunnelAttempt >= FUNNEL_RETRY_MS) {
+        lastFunnelAttempt = Date.now();
+        const res = await tailscale.startFunnel(config.gm.relayPort);
+        if (res.ok) {
+          console.log(`[tailscale] funnel started: public :443 -> 127.0.0.1:${config.gm.relayPort}`);
+          state = await tailscale.getState();
+        } else {
+          state.enableUrl = res.enableUrl || null;
+          state.error = res.message;
+          console.log(`[tailscale] funnel start failed: ${res.message}`);
+        }
+      } else if (lastTailscaleState) {
+        // between retries, keep showing the last error/enableUrl instead of
+        // flickering back to a clean "not shared" state
+        state.enableUrl = lastTailscaleState.enableUrl || null;
+        state.error = lastTailscaleState.error || null;
+      }
+    } else if (reconcile && !wantFunnel() && state.funnelOn) {
+      await tailscale.stopFunnel();
+      console.log('[tailscale] funnel stopped (sharing disabled in settings)');
+      state = await tailscale.getState();
+    }
+  } catch (err) {
+    state = { installed: true, error: err.message };
+  }
+  lastTailscaleState = state;
+  pushTailscaleState(state);
+  return state;
+}
+
+/** Handles a button press from the settings panel's Tailscale section. */
+async function handleTailscaleAction(action) {
+  if (action === 'open-download') {
+    shell.openExternal(tailscale.DOWNLOAD_URL);
+    return;
+  }
+  if (action === 'open-enable-url') {
+    if (lastTailscaleState && lastTailscaleState.enableUrl) shell.openExternal(lastTailscaleState.enableUrl);
+    return;
+  }
+  if (action === 'login') {
+    if (loginInFlight) return;
+    loginInFlight = true;
+    // Resolves when the CLI exits; the browser URL opens as soon as it's
+    // printed. State polling picks up the resulting login either way.
+    tailscale
+      .login({ onAuthUrl: (url) => shell.openExternal(url) })
+      .catch(() => {})
+      .finally(() => {
+        loginInFlight = false;
+        refreshTailscaleState({ reconcile: true });
+      });
+    return;
+  }
+  if (action === 'copy-invite') {
+    if (lastTailscaleState && lastTailscaleState.wssUrl) {
+      clipboard.writeText(`Intel Broadcast relay: ${lastTailscaleState.wssUrl}\nToken: ${config.token}`);
+    }
+    return;
+  }
+  if (action === 'refresh') {
+    lastFunnelAttempt = 0; // user asked — retry immediately
+    await refreshTailscaleState({ reconcile: true });
+  }
 }
 
 function registerHotkey(name, accelerator, handler) {
@@ -68,14 +184,15 @@ function registerHotkey(name, accelerator, handler) {
  * (Re-)registers every global shortcut from the current config — called once
  * at startup and again on every settings save. Starting from unregisterAll()
  * is what makes a hotkey change apply live: the old accelerators are released
- * in the same step that claims the new ones.
+ * in the same step that claims the new ones. The reveal hotkey belongs to
+ * everyone now, not just the host.
  */
 function registerHotkeys() {
   globalShortcut.unregisterAll();
   registerHotkey('settings', config.hotkeys.settings, openSettings);
   registerHotkey('next', config.hotkeys.next, () => viewer.navigate('next'));
   registerHotkey('prev', config.hotkeys.prev, () => viewer.navigate('prev'));
-  if (isGmMode()) registerHotkey('reveal', config.hotkeys.reveal, doReveal);
+  registerHotkey('reveal', config.hotkeys.reveal, doReveal);
 
   // Dev/test-only: reports what got registered to a file. Rewritten on every
   // (re-)registration, so a test can watch a live settings apply swap hotkeys
@@ -91,7 +208,7 @@ function registerHotkeys() {
   }
 }
 
-function startGmRole() {
+function startHost() {
   relayServer = createRelayServer({
     port: config.gm.relayPort,
     token: config.token,
@@ -99,8 +216,6 @@ function startGmRole() {
     // Keeps the settings window's "Connected clients" section live while open.
     onClientsChanged: pushConnectedClients,
   });
-  // The GM's own window is always "connected" — it's the server, not a client.
-  viewer.setConnectionState({ connected: true });
 }
 
 /**
@@ -108,7 +223,7 @@ function startGmRole() {
  * released immediately) and calls `done` once it's fully closed — restarting
  * on the same port must wait for that, or it races into EADDRINUSE.
  */
-function stopGmRole(done = () => {}) {
+function stopHost(done = () => {}) {
   if (!relayServer) {
     done();
     return;
@@ -118,9 +233,9 @@ function stopGmRole(done = () => {}) {
   server.close(done);
 }
 
-function startViewerRole() {
+function startClient() {
   relayClient = new RelayClient({
-    url: config.relayUrl,
+    url: effectiveRelayUrl(),
     token: config.token,
     role: 'viewer',
     callsign: config.callsign,
@@ -135,17 +250,21 @@ function startViewerRole() {
     // normal operation.
     if (process.env.INTEL_BROADCAST_SCREENSHOT_PATH) takeDevScreenshotAndQuit(viewer);
     // Dev-only test hook: writes batch metadata to a file so a test harness can
-    // confirm this viewer actually received a broadcast, without needing pixels.
+    // confirm this instance actually received a broadcast, without needing pixels.
     if (process.env.INTEL_BROADCAST_RECEIVED_MARKER_PATH) {
       fs.writeFileSync(
         process.env.INTEL_BROADCAST_RECEIVED_MARKER_PATH,
-        JSON.stringify({ batchId: batch.batchId, filenames: batch.items.map((i) => i.filename) }),
+        JSON.stringify({
+          batchId: batch.batchId,
+          sharedBy: batch.sharedBy || '',
+          filenames: batch.items.map((i) => i.filename),
+        }),
       );
     }
   });
 
   // Until the first 'connected' fires this shows the disconnected banner —
-  // truthful during a live GM->viewer switch. At first boot the renderer
+  // truthful during a live settings change. At first boot the renderer
   // hasn't loaded yet and the message is simply dropped, same as before.
   viewer.setConnectionState({ connected: false });
   relayClient.connect();
@@ -153,10 +272,10 @@ function startViewerRole() {
 
 /**
  * Closes the relay client and drops its listeners first, so the 'disconnected'
- * its closing socket emits asynchronously can't repaint the banner after a new
- * role has already taken over the connection state.
+ * its closing socket emits asynchronously can't repaint the banner after a
+ * replacement client has already taken over the connection state.
  */
-function stopViewerRole() {
+function stopClient() {
   if (!relayClient) return;
   relayClient.removeAllListeners();
   relayClient.close();
@@ -175,32 +294,34 @@ function applyNewConfig(newConfig) {
 
   registerHotkeys();
 
-  const wasGm = old.gmModeEnabled === true;
-  if (isGmMode() && !wasGm) {
-    stopViewerRole();
-    startGmRole();
-    console.log('[index] GM mode enabled — embedded relay started');
-  } else if (!isGmMode() && wasGm) {
-    stopGmRole();
-    startViewerRole();
-    console.log('[index] GM mode disabled — connecting as viewer');
-  } else if (isGmMode()) {
-    const relayChanged = old.gm.relayPort !== config.gm.relayPort || old.token !== config.token;
-    if (relayChanged) {
-      stopGmRole(() => {
-        startGmRole();
-        console.log('[index] relay settings changed — embedded relay restarted');
-      });
-    }
-  } else {
-    const clientChanged =
-      old.relayUrl !== config.relayUrl || old.token !== config.token || old.callsign !== config.callsign;
-    if (clientChanged) {
-      stopViewerRole();
-      startViewerRole();
-      console.log('[index] relay connection settings changed — reconnecting');
-    }
+  const wasHost = old.relayHostEnabled === true;
+  const oldEffectiveUrl = wasHost ? `ws://127.0.0.1:${old.gm.relayPort}` : old.relayUrl;
+
+  if (isHost() && !wasHost) {
+    startHost();
+    console.log('[index] hosting enabled — embedded relay started');
+  } else if (!isHost() && wasHost) {
+    stopHost();
+    console.log('[index] hosting disabled — embedded relay stopped');
+  } else if (isHost() && (old.gm.relayPort !== config.gm.relayPort || old.token !== config.token)) {
+    stopHost(() => {
+      startHost();
+      console.log('[index] relay settings changed — embedded relay restarted');
+    });
   }
+
+  const clientChanged =
+    oldEffectiveUrl !== effectiveRelayUrl() || old.token !== config.token || old.callsign !== config.callsign;
+  if (clientChanged) {
+    stopClient();
+    startClient();
+    console.log('[index] relay connection changed — reconnecting');
+  }
+
+  // A save is explicit user intent — reconcile the funnel against the new
+  // config right away (and let a previously-failed start retry immediately).
+  lastFunnelAttempt = 0;
+  refreshTailscaleState({ reconcile: true });
 }
 
 function attachDevScreenshotHook(viewer) {
@@ -228,7 +349,10 @@ function takeDevScreenshotAndQuit(viewer) {
 }
 
 app.whenReady().then(() => {
-  registerSettingsIpc({ onSaved: () => applyNewConfig(loadConfig()) });
+  registerSettingsIpc({
+    onSaved: () => applyNewConfig(loadConfig()),
+    onTailscaleAction: handleTailscaleAction,
+  });
 
   // A minimal menu bar of our own — NOT Electron's default menu, which binds
   // Ctrl+Shift+I to "Toggle DevTools" and would consume that keypress before
@@ -267,6 +391,21 @@ app.whenReady().then(() => {
         settingsWin.webContents.executeJavaScript(
           'console.log(`ZOOM_PROBE innerWidth=${window.innerWidth} dpr=${window.devicePixelRatio}`)',
         );
+      }
+      // Periodically reports the rendered Tailscale panel so a test can walk
+      // the install -> login -> funnel-on states against the stub binary.
+      if (process.env.INTEL_BROADCAST_TAILSCALE_PROBE) {
+        const tsProbe = setInterval(() => {
+          if (settingsWin.isDestroyed()) {
+            clearInterval(tsProbe);
+            return;
+          }
+          settingsWin.webContents
+            .executeJavaScript(
+              `console.log('TS_PROBE ' + document.getElementById('ts-status-text').textContent + ' | ' + document.getElementById('ts-url').textContent)`,
+            )
+            .catch(() => {});
+        }, 400);
       }
       // Periodically reports the rendered "Connected clients" list so a test
       // can confirm live client join/leave updates reach the settings DOM.
@@ -326,26 +465,28 @@ app.whenReady().then(() => {
   }
 
   // Distinct default starting spot per role, purely so two instances launched
-  // on the same machine (e.g. this local demo) don't land exactly on top of
-  // each other before you've dragged either one. Irrelevant once pilots are
+  // on the same machine (e.g. local testing) don't land exactly on top of
+  // each other before you've dragged either one. Irrelevant once everyone is
   // on separate physical machines.
-  const initialPosition = isGmMode() ? { x: 80, y: 80 } : { x: 460, y: 200 };
+  const initialPosition = isHost() ? { x: 80, y: 80 } : { x: 460, y: 200 };
   viewer = createViewerWindow({ title: config.windowTitle, initialPosition, uiScale: config.uiScale });
 
   if (process.env.INTEL_BROADCAST_SCREENSHOT_PATH) attachDevScreenshotHook(viewer);
 
   registerHotkeys();
 
-  if (isGmMode()) {
-    startGmRole();
-  } else {
-    startViewerRole();
-  }
+  if (isHost()) startHost();
+  startClient();
+
+  // Startup reconcile: bring the funnel up if this host wants it, and — since
+  // `--bg` funnels survive reboots/crashes — tear down a leftover one when
+  // config says it shouldn't be running.
+  refreshTailscaleState({ reconcile: true });
 
   // Dev/test-only: lets a test harness trigger the same reveal action a real
-  // hotkey press would, without simulating an OS-level keypress. Created
-  // regardless of current mode (a test can flip GM mode on live, then
-  // trigger). Never started unless this env var is explicitly set.
+  // hotkey press would, without simulating an OS-level keypress. Any instance
+  // can share now, so any instance can carry this. Never started unless this
+  // env var is explicitly set.
   if (process.env.INTEL_BROADCAST_TEST_TRIGGER_PORT) {
     http
       .createServer((req, res) => {
@@ -356,13 +497,16 @@ app.whenReady().then(() => {
   }
 
   viewer.window.on('closed', () => {
-    stopViewerRole();
-    stopGmRole();
+    stopClient();
+    stopHost();
   });
 });
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  // Session-only funnel lifetime: the public endpoint goes away with the
+  // host's app. Synchronous best-effort — will-quit can't await.
+  if (wantFunnel()) tailscale.stopFunnelSync();
 });
 
 app.on('window-all-closed', () => {

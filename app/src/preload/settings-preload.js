@@ -12,6 +12,8 @@ if (uiZoom > 0) webFrame.setZoomFactor(uiZoom);
 contextBridge.exposeInMainWorld('settingsAPI', {
   onInit: (callback) => ipcRenderer.on('init', (_event, payload) => callback(payload)),
   onConnectedClients: (callback) => ipcRenderer.on('connected-clients', (_event, clients) => callback(clients)),
+  onTailscaleState: (callback) => ipcRenderer.on('tailscale-state', (_event, state) => callback(state)),
   browseFolder: () => ipcRenderer.invoke('settings:browse-folder'),
+  tailscaleAction: (action) => ipcRenderer.invoke('settings:tailscale-action', action),
   save: (values) => ipcRenderer.invoke('settings:save', values),
 });

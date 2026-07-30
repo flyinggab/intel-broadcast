@@ -55,6 +55,7 @@ function createViewerWindow({ title, initialPosition, uiScale }) {
     if (window.isDestroyed()) return; // relayClient events can still land during shutdown
     window.webContents.send('show-batch', {
       batchId: batch.batchId,
+      sharedBy: batch.sharedBy || '',
       items: batch.items.map((item) => ({ filename: item.filename, dataUrl: toDataUrl(item) })),
     });
   }

@@ -1,5 +1,5 @@
 {
-  "gmModeEnabled": false,
+  "relayHostEnabled": false,
   "relayUrl": "ws://localhost:8787",
   "token": "dev-secret",
   "callsign": "",
@@ -14,6 +14,7 @@
   "missionName": "roman-sead-joker1",
   "photosFolder": null,
   "gm": {
-    "relayPort": 8787
+    "relayPort": 8787,
+    "funnelEnabled": false
   }
 }

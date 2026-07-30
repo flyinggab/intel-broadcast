@@ -86,6 +86,43 @@
   .gm-toggle input { margin: 0; }
   .gm-toggle label { margin: 0; color: #ddd; }
 
+  #tailscale-panel {
+    background: #262626;
+    border-radius: 4px;
+    padding: 10px;
+  }
+  .ts-status { display: flex; align-items: center; gap: 8px; }
+  .ts-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #777;
+    flex-shrink: 0;
+  }
+  .ts-dot.ok { background: #4caf6d; }
+  .ts-dot.warn { background: #d9a13b; }
+  .ts-dot.bad { background: #c25454; }
+  #ts-status-text { color: #ccc; line-height: 1.4; }
+  .ts-url-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .ts-url-row code {
+    flex: 1;
+    background: #1d1d1d;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    padding: 5px 8px;
+    color: #9bd4ae;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .ts-actions { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .ts-actions:empty { display: none; }
+  .ts-funnel-toggle { margin: 10px 0 0; background: #1f1f1f; }
+
   #connected-clients {
     background: #262626;
     border-radius: 4px;
@@ -117,22 +154,43 @@
 <body>
   <h2 id="heading">Settings</h2>
 
-  <div class="gm-toggle">
-    <input type="checkbox" id="gmModeToggle" />
-    <label for="gmModeToggle">Enable Game Master mode (host the relay + reveal hotkey)</label>
+  <label for="callsign">Callsign / username (shown to the squad)</label>
+  <input type="text" id="callsign" />
+
+  <label for="photosFolder">Photos folder to share (your reveal hotkey sends this to everyone)</label>
+  <div class="row">
+    <input type="text" id="photosFolder" readonly />
+    <button id="browse">Browse&hellip;</button>
   </div>
 
-  <div id="gm-fields" style="display:none">
-    <label for="photosFolder">Photos folder to share</label>
-    <div class="row">
-      <input type="text" id="photosFolder" readonly />
-      <button id="browse">Browse&hellip;</button>
-    </div>
+  <label for="token">Shared token</label>
+  <input type="text" id="token" />
 
+  <div class="gm-toggle">
+    <input type="checkbox" id="hostToggle" />
+    <label for="hostToggle">Host the relay on this machine (the squad's center node)</label>
+  </div>
+
+  <div id="host-fields" style="display:none">
     <label for="relayPort">Relay listen port</label>
     <input type="number" id="relayPort" />
 
-    <div id="tailscale-hint" class="hint"></div>
+    <h3>Internet sharing (Tailscale Funnel)</h3>
+    <div id="tailscale-panel">
+      <div class="ts-status">
+        <span id="ts-dot" class="ts-dot"></span>
+        <span id="ts-status-text">Checking Tailscale&hellip;</span>
+      </div>
+      <div id="ts-url-row" class="ts-url-row" style="display:none">
+        <code id="ts-url"></code>
+        <button id="ts-copy-invite" type="button">Copy invite</button>
+      </div>
+      <div id="ts-actions" class="ts-actions"></div>
+      <div class="gm-toggle ts-funnel-toggle">
+        <input type="checkbox" id="funnelToggle" />
+        <label for="funnelToggle">Share the relay publicly while the app runs (needs Save)</label>
+      </div>
+    </div>
 
     <h3>Connected clients</h3>
     <div id="connected-clients">
@@ -140,16 +198,10 @@
     </div>
   </div>
 
-  <div id="pilot-fields" style="display:none">
-    <label for="relayUrl">Relay URL (from your GM)</label>
-    <input type="text" id="relayUrl" placeholder="wss://your-gm-machine.tailnet.ts.net" />
-
-    <label for="callsign">Callsign / username (shown to your GM)</label>
-    <input type="text" id="callsign" />
+  <div id="connect-fields" style="display:none">
+    <label for="relayUrl">Relay URL (from whoever hosts the relay)</label>
+    <input type="text" id="relayUrl" placeholder="wss://host-machine.tailnet.ts.net" />
   </div>
-
-  <label for="token">Shared token</label>
-  <input type="text" id="token" />
 
   <h3>Hotkeys (this machine)</h3>
   <div id="hotkey-rows">
