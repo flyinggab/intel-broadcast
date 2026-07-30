@@ -1,0 +1,23 @@
+<!--
+  Intel Broadcast — TRAY icon (macOS template image).
+
+  BLACK + TRANSPARENCY ONLY. macOS recolours a "Template" image for the
+  menu bar and inverts it in dark mode, so any colour baked in here would
+  fight the OS. No panel body either: the menu bar is the body.
+
+  Rendered at 16 and 32 (@2x) as trayTemplate.png / trayTemplate@2x.png.
+  The name matters — Electron/AppKit only applies template behaviour to
+  files whose name ends in "Template".
+
+  Do not edit the rendered PNGs — edit this, then:
+      node scripts/dev-make-icons.js
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- the page, as an outline so the menu bar shows through -->
+  <rect x="112" y="64" width="288" height="384" rx="20" fill="none" stroke="#000" stroke-width="52"/>
+  <!-- one bracket pair, heavy: at 16px this is ~1.6px of ink -->
+  <g stroke="#000" stroke-width="46" fill="none" stroke-linecap="butt">
+    <path d="M196 224v-40h44"/><path d="M316 224v-40h-44"/>
+    <path d="M196 288v40h44"/><path d="M316 288v40h-44"/>
+  </g>
+</svg>

@@ -28,6 +28,9 @@ function createViewerWindow({ title, initialPosition, uiScale, onState = () => {
     title,
     width,
     height,
+    // Windows/Linux draw this in the title bar and taskbar; macOS ignores it
+    // and uses the bundle's .icns instead.
+    icon: path.join(__dirname, '..', 'renderer', 'img', 'icon.png'),
     ...(initialPosition ? { x: initialPosition.x, y: initialPosition.y } : {}),
     backgroundColor: '#747A74',
     webPreferences: {

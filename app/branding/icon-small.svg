@@ -1,0 +1,38 @@
+<!--
+  Intel Broadcast — app icon SMALL VARIANT (48, 32, 24, 16).
+
+  Same idea as icon.svg, redrawn for a grid that cannot hold the master's
+  detail. Downscaling the master to 16px turns the page into a featureless
+  white rectangle — the one weakness of this concept, and the reason this
+  file exists. Icon sets are meant to carry per-size artwork; .icns and
+  .ico are both containers of independent bitmaps.
+
+  What changes and why:
+    - page is BIGGER relative to the canvas (less body padding survives)
+    - brackets are much heavier, so they stay visible as notches
+    - the centre dot is gone: at 16px it merges with the brackets into a
+      grey smear, which reads worse than nothing
+    - corner radii are tightened so the silhouette stays crisp
+
+  Do not edit the rendered PNGs — edit this, then:
+      node scripts/dev-make-icons.js
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bodySmall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#454E42"/>
+      <stop offset="1" stop-color="#2C332B"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="8" y="8" width="496" height="496" rx="96" fill="url(#bodySmall)"/>
+
+  <!-- a larger page: at 16px this is the shape that has to survive -->
+  <rect x="128" y="80" width="256" height="352" rx="16" fill="#F9F9F9"/>
+
+  <!-- heavy notches: thin strokes vanish below 32px -->
+  <g stroke="#2C332B" stroke-width="42" fill="none" stroke-linecap="butt">
+    <path d="M186 208v-58h58"/><path d="M326 208v-58h-58"/>
+    <path d="M186 304v58h58"/><path d="M326 304v58h-58"/>
+  </g>
+</svg>

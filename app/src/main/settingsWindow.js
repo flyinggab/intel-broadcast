@@ -80,6 +80,7 @@ function openSettingsWindow({ config }) {
     title: 'Intel Broadcast Setup',
     width,
     height,
+    icon: path.join(__dirname, '..', 'renderer', 'img', 'icon.png'),
     resizable: true,
     backgroundColor: '#747A74',
     webPreferences: {

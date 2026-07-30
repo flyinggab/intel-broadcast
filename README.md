@@ -106,6 +106,8 @@ intel-broadcast/
 ├── protocol-vectors.json# v2 conformance vectors
 ├── BRIEF.md             # phase 1 spec (historical; §4 has the CSS class contract)
 └── app/                 # the Electron app (one unified mode, single codebase)
+    ├── branding/        # icon SVG masters — edit these, never the PNGs
+    ├── build/           # generated .icns/.ico/.png (committed; CI consumes them)
     └── PLAN.md          # historical — original architecture + packaging post-mortem
 ```
 

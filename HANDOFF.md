@@ -35,6 +35,14 @@ don't trust hashes written down anywhere.
 BOTH locales — `dev-i18n-test` fails on a key present in one and not the
 other. Console and log lines stay English on purpose.
 
+**Touching the icon?** Edit `app/branding/*.svg`, then run
+`node scripts/dev-make-icons.js` (macOS only — it needs `iconutil`) and
+commit what lands in `app/build/` and `app/src/renderer/img/`. The small
+sizes come from a SEPARATE master, `icon-small.svg`: downscaling the full
+artwork to 16px produces a featureless white rectangle. Never put a double
+hyphen in those SVG comments — it is illegal in XML and the file then fails
+to decode with no useful error.
+
 The app is an Electron companion for DCS. Any pilot hits a hotkey and their
 selected photos appear on every connected pilot's kneeboard, captured by
 OpenKneeboard. One instance hosts the relay; Tailscale Funnel exposes it.

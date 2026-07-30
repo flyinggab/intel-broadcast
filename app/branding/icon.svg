@@ -1,0 +1,39 @@
+<!--
+  Intel Broadcast — app icon MASTER (large sizes: 512, 256, 128, 64).
+
+  The kneeboard page the pilot actually looks at, wearing the targeting
+  brackets this app has drawn on every frame since v0.1 (see
+  src/renderer/img/frame-placeholder.svg).
+
+  Palette is the tokens.css family, but the body is deliberately darker
+  than the UI surface token: that mid grey-green washes out against a dock.
+
+  NOTE: no double hyphen anywhere in these comments. It is illegal inside
+  an XML comment, and the SVG then fails to decode as an image with no
+  useful error — which is exactly how this file broke the first time.
+
+  Do not edit the rendered PNGs. Edit this, then:
+      node scripts/dev-make-icons.js
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#454E42"/>
+      <stop offset="1" stop-color="#2C332B"/>
+    </linearGradient>
+  </defs>
+
+  <!-- instrument-panel body -->
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#body)"/>
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="none" stroke="#5E6A5A" stroke-width="6"/>
+
+  <!-- the kneeboard page -->
+  <rect x="146" y="112" width="220" height="288" rx="12" fill="#F9F9F9"/>
+
+  <!-- targeting brackets, knocked out of the page -->
+  <g stroke="#2C332B" stroke-width="20" fill="none" stroke-linecap="square">
+    <path d="M196 214v-42h42"/><path d="M316 214v-42h-42"/>
+    <path d="M196 298v42h42"/><path d="M316 298v42h-42"/>
+  </g>
+  <circle cx="256" cy="256" r="22" fill="#2C332B"/>
+</svg>

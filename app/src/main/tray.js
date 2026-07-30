@@ -1,12 +1,15 @@
 'use strict';
 
+const path = require('path');
 const { Tray, Menu, nativeImage, app } = require('electron');
 
-// Minimal placeholder 1x1 PNG so we don't depend on an external icon asset
-// file existing on disk. TODO: swap for a real icon before distributing —
-// this renders as a small solid square, functional but not polished.
-const PLACEHOLDER_ICON_DATA_URL =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+// The menu-bar icon, generated from branding/tray-template.svg.
+//
+// "Template" in the filename is load-bearing: AppKit only applies template
+// behaviour — recolour for light/dark menu bars — to images named that way,
+// and nativeImage picks up the @2x sibling automatically. The artwork is
+// therefore black + alpha only; any colour in it would fight the OS.
+const TRAY_ICON = path.join(__dirname, '..', 'renderer', 'img', 'trayTemplate.png');
 
 /**
  * Creates the system tray icon with a "Settings"/"Quit" context menu — the
@@ -16,7 +19,9 @@ const PLACEHOLDER_ICON_DATA_URL =
  */
 function createTray({ onOpenSettings, t = (key) => key }) {
   try {
-    const tray = new Tray(nativeImage.createFromDataURL(PLACEHOLDER_ICON_DATA_URL));
+    const image = nativeImage.createFromPath(TRAY_ICON);
+    image.setTemplateImage(true);
+    const tray = new Tray(image);
     tray.setToolTip('Intel Broadcast');
     const buildMenu = (translate) =>
       tray.setContextMenu(
