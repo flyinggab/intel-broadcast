@@ -24,8 +24,11 @@ and the packaging bug post-mortem, wrong about current state. Trust
 
 ## 1. Where the project is
 
-**Current release: `v0.3.0`.** Phase 1 shipped 2026-07-30. Verify with
-`git log --oneline -5`; don't trust hashes written down anywhere.
+**Current release: `v0.4.0`.** Phase 1 shipped 2026-07-30 as `v0.3.0`; the
+2026-07-31 refinement pass (queue-first BRIEF, RECEIVED as curation, settings
+save bar — see the `v0.4` commit message for the full model) shipped as
+`v0.4.0`. Verify with `git log --oneline -5`; don't trust hashes written down
+anywhere.
 
 The app is an Electron companion for DCS. Any pilot hits a hotkey and their
 selected photos appear on every connected pilot's kneeboard, captured by

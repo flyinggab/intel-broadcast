@@ -108,8 +108,9 @@ intel-broadcast/
 
 ## Status
 
-**Current release: `v0.3.0`** — phase 1 (new EFB UI, content-addressed blobs, squad codes,
-transport hardening) shipped 2026-07-30. Working end to end locally.
+**Current release: `v0.4.0`** — the queue-first viewer: BRIEF is the kneeboard (one photo queue,
+newest first), RECEIVED curates it, SAVE & APPLY on every settings page. Shipped 2026-07-31, on
+top of phase 1's EFB UI, content-addressed blobs, squad codes and transport hardening.
 
 See [HANDOFF.md](./HANDOFF.md) for what's verified, what the known gaps are, and what's next.
 `app/PLAN.md` is **historical** and reports a release two versions old — don't resume from it.
