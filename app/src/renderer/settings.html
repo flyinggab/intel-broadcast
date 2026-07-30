@@ -24,23 +24,23 @@
 </style>
 </head>
 
-<body class="settings" data-page="net" data-mode="host">
+<body class="settings" data-page="pilot" data-mode="host">
 <div class="shell">
 
   <header class="topbar">
     <div class="cell">
       <span class="cap">Section</span>
-      <span class="cell__val" id="bar-section">NET</span>
+      <span class="cell__val" id="bar-section">PILOT</span>
     </div>
     <div class="cell">
       <span class="cap">Callsign</span>
-      <span class="cell__val truncate" id="bar-callsign">GHOSTRIDER 1-1</span>
+      <span class="cell__val truncate" id="bar-callsign"></span>
     </div>
   </header>
 
   <nav class="subtabs">
-    <button class="subtab" data-tab="pilot">PILOT</button>
-    <button class="subtab is-active" data-tab="net">NET</button>
+    <button class="subtab is-active" data-tab="pilot">PILOT</button>
+    <button class="subtab" data-tab="net">NET</button>
     <button class="subtab" data-tab="keys">KEYS</button>
     <button class="subtab" data-tab="log">LOG</button>
   </nav>
@@ -52,27 +52,12 @@
       <div>
         <span class="cap">Callsign</span>
         <div class="field field--lead selectable">
-          <input id="in-callsign" value="GHOSTRIDER 1-1" maxlength="24" />
+          <input id="in-callsign" value="" maxlength="24" />
         </div>
       </div>
 
-      <div>
-        <span class="cap">Photos folder</span>
-        <div class="grid-2" style="grid-template-columns:1fr 6rem">
-          <div class="field truncate" id="fld-folder">ROMAN-SEAD-JOKER1</div>
-          <button class="key key--sm" id="btn-folder">CHANGE</button>
-        </div>
-        <div class="meta" style="margin-top:.4rem" id="fld-folder-meta">6 IMAGES · UPDATED 1429Z</div>
-      </div>
-
-      <div class="tiles" style="grid-template-columns:repeat(5,1fr)" id="folder-strip">
-        <img class="tile__img" src="img/frame-placeholder.svg" alt="" />
-        <img class="tile__img" src="img/frame-placeholder.svg" alt="" />
-        <img class="tile__img" src="img/frame-placeholder.svg" alt="" />
-        <img class="tile__img" src="img/frame-placeholder.svg" alt="" />
-        <img class="tile__img" src="img/frame-placeholder.svg" alt="" />
-      </div>
-
+      <!-- The photos folder is picked on the viewer's SHARE page, next to
+           what it feeds. This page only keeps the behaviour toggles. -->
       <div class="toggle is-on" id="tg-watch" role="switch" aria-checked="true">
         <span class="toggle__label">WATCH FOLDER FOR NEW FILES</span>
         <i class="switch"></i>
@@ -95,10 +80,8 @@
           <button class="key key--sm" data-profile="sharp">SHARP</button>
           <button class="key key--sm" data-profile="original">ORIGINAL</button>
         </div>
-        <div class="meta" style="margin-top:.4rem" id="profile-note">1600 PX · Q82 · STAGED 4 PHOTOS = 1.4 MB</div>
+        <div class="meta" style="margin-top:.4rem" id="profile-note"></div>
       </div>
-
-      <button class="key key--primary" id="btn-save-pilot">SAVE AND APPLY</button>
     </section>
 
     <!-- =============================================== NET ============ -->
@@ -116,38 +99,38 @@
         <div>
           <span class="cap">Squad code &mdash; one string, send it anywhere</span>
           <div class="field selectable">
-            <span class="field__code" id="squad-code">IB1-Z2FiLXBjLnRhaWw5ZjJiLnRzLm5ldDo4MTQwOmtkOTM</span>
+            <span class="field__code" id="squad-code"></span>
           </div>
         </div>
         <button class="key key--primary" id="btn-copy-code">COPY SQUAD CODE</button>
 
         <div>
           <span class="cap">Internet link</span>
-          <div class="step is-done" id="step-install">
+          <div class="step" id="step-install">
             <i class="step__mark"></i><span class="step__n">01</span>
             <span class="step__title">TAILSCALE</span>
-            <span class="step__state">INSTALLED · V1.78</span>
+            <span class="step__state"></span>
           </div>
-          <div class="step is-done" id="step-auth">
+          <div class="step" id="step-auth">
             <i class="step__mark"></i><span class="step__n">02</span>
             <span class="step__title">ACCOUNT</span>
-            <span class="step__state">SIGNED IN · TAIL9F2B</span>
+            <span class="step__state"></span>
           </div>
-          <div class="step is-running" id="step-funnel">
+          <div class="step" id="step-funnel">
             <i class="step__mark"></i><span class="step__n">03</span>
             <span class="step__title">FUNNEL</span>
-            <span class="step__state">UP SINCE 1402Z</span>
+            <span class="step__state"></span>
           </div>
         </div>
 
         <div class="cellrow">
           <div class="cell">
             <span class="cap">Port</span>
-            <span class="cell__val cell__val--mono" id="net-port">8140</span>
+            <span class="cell__val cell__val--mono" id="net-port"></span>
           </div>
           <div class="cell">
             <span class="cap">Token</span>
-            <span class="cell__val cell__val--mono" id="net-token">•••• KD93</span>
+            <span class="cell__val cell__val--mono" id="net-token"></span>
           </div>
         </div>
         <button class="key key--sm" id="btn-new-token">NEW TOKEN</button>
@@ -170,22 +153,29 @@
           <div class="cellrow">
             <div class="cell">
               <span class="cap">Host</span>
-              <span class="cell__val truncate" id="join-host">GAB-PC.TAIL9F2B</span>
+              <span class="cell__val truncate" id="join-host">&mdash;</span>
             </div>
             <div class="cell">
               <span class="cap">Token</span>
-              <span class="cell__val" id="join-token">VALID</span>
+              <span class="cell__val" id="join-token">&mdash;</span>
             </div>
           </div>
         </div>
 
         <div class="pilot" style="padding-left:0">
           <i class="pilot__dot"></i>
-          <span class="pilot__name">RELAY ANSWERED · 3 PILOTS ON IT</span>
+          <span class="pilot__name">PASTE A CODE TO CONNECT</span>
         </div>
 
-        <button class="key key--primary" id="btn-connect">CONNECT</button>
+        <button class="key key--primary" id="btn-connect" disabled>CONNECT</button>
         <div class="meta">THE CODE CARRIES HOST, PORT AND TOKEN<br />NOTHING ELSE TO TYPE</div>
+      </div>
+
+      <!-- Moved here from the viewer's BRIEF page: this is where you look
+           when someone fails to join, next to the code you sent them. -->
+      <div>
+        <span class="cap">Pilots on net &mdash; <span id="net-count">0</span></span>
+        <div class="well" id="net-pilots"></div>
       </div>
     </section>
 
@@ -195,27 +185,27 @@
 
       <div class="bind">
         <span class="bind__name">REVEAL</span>
-        <div class="field field--mono">CTRL+SHIFT+I</div>
+        <div class="field field--mono"></div>
         <button class="key key--sm" data-record="reveal">RECORD</button>
       </div>
       <div class="bind">
         <span class="bind__name">PREVIOUS</span>
-        <div class="field field--mono field--recording">PRESS KEYS…</div>
-        <button class="key key--sm key--primary" data-record="prev">STOP</button>
+        <div class="field field--mono"></div>
+        <button class="key key--sm" data-record="prev">RECORD</button>
       </div>
       <div class="bind">
         <span class="bind__name">NEXT</span>
-        <div class="field field--mono">CTRL+SHIFT+&rarr;</div>
+        <div class="field field--mono"></div>
         <button class="key key--sm" data-record="next">RECORD</button>
       </div>
       <div class="bind">
         <span class="bind__name">HIDE CHROME</span>
-        <div class="field field--mono">CTRL+SHIFT+H</div>
+        <div class="field field--mono"></div>
         <button class="key key--sm" data-record="hide">RECORD</button>
       </div>
       <div class="bind">
         <span class="bind__name">OPEN SETUP</span>
-        <div class="field field--mono">CTRL+SHIFT+O</div>
+        <div class="field field--mono"></div>
         <button class="key key--sm" data-record="settings">RECORD</button>
       </div>
 
@@ -225,22 +215,22 @@
     <!-- =============================================== LOG ============ -->
     <section class="page page--pad stack" data-page="log">
       <div class="cellrow">
-        <div class="cell"><span class="cap">Version</span><span class="cell__val cell__val--mono" id="log-version">0.4.0</span></div>
-        <div class="cell"><span class="cap">Build</span><span class="cell__val cell__val--mono" id="log-build">29 · MAIN</span></div>
+        <div class="cell"><span class="cap">Version</span><span class="cell__val cell__val--mono" id="log-version"></span></div>
+        <div class="cell"><span class="cap">Build</span><span class="cell__val cell__val--mono" id="log-build"></span></div>
       </div>
 
       <div>
         <span class="cap">Session</span>
         <div class="cellrow">
-          <div class="cell"><span class="cap">Sent</span><span class="cell__val cell__val--mono" id="log-sent">12</span></div>
-          <div class="cell"><span class="cap">Received</span><span class="cell__val cell__val--mono" id="log-recv">5</span></div>
-          <div class="cell"><span class="cap">Drops</span><span class="cell__val cell__val--mono" id="log-drops">0</span></div>
+          <div class="cell"><span class="cap">Sent</span><span class="cell__val cell__val--mono" id="log-sent"></span></div>
+          <div class="cell"><span class="cap">Received</span><span class="cell__val cell__val--mono" id="log-recv"></span></div>
+          <div class="cell"><span class="cap">Drops</span><span class="cell__val cell__val--mono" id="log-drops"></span></div>
         </div>
       </div>
 
       <div>
         <span class="cap">Log file</span>
-        <div class="field field--mono truncate selectable" id="log-path">%APPDATA%/INTEL-BROADCAST/MAIN.LOG</div>
+        <div class="field field--mono truncate selectable" id="log-path"></div>
       </div>
 
       <div class="keyrow">
@@ -250,15 +240,24 @@
 
       <div>
         <span class="cap">Last events</span>
-        <div class="tail" id="log-tail">1432:07  RECV  GHOSTRIDER 1-1  5
-1429:44  SCAN  FOLDER  6 FILES
-1419:02  RECV  JOKER 2-1  2
-1402:11  FNNL  UP</div>
+        <div class="tail" id="log-tail"></div>
       </div>
     </section>
 
   </main>
+
+  <!-- ============================================ save bar ============
+       Pinned to the window, on every sub-page. It used to live inside the
+       PILOT page, which left NET / KEYS / LOG with no save path and let
+       scrolling hide it. The CTA wears --go only while dirty. -->
+  <footer class="savebar">
+    <div class="savebar__state">
+      <span class="cap" id="save-state">ALL CHANGES APPLIED</span>
+    </div>
+    <button class="key key--cta" id="btn-save" disabled>SAVE &amp; APPLY</button>
+  </footer>
 </div>
+<script src="viewer/format.js"></script>
 <script src="settings/settings.js"></script>
 </body>
 </html>

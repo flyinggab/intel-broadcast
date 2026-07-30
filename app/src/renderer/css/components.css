@@ -3,7 +3,33 @@
    Class contract. JS toggles the .is-* modifiers; it should not write styles.
    ========================================================================== */
 
-/* --- status bar ----------------------------------------------------------
+/* --- connection strip (viewer) -------------------------------------------
+   The only chrome above the photo: identity left, net centre, relay right.
+   One line, mono, non-interactive — so it may sit under --touch-min.       */
+.strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  height: var(--h-strip);
+  padding: 0 var(--sp-4);
+  background: var(--bg);
+  border-bottom: var(--rule);
+  box-shadow: 0 1px 0 var(--hi);
+}
+.strip__seg {
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  color: var(--hi);
+  letter-spacing: .04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.strip__seg--id { color: var(--lit); font-weight: 700; flex: none; }
+.strip__seg--fault { color: var(--fault); font-weight: 700; }
+
+/* --- status bar (settings) -----------------------------------------------
    Fixed cells, caption over value. This is the unit of information in the
    whole app: never a "Label: value" run of prose.                          */
 .topbar {
@@ -96,22 +122,7 @@
   box-shadow: inset 0 3px 0 var(--lit);
 }
 .tab__icon { width: 1.125rem; height: 1.125rem; stroke: currentColor; fill: none; stroke-width: 1.4; }
-.tab__badge {
-  position: absolute;
-  top: var(--sp-2);
-  left: 58%;
-  min-width: 1.125rem;
-  height: 0.9375rem;
-  padding: 0 .25rem;
-  border-radius: 999px;
-  background: var(--lit);
-  color: var(--ink);
-  font-size: var(--fs-meta);
-  line-height: 0.9375rem;
-  text-align: center;
-  letter-spacing: 0;
-}
-.tab__badge.is-fault { background: var(--fault); color: var(--lit); }
+/* No tab badge: the banner announces arrivals; RECEIVED holds the history. */
 
 /* --- keys ----------------------------------------------------------------
    Physical keys, not web buttons. Nothing under --touch-min.               */
@@ -263,31 +274,24 @@
 .pilot__name { flex: 1; min-width: 0; }
 .pilot__meta { font-family: var(--font-mono); font-size: var(--fs-meta); font-weight: 400; color: var(--hi); }
 
-/* --- received list -------------------------------------------------------
-   .is-new  → unread, carries the bar
-   .is-open → the batch currently on the stage                              */
-.row {
-  display: flex; align-items: center; gap: var(--sp-4);
-  min-height: var(--h-row);
-  padding: var(--sp-3) var(--sp-4);
-  border-bottom: var(--rule);
-  position: relative;
-  cursor: pointer;
+/* --- received: batch curation --------------------------------------------
+   One .batch per arrival, newest first. The head names the sharer; the
+   tiles are the same idiom as SHARE — selection decides what you SEE here,
+   what you SEND there. A tile toggled off leaves the brief's queue.        */
+.batch { border-bottom: var(--rule); }
+.batch__head {
+  display: flex; align-items: center; gap: var(--sp-3);
+  min-height: var(--touch-min);
+  padding: var(--sp-2) var(--sp-4);
 }
-.row.is-new::before {
-  content: ""; position: absolute; inset: 0 auto 0 0;
-  width: 4px; background: var(--lit);
+.batch__who  { font-size: var(--fs-key); font-weight: 700; color: var(--lit); white-space: nowrap; }
+.batch__meta {
+  flex: 1; min-width: 0;
+  font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--hi);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.row.is-open { background: var(--dn); box-shadow: var(--bevel-dn); }
-.row__thumb {
-  flex: none; width: 4.5rem; height: 3rem;
-  object-fit: cover; background: var(--dn); border: 1px solid var(--edge);
-}
-.row__text { flex: 1; min-width: 0; }
-.row__who  { font-size: var(--fs-key); font-weight: 700; color: var(--hi); }
-.row.is-new .row__who, .row.is-open .row__who { color: var(--lit); }
-.row__meta { font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--hi); }
-.row__mark { flex: none; width: .5625rem; height: .5625rem; background: var(--lit); }
+.batch__all { flex: none; width: auto; min-width: 5.5rem; min-height: var(--touch-min); }
+.batch__tiles { padding: 0 var(--sp-4) var(--sp-3); }
 
 /* --- share grid ---------------------------------------------------------- */
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
@@ -398,10 +402,53 @@
   padding: var(--sp-2) var(--sp-3);
   background: var(--scrim);
 }
-.stage__file { font-size: var(--fs-val); font-weight: 700; letter-spacing: .06em; color: var(--lit); }
-.pager { display: flex; align-items: center; gap: var(--sp-1); }
-.pager__dot { width: .5rem; height: .4375rem; background: var(--lit); opacity: .45; }
-.pager__dot.is-current { width: 1.25rem; opacity: 1; }
+.stage__file {
+  font-size: var(--fs-val); font-weight: 700; letter-spacing: .06em; color: var(--lit);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Queue position readout: "3 / 14 · JOKER 2-1 · 1419Z". A dot pager does
+   not survive a queue that can hold every batch's photos at once.          */
+.stage__pos {
+  flex: none;
+  font-family: var(--font-mono); font-size: var(--fs-meta);
+  color: var(--lit); letter-spacing: .04em; white-space: nowrap;
+}
+.stage__pos-meta { color: var(--hi); }
+
+/* Empty queue: the STANDBY plate owns the stage region. Sits inside .stage
+   so chrome-hidden still leaves a clean capture (the plate, no chrome).    */
+.stage__standby {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--sp-3);
+  background: var(--bg);
+}
+.stage__standby.is-hidden { display: none; }
+.stage__standby-plate { width: 100%; }
+
+/* --- settings save bar ---------------------------------------------------
+   Pinned to the window, present on every sub-page — a save control that
+   lives inside one page is a save control three pages cannot see. The CTA
+   wears --go exactly while there is something to commit, and is plain grey
+   otherwise; see tokens.css for the hue discipline.                        */
+.savebar {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg);
+  border-top: var(--rule);
+  box-shadow: 0 -1px 0 var(--hi);
+}
+.savebar__state { flex: 1; }
+.key--cta {
+  flex: 1.6;
+  min-height: var(--h-field);
+  background: var(--go);
+  color: var(--ink);
+  text-shadow: none;
+  box-shadow: var(--bevel-up);
+}
+.key--cta:active { background: var(--go-dn); box-shadow: var(--bevel-dn); }
+.key--cta[disabled] { background: var(--up); color: var(--muted); box-shadow: var(--bevel-dn); }
 
 /* --- log tail ------------------------------------------------------------ */
 .tail {

@@ -13,9 +13,6 @@ const bar = { section: el('bar-section'), callsign: el('bar-callsign') };
 
 const pilot = {
   callsign: el('in-callsign'),
-  folder: el('fld-folder'),
-  folderMeta: el('fld-folder-meta'),
-  strip: el('folder-strip'),
   watch: el('tg-watch'),
   autoshow: el('tg-autoshow'),
   profileKeys: el('profile-keys'),
@@ -34,7 +31,11 @@ const net = {
   joinToken: el('join-token'),
   connect: el('btn-connect'),
   probe: document.querySelector('[data-mode="join"] .pilot .pilot__name'),
+  pilots: el('net-pilots'),
+  count: el('net-count'),
 };
+
+const savebar = { state: el('save-state'), save: el('btn-save') };
 
 const log = {
   version: el('log-version'),
@@ -46,7 +47,8 @@ const log = {
   tail: el('log-tail'),
 };
 
-const PLACEHOLDER = 'img/frame-placeholder.svg';
+// Zulu times for the pilots list; loaded by the <script> tag above this one.
+const { zulu } = self.Format;
 
 // Local, pre-save form state only.
 let mode = 'host';
@@ -56,10 +58,27 @@ let hotkeys = {};
 let recordingKey = null;
 let lastSnapshot = null;
 
-const send = (intent, payload) => window.settingsAPI.send(intent, payload);
+const send = (intent, payload) => window.settingsAPI && window.settingsAPI.send(intent, payload);
 const setText = (node, text) => {
   if (node) node.textContent = text;
 };
+
+// --- dirty tracking ---------------------------------------------------------
+// Most controls apply the moment you touch them (toggles, quality, hotkeys,
+// CONNECT). Exactly two things are deferred form state: the callsign text and
+// the HOST/JOIN mode. The save bar reflects those two, and only those two —
+// "ALL CHANGES APPLIED" is then always literally true.
+function isDirty() {
+  if (modeDirty) return true;
+  if (!lastSnapshot) return false;
+  return pilot.callsign.value.trim() !== (lastSnapshot.callsign || '');
+}
+
+function renderSavebar() {
+  const dirty = isDirty();
+  savebar.save.disabled = !dirty;
+  setText(savebar.state, dirty ? 'UNSAVED CHANGES' : 'ALL CHANGES APPLIED');
+}
 
 function setStep(node, state, text) {
   node.classList.toggle('is-done', state === 'done');
@@ -75,21 +94,6 @@ function render(s) {
 
   // PILOT --------------------------------------------------------------
   if (document.activeElement !== pilot.callsign) pilot.callsign.value = s.callsign || '';
-  setText(pilot.folder, (s.folder ? s.folder.split(/[\\/]/).pop() : 'NOT SET').toUpperCase());
-  setText(
-    pilot.folderMeta,
-    s.photoCount ? `${s.photoCount} IMAGES · ${(s.stagedBytes / (1024 * 1024)).toFixed(1)} MB STAGED` : 'NO IMAGES',
-  );
-
-  pilot.strip.textContent = '';
-  for (const photo of s.photos.slice(0, 5)) {
-    const img = document.createElement('img');
-    img.className = 'tile__img';
-    img.src = photo.thumbUrl || PLACEHOLDER;
-    img.alt = '';
-    pilot.strip.appendChild(img);
-  }
-
   setToggle(pilot.autoshow, s.autoShow);
   setToggle(pilot.watch, s.watchFolder);
 
@@ -123,6 +127,34 @@ function render(s) {
   else if (f.funnelError || f.funnelStatusError) setStep(net.stepFunnel, 'running', 'FAILED · SEE LOG');
   else setStep(net.stepFunnel, '', 'OFF');
 
+  // Pilots on net — moved here from the viewer's BRIEF page. Callsigns are
+  // remote-supplied strings: textContent only, never innerHTML.
+  setText(net.count, String(s.peers.length));
+  net.pilots.textContent = '';
+  if (s.peers.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'pilot';
+    const name = document.createElement('span');
+    name.className = 'pilot__name';
+    name.textContent = s.connected ? 'NOBODY ELSE ON NET' : 'NOT CONNECTED';
+    empty.appendChild(name);
+    net.pilots.appendChild(empty);
+  }
+  for (const peer of s.peers) {
+    const row = document.createElement('div');
+    row.className = 'pilot';
+    const dot = document.createElement('i');
+    dot.className = 'pilot__dot';
+    const name = document.createElement('span');
+    name.className = 'pilot__name';
+    name.textContent = (peer.callsign || 'UNNAMED').toUpperCase();
+    const meta = document.createElement('span');
+    meta.className = 'pilot__meta';
+    meta.textContent = peer.self ? 'YOU' : peer.host ? 'HOST' : zulu(peer.connectedAt);
+    row.append(dot, name, meta);
+    net.pilots.appendChild(row);
+  }
+
   // KEYS ---------------------------------------------------------------
   hotkeys = { ...s.hotkeys };
   for (const bind of document.querySelectorAll('[data-record]')) {
@@ -150,6 +182,8 @@ function render(s) {
   setText(log.path, (s.logPath || '').toUpperCase());
   // The squad code is a password: it must never reach the log tail.
   setText(log.tail, (s.logTail || []).join('\n'));
+
+  renderSavebar();
 }
 
 function setToggle(node, on) {
@@ -161,6 +195,7 @@ function setToggle(node, on) {
 // Decode as the user types. A bad code populates nothing and disables CONNECT
 // — it must not throw into the console and leave the UI looking fine.
 async function refreshJoinPreview() {
+  if (!window.settingsAPI) return; // dev harness: no main to decode against
   const decoded = await window.settingsAPI.decodeCode(net.codeInput.value);
   if (decoded.ok) {
     setText(net.joinHost, decoded.host.toUpperCase());
@@ -197,10 +232,12 @@ for (const key of document.querySelectorAll('[data-set-mode]')) {
     for (const other of document.querySelectorAll('[data-set-mode]')) {
       other.classList.toggle('key--primary', other.dataset.setMode === mode);
     }
+    renderSavebar();
   });
 }
 
-el('btn-folder').addEventListener('click', () => send('browse-folder'));
+pilot.callsign.addEventListener('input', renderSavebar);
+
 el('btn-copy-code').addEventListener('click', () => send('copy-code'));
 el('btn-new-token').addEventListener('click', () => {
   // Rotating invalidates every code ever issued — say so at the point of the
@@ -213,8 +250,9 @@ el('btn-paste').addEventListener('click', async () => {
 });
 net.codeInput.addEventListener('input', refreshJoinPreview);
 net.connect.addEventListener('click', () => {
-  modeDirty = false;
+  modeDirty = false; // CONNECT applies the mode immediately
   send('connect', net.codeInput.value);
+  renderSavebar();
 });
 
 pilot.autoshow.addEventListener('click', () => {
@@ -232,7 +270,7 @@ for (const key of pilot.profileKeys.querySelectorAll('[data-profile]')) {
   key.addEventListener('click', () => send('set-profile', key.dataset.profile));
 }
 
-el('btn-save-pilot').addEventListener('click', () => {
+el('btn-save').addEventListener('click', () => {
   modeDirty = false; // saving adopts the chosen mode; pushes may drive it again
   send('save', {
     callsign: pilot.callsign.value.trim(),
@@ -240,6 +278,10 @@ el('btn-save-pilot').addEventListener('click', () => {
     profile,
     hotkeys,
   });
+  // Optimistic: the confirming push arrives in a beat, but the bar must not
+  // flash "unsaved" in between.
+  if (lastSnapshot) lastSnapshot = { ...lastSnapshot, callsign: pilot.callsign.value.trim() };
+  renderSavebar();
 });
 
 el('btn-open-log').addEventListener('click', () => send('open-log'));
@@ -301,6 +343,11 @@ document.addEventListener('keydown', (event) => {
   send('set-hotkey', { key, accelerator });
 });
 
-window.settingsAPI.onState(render);
-send('ready');
-refreshJoinPreview();
+if (window.settingsAPI) {
+  window.settingsAPI.onState(render);
+  send('ready');
+  refreshJoinPreview();
+} else {
+  // Dev harnesses (preview.html, geometry): drive the real render directly.
+  window.__preview = { render };
+}

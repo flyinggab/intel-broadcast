@@ -83,8 +83,11 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
    the chrome pins to the edges in every combination. Do not go back to grid
    rows without giving each child an explicit grid-row. */
 .shell > .topbar,
+.shell > .strip,
+.shell > .subtabs,
 .shell > .banner,
-.shell > .tabbar { flex: none; }
+.shell > .tabbar,
+.shell > .savebar { flex: none; }
 
 .body {
   flex: 1 1 auto;
@@ -100,7 +103,6 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
    JS sets data-page on <body>. Exactly one .page is visible.               */
 .page { display: none; }
 body[data-page="brief"]    .page[data-page="brief"],
-body[data-page="frame"]    .page[data-page="frame"],
 body[data-page="received"] .page[data-page="received"],
 body[data-page="share"]    .page[data-page="share"],
 body[data-page="fault"]    .page[data-page="fault"],
@@ -112,8 +114,8 @@ body[data-page="log"]      .page[data-page="log"] { display: block; }
 .page--flush { padding: 0; height: 100%; }
 .page--pad   { padding: var(--sp-3); }
 
-/* The frame page must not scroll: the photo owns the whole region. */
-body[data-page="frame"] .body { overflow: hidden; }
+/* BRIEF is the photo: it must not scroll — the stage owns the whole region. */
+body.viewer[data-page="brief"] .body { overflow: hidden; }
 
 /* --- surface mode --------------------------------------------------------
    data-surface="window": OpenKneeboard captures the whole window, so chrome
@@ -124,7 +126,7 @@ body[data-page="frame"] .body { overflow: hidden; }
 /* --- capture-clean -------------------------------------------------------
    Ctrl+Shift+H. Everything except the photo goes away, so the kneeboard
    grab is a clean page. This is the state that matters most in the air.    */
-body[data-surface="window"].is-chrome-hidden .topbar,
+body[data-surface="window"].is-chrome-hidden .strip,
 body[data-surface="window"].is-chrome-hidden .tabbar,
 body[data-surface="window"].is-chrome-hidden .banner,
 body[data-surface="window"].is-chrome-hidden .stage__chrome { display: none !important; }

@@ -489,13 +489,15 @@ function handleViewerIntent(intent, payload) {
       break;
     case 'set-page':
       view.setPage(payload);
-      if (payload === 'received') view.markOpenRead();
-      break;
-    case 'open-batch':
-      view.openBatch(payload);
       break;
     case 'step':
       view.step(payload);
+      break;
+    case 'toggle-received':
+      view.toggleItem(payload && payload.batchId, payload && payload.filename);
+      break;
+    case 'set-batch':
+      view.setBatchSelected(payload && payload.batchId, Boolean(payload && payload.on));
       break;
     case 'toggle-chrome':
       view.toggleChrome();
@@ -517,6 +519,11 @@ function handleViewerIntent(intent, payload) {
       return restage();
     case 'rescan':
       return refreshGallery();
+    case 'browse-folder':
+      // The picker lives on SHARE now, next to the gallery it feeds.
+      return void openSettingsWindow.browseFolder().then((folder) => {
+        if (folder) applyNewConfig(saveSettingsValues({ photosFolder: folder }));
+      });
     case 'reveal':
       return void doReveal();
     case 'reconnect':
@@ -766,14 +773,18 @@ function attachViewerProbe() {
         `console.log('PANEL_PROBE ' + JSON.stringify({
            page: document.body.dataset.page,
            chromeHidden: document.body.classList.contains('is-chrome-hidden'),
-           badge: document.getElementById('tab-badge').classList.contains('is-hidden') ? 0 : Number(document.getElementById('tab-badge').textContent),
-           rows: [...document.querySelectorAll('.row[data-batch-id]')].map((r) => ({
-             who: r.querySelector('.row__who').textContent,
-             meta: r.querySelector('.row__meta').textContent,
-             unread: r.classList.contains('is-new'),
-             open: r.classList.contains('is-open'),
+           pos: document.getElementById('stage-pos-n').textContent,
+           standby: !document.getElementById('stage-standby').classList.contains('is-hidden'),
+           batches: [...document.querySelectorAll('.batch[data-batch-id]')].map((b) => ({
+             who: b.querySelector('.batch__who').textContent,
+             meta: b.querySelector('.batch__meta').textContent,
+             all: b.querySelector('.batch__all').textContent,
+             tiles: [...b.querySelectorAll('.tile[data-filename]')].map((t) => ({
+               filename: t.dataset.filename,
+               selected: !t.classList.contains('is-off'),
+             })),
            })),
-           tiles: [...document.querySelectorAll('.tile[data-filename]')].map((t) => ({
+           tiles: [...document.querySelectorAll('#share-grid .tile[data-filename]')].map((t) => ({
              filename: t.dataset.filename,
              selected: !t.classList.contains('is-off'),
              hasThumb: Boolean(t.querySelector('img') && t.querySelector('img').src.startsWith('intel://')),
@@ -781,6 +792,7 @@ function attachViewerProbe() {
            stageSrc: document.getElementById('stage-img').getAttribute('src') || '',
            stageFile: document.getElementById('stage-file').textContent,
            banner: document.getElementById('banner').classList.contains('is-hidden') ? null : document.getElementById('banner-who').textContent,
+           bannerMeta: document.getElementById('banner').classList.contains('is-hidden') ? null : document.getElementById('banner-meta').textContent,
            revealBtn: document.getElementById('share-reveal').textContent,
          }))`,
       )

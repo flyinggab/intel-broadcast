@@ -6,11 +6,20 @@
 // inside the test: nested template escaping was unreadable and broke silently.
 
 const { app, BrowserWindow } = require('electron');
+const fs = require('fs');
 const path = require('path');
 
 const APP_DIR = path.join(__dirname, '..', '..');
 const TOUCH_MIN = 44;
 const SCALES = [0.8, 1, 1.4];
+
+// The shipped HTML boots empty — demo state lives in preview-state.js and is
+// pushed through the same window.__preview hook preview.html uses. Measuring
+// the empty markup would be measuring nothing.
+const PREVIEW_STATE_SOURCE = fs.readFileSync(
+  path.join(APP_DIR, 'src', 'renderer', 'preview-state.js'),
+  'utf8',
+);
 
 // Runs inside the page. Returns everything the test needs to judge §6.5/§6.6/§6.8.
 function measureInPage(touchMin) {
@@ -84,6 +93,14 @@ async function measure(file, scale) {
     console.log(`GEOMETRY_RENDERGONE ${JSON.stringify(details)}`),
   );
   await win.loadFile(path.join(APP_DIR, 'src', 'renderer', file));
+  // Populate the empty shipped markup with the shared demo snapshots — the
+  // banner shown too, so its close target is measured.
+  await win.webContents.executeJavaScript(PREVIEW_STATE_SOURCE);
+  await win.webContents.executeJavaScript(
+    file === 'viewer.html'
+      ? `window.__preview.render(PreviewState.viewer['banner switched'])`
+      : `window.__preview.render(PreviewState.settings)`,
+  );
   await win.webContents.executeJavaScript(
     `document.documentElement.style.setProperty('--ui-scale', ${JSON.stringify(String(scale))})`,
   );

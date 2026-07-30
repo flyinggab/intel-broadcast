@@ -8,9 +8,15 @@
 // main holds it all and pushes complete snapshots; a renderer is a pure
 // function of what it is given, and sends back intents, never decisions.
 //
-// Practically that means: no `let currentIndex` in viewer.js. Which batch is
-// open, which photo within it, what is selected for sharing, what is unread —
+// Practically that means: no `let currentIndex` in viewer.js. Which photo is
+// on the stage, what is selected for sharing, what is hidden from the brief —
 // all of it lives here.
+//
+// v0.4 model: BRIEF is the kneeboard. All received photos form ONE flat
+// queue, newest batch first; an arrival PREPENDS. RECEIVED does not "open"
+// batches any more — it curates the queue: every item carries `selected`,
+// and deselected items are simply not in it. There is no unread state and no
+// badge; the banner announces every arrival instead.
 //
 // Pure Node, no Electron: unit-testable, and the push side is injected.
 
@@ -37,12 +43,18 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     chromeHidden: false,
     focused: true,
     autoShow: true,
-    banner: null, // { who, count, switched }
+    banner: null, // { who, count, switched, at } — at keys the renderer's dismiss timer
 
-    // received
-    batches: [], // newest first: { id, sharedBy, receivedAt, unread, items:[{filename,url}] }
-    openBatchId: null,
-    frameIndex: 0,
+    // received — the queue's backing store.
+    // newest first: { id, sharedBy, receivedAt, items:[{filename, url, selected}] }
+    batches: [],
+    // What is on the stage, by IDENTITY, not index: deselecting some other
+    // photo must never change what is on the pilot's knee. null = STANDBY.
+    current: null, // { batchId, filename }
+    // Where identity last was in the queue — the repair target when the
+    // current photo itself is dropped: fall to the same position, which is
+    // the next photo. Clamped, so dropping the last falls to the new last.
+    lastIdx: 0,
 
     // share
     folder: '',
@@ -63,7 +75,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
   let lastInteractionAt = 0;
 
   // -- interaction clock ----------------------------------------------------
-  /** Any deliberate act by the pilot: paging, tapping a row, switching tab. */
+  /** Any deliberate act by the pilot: paging, curating, switching tab. */
   function noteInteraction() {
     lastInteractionAt = now();
   }
@@ -71,75 +83,122 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     return now() - lastInteractionAt <= INTERACTION_GRACE_MS;
   }
 
+  // -- the queue ------------------------------------------------------------
+  /** The flat photo queue BRIEF pages through: newest batch first, batch
+   *  order preserved inside, deselected items skipped. */
+  function queue() {
+    const flat = [];
+    for (const b of state.batches) {
+      for (const item of b.items) {
+        if (item.selected) {
+          flat.push({
+            batchId: b.id,
+            filename: item.filename,
+            url: item.url,
+            sharedBy: b.sharedBy,
+            receivedAt: b.receivedAt,
+          });
+        }
+      }
+    }
+    return flat;
+  }
+
+  function indexOfCurrent(q) {
+    if (!state.current) return -1;
+    return q.findIndex(
+      (p) => p.batchId === state.current.batchId && p.filename === state.current.filename,
+    );
+  }
+
+  /** Re-anchors `current` after anything that changed the queue. Identity
+   *  wins; a dropped identity falls to the same position (= the next photo,
+   *  clamped so dropping the last falls to the new last). */
+  function repairCurrent() {
+    const q = queue();
+    if (q.length === 0) {
+      state.current = null;
+      state.lastIdx = 0;
+      return;
+    }
+    let i = indexOfCurrent(q);
+    if (i === -1) {
+      i = Math.min(state.lastIdx, q.length - 1);
+      state.current = { batchId: q[i].batchId, filename: q[i].filename };
+    }
+    state.lastIdx = i;
+  }
+
   // -- received -------------------------------------------------------------
   /**
-   * Records an arriving batch. Returns { entry, switched } — `switched` is
-   * rule C's verdict, and the caller must show the banner saying so when it
-   * is true. A page that moves on its own without saying why reads as a bug.
+   * Records an arriving batch at the FRONT of the queue. Returns
+   * { entry, switched } — `switched` is rule C's verdict. The banner shows for
+   * every arrival (there is no badge): when it switched it must say so — a
+   * page that moves on its own without saying why reads as a bug — and when
+   * it did not, the banner is the only trace the arrival leaves.
    */
   function addBatch({ sharedBy, items, receivedAt = now() }) {
     const entry = {
       id: nextBatchId++,
       sharedBy: sharedBy || '',
       receivedAt,
-      unread: true,
-      items: (items || []).map((item) => ({ filename: item.filename, url: item.url })),
+      items: (items || []).map((item) => ({ filename: item.filename, url: item.url, selected: true })),
     };
     state.batches.unshift(entry);
     if (state.batches.length > maxBatches) state.batches.length = maxBatches;
 
-    // Any arrival supersedes the previous banner: leaving an older one up
-    // while a newer batch is only badged tells the pilot the wrong thing about
-    // what is on screen.
-    state.banner = null;
-
-    const switched = state.autoShow && !recentlyInteracted();
+    const switched = state.autoShow && !recentlyInteracted() && entry.items.length > 0;
     if (switched) {
-      state.openBatchId = entry.id;
-      state.frameIndex = 0;
-      state.page = 'frame';
-      entry.unread = false;
-      state.banner = { who: entry.sharedBy, count: entry.items.length, switched: true };
-    } else if (state.openBatchId === null) {
-      // Nothing on the stage yet: adopt it silently so BROWSE has something,
-      // but leave the page and the unread mark alone.
-      state.openBatchId = entry.id;
-      state.frameIndex = 0;
+      // The new intel takes the stage at 1/N.
+      state.current = { batchId: entry.id, filename: entry.items[0].filename };
+      state.lastIdx = 0;
+      state.page = 'brief';
+    } else if (state.current === null && entry.items.length > 0) {
+      // Nothing on the stage yet: adopt it silently so paging has something,
+      // but leave the page alone.
+      state.current = { batchId: entry.id, filename: entry.items[0].filename };
+      state.lastIdx = 0;
     }
+    // Any arrival supersedes the previous banner; `at` keys the renderer's
+    // auto-dismiss timer so a later state push cannot extend an old banner.
+    state.banner = { who: entry.sharedBy, count: entry.items.length, switched, at: now() };
+    repairCurrent(); // eviction may have dropped the batch `current` was in
     state.counters.received += 1;
     return { entry, switched };
   }
 
-  function openBatch(id) {
-    const entry = state.batches.find((b) => b.id === id);
-    if (!entry) return null;
-    noteInteraction();
-    state.openBatchId = entry.id;
-    state.frameIndex = 0;
-    entry.unread = false;
-    state.page = 'frame';
-    return entry;
-  }
-
-  function openEntry() {
-    return state.batches.find((b) => b.id === state.openBatchId) || null;
-  }
-
+  /** Pages the flat queue. Wraps: one step back from the newest photo is the
+   *  oldest — with a hotkey in flight that beats a dead stop. */
   function step(delta) {
-    const entry = openEntry();
-    if (!entry || entry.items.length === 0) return;
+    const q = queue();
+    if (q.length === 0) return;
     noteInteraction();
-    entry.unread = false;
-    state.frameIndex = (state.frameIndex + delta + entry.items.length) % entry.items.length;
+    const at = indexOfCurrent(q);
+    const from = at === -1 ? Math.min(state.lastIdx, q.length - 1) : at;
+    const i = (from + delta + q.length) % q.length;
+    state.current = { batchId: q[i].batchId, filename: q[i].filename };
+    state.lastIdx = i;
   }
 
-  function unreadCount() {
-    return state.batches.reduce((n, b) => n + (b.unread ? 1 : 0), 0);
+  /** RECEIVED curation: drop or restore one photo in the brief. */
+  function toggleItem(batchId, filename) {
+    const batch = state.batches.find((b) => b.id === batchId);
+    const item = batch && batch.items.find((it) => it.filename === filename);
+    if (!item) return null;
+    noteInteraction();
+    item.selected = !item.selected;
+    repairCurrent();
+    return item;
   }
 
-  function markOpenRead() {
-    const entry = openEntry();
-    if (entry) entry.unread = false;
+  /** RECEIVED curation: HIDE / RESTORE a whole batch. */
+  function setBatchSelected(batchId, selected) {
+    const batch = state.batches.find((b) => b.id === batchId);
+    if (!batch) return null;
+    noteInteraction();
+    for (const item of batch.items) item.selected = Boolean(selected);
+    repairCurrent();
+    return batch;
   }
 
   // -- viewer chrome --------------------------------------------------------
@@ -183,15 +242,17 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     state.reconnect = connected ? null : reconnect || state.reconnect;
     if (connected) state.lastContactAt = now();
     // FAULT owns the screen while the relay is down, but never steals it from
-    // a photo the pilot is actually reading.
-    if (!connected && state.page !== 'frame') state.page = 'fault';
+    // a photo the pilot is actually reading — that is BRIEF with a live queue.
+    const readingPhoto = state.page === 'brief' && queue().length > 0;
+    if (!connected && !readingPhoto) state.page = 'fault';
     if (connected && state.page === 'fault') state.page = 'brief';
   }
 
   /** The snapshot pushed to renderers. Everything derived is computed here so
    *  a renderer never has to decide anything. */
   function snapshot() {
-    const entry = openEntry();
+    const q = queue();
+    const i = indexOfCurrent(q);
     return {
       callsign: state.callsign,
       isHost: state.isHost,
@@ -207,25 +268,19 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
       autoShow: state.autoShow,
       banner: state.banner,
 
-      unread: unreadCount(),
+      queue: {
+        total: q.length,
+        pos: i, // 0-based; -1 only when the queue is empty
+        current: i === -1 ? null : q[i],
+      },
       batches: state.batches.map((b) => ({
         id: b.id,
         sharedBy: b.sharedBy,
         receivedAt: b.receivedAt,
         count: b.items.length,
-        unread: b.unread,
-        thumbUrl: b.items.length ? b.items[0].url : null,
-        open: b.id === state.openBatchId,
+        selectedCount: b.items.filter((it) => it.selected).length,
+        items: b.items.map((it) => ({ filename: it.filename, url: it.url, selected: it.selected })),
       })),
-      frame: entry
-        ? {
-            url: entry.items[state.frameIndex] ? entry.items[state.frameIndex].url : null,
-            filename: entry.items[state.frameIndex] ? entry.items[state.frameIndex].filename : '',
-            index: state.frameIndex,
-            count: entry.items.length,
-            sharedBy: entry.sharedBy,
-          }
-        : null,
 
       folder: state.folder,
       photos: state.photos,
@@ -246,12 +301,11 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     snapshot,
     noteInteraction,
     recentlyInteracted,
+    queue,
     addBatch,
-    openBatch,
-    openEntry,
     step,
-    unreadCount,
-    markOpenRead,
+    toggleItem,
+    setBatchSelected,
     setPage,
     toggleChrome,
     setFocused,

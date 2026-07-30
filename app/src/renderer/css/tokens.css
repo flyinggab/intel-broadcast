@@ -32,11 +32,15 @@
   --scrim:   rgba(16, 18, 16, .55);   /* chrome floating over a photo */
   --scrim-2: rgba(16, 18, 16, .42);
 
-  /* --- the only hue in the product --------------------------------------
-     Reserved for a broken relay. If it appears anywhere else it stops
-     meaning anything.                                                      */
+  /* --- the two hues in the product --------------------------------------
+     --fault is reserved for a broken relay. --go is reserved for "there is
+     something to commit" — today that is exactly one control, the settings
+     SAVE & APPLY key while dirty. Each appears nowhere else; the moment
+     either decorates anything static it stops meaning anything.            */
   --fault:    #E85F52;
   --fault-dk: #5E2420;
+  --go:       #98BB62;   /* advisory green — cockpit "go", not caution amber */
+  --go-dn:    #7FA050;   /* its pressed face */
 
   /* --- type -------------------------------------------------------------
      B612 (Airbus / ENAC cockpit face) for interface, B612 Mono for anything
@@ -64,13 +68,13 @@
   /* --- dimension --------------------------------------------------------
      --touch-min is a floor, not a target. Nothing interactive goes under it. */
   --touch-min: 2.750rem;  /* 44px */
-  --h-top:     2.875rem;  /* 46px — status bar */
+  --h-top:     2.875rem;  /* 46px — settings status bar */
+  --h-strip:   1.750rem;  /* 28px — viewer connection strip */
   --h-sub:     2.125rem;  /* 34px — settings sub-tabs */
   --h-tab:     3.625rem;  /* 58px — tab bar */
   --h-field:   3.250rem;  /* 52px */
   --h-key:     3.500rem;  /* 56px */
-  --h-key-lg:  4.000rem;  /* 64px — the three brief keys */
-  --h-row:     4.625rem;  /* 74px — received list row */
+  --h-key-lg:  4.000rem;  /* 64px — the share reveal key */
   --h-step:    2.250rem;  /* 36px — tailscale step */
 
   --sp-1: 0.250rem;

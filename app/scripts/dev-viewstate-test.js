@@ -1,8 +1,9 @@
 'use strict';
 
 // Unit test for viewState.js — the main-process store that both windows are a
-// pure function of (ROADMAP §5.2). Covers the auto-switch rule the BRIEF
-// specifies (rule C), which is the fiddly part.
+// pure function of (ROADMAP §5.2). Covers the auto-switch rule (rule C) and
+// the v0.4 queue model: one flat photo queue, newest batch first, curated
+// from RECEIVED, with the stage tracking photo IDENTITY rather than an index.
 //
 // Usage: node scripts/dev-viewstate-test.js
 
@@ -18,29 +19,38 @@ function withClock() {
   return { view, advance: (ms) => (t += ms), at: () => t };
 }
 
+const cur = (view) => view.snapshot().queue.current;
+
 // --- Rule C: switch on arrival when the pilot is idle -----------------------
 {
   const { view } = withClock();
   const { switched } = view.addBatch({ sharedBy: 'alpha', items: items(3) });
   assert.strictEqual(switched, true, 'idle pilot: arrival takes the screen');
-  assert.strictEqual(view.state.page, 'frame');
+  assert.strictEqual(view.state.page, 'brief', 'BRIEF is the kneeboard now');
   assert.strictEqual(view.snapshot().banner.switched, true, 'a switch MUST be announced');
-  assert.strictEqual(view.snapshot().unread, 0, 'what it switched to is not unread');
-  console.log('[test] rule C: idle -> switches and says so');
+  assert.strictEqual(view.snapshot().queue.total, 3);
+  assert.strictEqual(view.snapshot().queue.pos, 0, 'arrival lands at 1/N');
+  assert.strictEqual(cur(view).filename, '0.jpg');
+  console.log('[test] rule C: idle -> switches to the front of the queue and says so');
 }
 
 // --- Rule C: do NOT switch within the grace window --------------------------
 {
   const { view, advance } = withClock();
   view.addBatch({ sharedBy: 'alpha', items: items(2) }); // seeds the stage
-  view.step(1); // the pilot is reading
+  view.step(1); // the pilot is reading — now on alpha's second photo
   advance(INTERACTION_GRACE_MS - 1000);
 
+  const before = cur(view);
   const { switched } = view.addBatch({ sharedBy: 'bravo', items: items(4) });
   assert.strictEqual(switched, false, 'must not yank the page out from under a reader');
-  assert.strictEqual(view.snapshot().banner, null, 'no banner when it did not switch');
-  assert.strictEqual(view.snapshot().unread, 1, 'suppressed arrival is badged instead');
-  console.log('[test] rule C: recent interaction -> badges instead of switching');
+  const snap = view.snapshot();
+  assert.ok(snap.banner, 'with no badge, the banner is the only trace — it must show');
+  assert.strictEqual(snap.banner.switched, false, 'and it must not claim it switched');
+  assert.strictEqual(snap.queue.total, 6, 'the queue still grew');
+  assert.deepStrictEqual(cur(view), { ...before }, 'what is on the stage did not move');
+  assert.strictEqual(snap.queue.pos, 5, 'prepend renumbers: same photo, later position');
+  console.log('[test] rule C: recent interaction -> queued with a banner, stage held still');
 }
 
 // --- Rule C: switches again once the window has elapsed ---------------------
@@ -54,55 +64,139 @@ function withClock() {
   console.log('[test] rule C: grace window expires correctly');
 }
 
-// --- The escape hatch on the PILOT page -------------------------------------
+// --- The escape hatch in settings -------------------------------------------
 {
   const { view } = withClock();
   view.state.autoShow = false;
   const { switched } = view.addBatch({ sharedBy: 'alpha', items: items(2) });
   assert.strictEqual(switched, false, 'SHOW NEW INTEL ON ARRIVAL off means never switch');
-  assert.strictEqual(view.snapshot().unread, 1);
+  assert.ok(view.snapshot().banner, 'still announced');
+  assert.strictEqual(view.snapshot().banner.switched, false);
+  assert.strictEqual(cur(view).filename, '0.jpg', 'empty stage adopts silently');
   console.log('[test] auto-show toggle defeats switching entirely');
 }
 
-// --- Opening an older batch -------------------------------------------------
+// --- Banner identity: each arrival restamps `at` ----------------------------
+// The renderer keys its 10s auto-dismiss timer on banner.at; if two arrivals
+// carried the same stamp the second banner would inherit the first's timer.
 {
   const { view, advance } = withClock();
-  const first = view.addBatch({ sharedBy: 'alpha', items: items(2) }).entry;
-  advance(INTERACTION_GRACE_MS + 1);
+  view.addBatch({ sharedBy: 'alpha', items: items(1) });
+  const first = view.snapshot().banner.at;
+  advance(1234);
   view.addBatch({ sharedBy: 'bravo', items: items(1) });
-  assert.strictEqual(view.snapshot().batches[0].open, true, 'newest is on the stage');
-
-  view.openBatch(first.id);
-  const snap = view.snapshot();
-  assert.strictEqual(snap.page, 'frame');
-  assert.strictEqual(snap.batches[1].open, true, 'the older batch is now open');
-  assert.strictEqual(snap.batches[1].unread, false, 'opening clears its unread mark');
-  assert.strictEqual(snap.frame.sharedBy, 'alpha');
-  assert.strictEqual(view.openBatch(9999), null, 'unknown id is a no-op');
-  console.log('[test] opening an older batch works and marks it read');
+  assert.notStrictEqual(view.snapshot().banner.at, first, 'a new arrival restamps the banner');
+  console.log('[test] banner.at restamps per arrival');
 }
 
-// --- Paging wraps and stays inside the open batch ---------------------------
+// --- Paging wraps across the WHOLE queue, not within a batch ----------------
+{
+  const { view, advance } = withClock();
+  view.addBatch({ sharedBy: 'old', items: items(2) });
+  advance(INTERACTION_GRACE_MS + 1);
+  view.addBatch({ sharedBy: 'new', items: items(2) });
+  // queue: new/0 new/1 old/0 old/1 — current new/0
+  view.step(-1);
+  const wrapped = cur(view);
+  assert.strictEqual(wrapped.sharedBy, 'old', 'one step back from the front is the oldest');
+  assert.strictEqual(wrapped.filename, '1.jpg');
+  assert.strictEqual(view.snapshot().queue.pos, 3);
+  view.step(1);
+  assert.strictEqual(view.snapshot().queue.pos, 0, 'wraps forward again');
+  console.log('[test] paging wraps across the flat queue');
+}
+
+// --- Curation: dropping another photo never moves the stage -----------------
+{
+  const { view, advance } = withClock();
+  const a = view.addBatch({ sharedBy: 'alpha', items: items(3) }).entry;
+  advance(INTERACTION_GRACE_MS + 1);
+  const b = view.addBatch({ sharedBy: 'bravo', items: items(2) }).entry;
+  // queue: b0 b1 a0 a1 a2 — current b0
+  view.step(1); // -> b1 (pos 1)
+  const before = cur(view);
+
+  view.toggleItem(a.id, '1.jpg'); // drop a photo BEHIND the stage
+  assert.deepStrictEqual(cur(view), { ...before }, 'stage identity unchanged');
+  assert.strictEqual(view.snapshot().queue.total, 4);
+  assert.strictEqual(view.snapshot().queue.pos, 1, 'position unchanged too');
+
+  view.toggleItem(b.id, '0.jpg'); // drop a photo AHEAD of the stage
+  assert.deepStrictEqual(cur(view), { ...before }, 'still unchanged');
+  assert.strictEqual(view.snapshot().queue.pos, 0, 'renumbered, not moved');
+  console.log('[test] curation: dropping other photos never moves the stage');
+}
+
+// --- Curation: dropping the CURRENT photo advances in place -----------------
 {
   const { view } = withClock();
-  view.addBatch({ sharedBy: 'alpha', items: items(3) });
-  assert.strictEqual(view.snapshot().frame.index, 0);
-  view.step(-1);
-  assert.strictEqual(view.snapshot().frame.index, 2, 'wraps backwards');
-  view.step(1);
-  assert.strictEqual(view.snapshot().frame.index, 0, 'wraps forwards');
-  assert.strictEqual(view.snapshot().frame.count, 3);
-  console.log('[test] paging wraps within the open batch');
+  const a = view.addBatch({ sharedBy: 'alpha', items: items(3) }).entry;
+  // current a0 at pos 0
+  view.toggleItem(a.id, '0.jpg');
+  assert.strictEqual(cur(view).filename, '1.jpg', 'falls to the same position = the next photo');
+  assert.strictEqual(view.snapshot().queue.pos, 0);
+
+  // dropping the LAST photo falls back to the new last
+  view.step(1); // -> a2 (pos 1 of [a1 a2])
+  view.toggleItem(a.id, '2.jpg');
+  assert.strictEqual(cur(view).filename, '1.jpg', 'dropping the last clamps backward');
+
+  // restore brings it back into the queue, stage does not jump
+  view.toggleItem(a.id, '2.jpg');
+  assert.strictEqual(cur(view).filename, '1.jpg');
+  assert.strictEqual(view.snapshot().queue.total, 2);
+  console.log('[test] curation: dropping the current photo advances in place');
 }
 
-// --- Eviction keeps the newest ----------------------------------------------
+// --- Curation: HIDE / RESTORE a whole batch ---------------------------------
 {
-  const view = createViewState({ maxBatches: 3 });
-  for (const who of ['a', 'b', 'c', 'd']) view.addBatch({ sharedBy: who, items: items(1) });
+  const { view, advance } = withClock();
+  const a = view.addBatch({ sharedBy: 'alpha', items: items(2) }).entry;
+  advance(INTERACTION_GRACE_MS + 1);
+  const b = view.addBatch({ sharedBy: 'bravo', items: items(1) }).entry;
+  // current b0
+  view.setBatchSelected(b.id, false); // hide the batch the stage is in
+  assert.strictEqual(cur(view).sharedBy, 'alpha', 'stage falls into the surviving batch');
+  assert.strictEqual(view.snapshot().queue.total, 2);
+
+  view.setBatchSelected(a.id, false); // hide everything
+  assert.strictEqual(view.snapshot().queue.total, 0);
+  assert.strictEqual(view.snapshot().queue.current, null, 'empty queue = STANDBY');
+
+  view.setBatchSelected(a.id, true); // restore
+  assert.strictEqual(view.snapshot().queue.total, 2);
+  assert.ok(cur(view), 'stage re-anchors after restore');
+  assert.strictEqual(view.setBatchSelected(9999, true), null, 'unknown id is a no-op');
+  console.log('[test] curation: batch hide/restore with stage repair');
+}
+
+// --- Per-batch selection counts reach the snapshot --------------------------
+{
+  const { view } = withClock();
+  const a = view.addBatch({ sharedBy: 'alpha', items: items(3) }).entry;
+  view.toggleItem(a.id, '1.jpg');
+  const snap = view.snapshot().batches[0];
+  assert.strictEqual(snap.count, 3);
+  assert.strictEqual(snap.selectedCount, 2);
+  assert.deepStrictEqual(snap.items.map((it) => it.selected), [true, false, true]);
+  console.log('[test] snapshot carries per-batch selection for RECEIVED');
+}
+
+// --- Eviction keeps the newest and repairs the stage ------------------------
+{
+  let t = 1_000_000;
+  const view = createViewState({ maxBatches: 2, now: () => t });
+  view.addBatch({ sharedBy: 'a', items: items(1) });
+  t += INTERACTION_GRACE_MS + 1;
+  view.addBatch({ sharedBy: 'b', items: items(1) });
+  view.step(1); // wrap onto a's photo (pos 1)
+  t += INTERACTION_GRACE_MS + 1;
+  view.addBatch({ sharedBy: 'c', items: items(1) }); // evicts a — the batch on stage
   const snap = view.snapshot();
-  assert.strictEqual(snap.batches.length, 3);
-  assert.deepStrictEqual(snap.batches.map((b) => b.sharedBy), ['d', 'c', 'b']);
-  console.log('[test] history caps and drops the oldest');
+  assert.deepStrictEqual(snap.batches.map((b) => b.sharedBy), ['c', 'b'], 'caps and drops the oldest');
+  assert.ok(snap.queue.current, 'stage survives its batch being evicted');
+  assert.strictEqual(snap.queue.current.sharedBy, 'c', 'switched to the arrival that evicted it');
+  console.log('[test] eviction caps history and repairs the stage');
 }
 
 // --- Share selection ---------------------------------------------------------
@@ -133,13 +227,18 @@ function withClock() {
 {
   const { view } = withClock();
   view.setConnection({ connected: false, relayLabel: 'gab-pc' });
-  assert.strictEqual(view.state.page, 'fault');
+  assert.strictEqual(view.state.page, 'fault', 'down with nothing on stage -> FAULT');
   view.setConnection({ connected: true });
   assert.strictEqual(view.state.page, 'brief', 'recovers off the fault page');
 
-  view.addBatch({ sharedBy: 'alpha', items: items(1) }); // page === frame
+  view.addBatch({ sharedBy: 'alpha', items: items(1) }); // brief, queue live
   view.setConnection({ connected: false });
-  assert.strictEqual(view.state.page, 'frame', 'must not yank a photo away to show a fault');
+  assert.strictEqual(view.state.page, 'brief', 'must not yank a photo away to show a fault');
+
+  view.setConnection({ connected: true });
+  view.setPage('received');
+  view.setConnection({ connected: false });
+  assert.strictEqual(view.state.page, 'fault', 'not reading a photo -> FAULT may take over');
   console.log('[test] fault page behaviour');
 }
 

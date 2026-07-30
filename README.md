@@ -39,18 +39,23 @@ window OpenKneeboard captures, so **Ctrl+Shift+H blanks every bit of chrome** an
 photo: that is the state that matters in the air. The chrome also dims on its own whenever DCS
 has focus.
 
-- **BRIEF** — who is on the net, which folder is staged, whether the funnel is up.
-- **RECEIVED** — one row per batch: who shared it, how many photos, the time it landed. Unread
-  rows carry a bar and the tab carries a count. Clicking a row brings that batch back, so a later
-  reveal never buries one you hadn't read.
-- **SHARE** — a thumbnail grid of your folder. Tick what you want; your reveal hotkey sends
-  exactly that selection.
+- **BRIEF** is the kneeboard itself: a one-line connection strip (callsign · net · relay), then
+  the photo. Every received photo forms **one queue, newest batch first** — a new reveal goes to
+  the front — and the browse hotkeys page through all of it, across batches. STANDBY when
+  nothing has arrived. No hotkey is printed anywhere in the window: bindings live in
+  SETUP → KEYS, the one place they are always current.
+- **RECEIVED** curates that queue: every photo of every batch as a tile, ticked = in the brief.
+  Untick what you're done with; HIDE drops a whole batch, RESTORE brings it back. Dropping the
+  photo you are looking at advances to the next one; dropping any other never moves your page.
+- **SHARE** — a thumbnail grid of your folder (picked right here). Tick what you want; your
+  reveal hotkey sends exactly that selection.
 - **SETUP** opens the *separate* settings window rather than switching a page — putting a
-  settings form on the pilot's knee mid-flight is not a feature.
+  settings form on the pilot's knee mid-flight is not a feature. Who is on the net lives there
+  too, on NET next to the squad code.
 
-When intel arrives the viewer switches to it and says so in a banner — unless you were doing
-something in the last few seconds, in which case it just badges the tab and holds still. You can
-turn the switching off entirely in Setup.
+Every arrival is announced in a banner that dismisses itself: "SWITCHED AUTOMATICALLY" when the
+viewer jumped to the new intel, "QUEUED" when you were mid-something and it held still (it joins
+the front of the queue either way). You can turn the auto-switching off entirely in Setup.
 
 ### Joining a squad
 

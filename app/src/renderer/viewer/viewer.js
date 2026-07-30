@@ -6,38 +6,36 @@
 // pushes and sends intents back. There is deliberately no `currentIndex` here
 // — phase 4 renders this same markup offscreen into a VR quad alongside the
 // desktop window, and state living in one DOM cannot be shared between two
-// surfaces.
+// surfaces. The only mutable module binding is the banner timer handle.
 //
 // It also never writes inline styles: it toggles the classes and attributes
-// in the BRIEF §4 contract, and nothing else.
+// in the BRIEF §4 contract, and nothing else. And it never prints a hotkey:
+// a printed binding goes stale the moment the pilot records a new one —
+// SETUP → KEYS is the single source.
 
 const body = document.body;
 
 const el = (id) => document.getElementById(id);
 
-const bar = { callsign: el('bar-callsign'), net: el('bar-net'), staged: el('bar-staged') };
+const strip = { callsign: el('strip-callsign'), net: el('strip-net'), relay: el('strip-relay') };
 const banner = {
   root: el('banner'),
   who: el('banner-who'),
   meta: el('banner-meta'),
   close: el('banner-close'),
 };
-const brief = {
-  folder: el('brief-folder'),
-  funnel: el('brief-funnel'),
-  count: el('brief-count'),
-  pilots: el('brief-pilots'),
-  status: el('brief-status'),
-  plateTitle: document.querySelector('[data-page="brief"] .plate__title'),
-  plateSubs: document.querySelectorAll('[data-page="brief"] .plate__sub'),
-};
 const stage = {
   img: el('stage-img'),
   file: el('stage-file'),
-  pager: el('stage-pager'),
+  posN: el('stage-pos-n'),
+  posMeta: el('stage-pos-meta'),
   prev: el('stage-prev'),
   next: el('stage-next'),
+  standby: el('stage-standby'),
+  standbyLine1: el('standby-line1'),
+  standbyLine2: el('standby-line2'),
 };
+const batches = el('batches');
 const share = {
   folder: el('share-folder'),
   count: el('share-count'),
@@ -50,163 +48,137 @@ const fault = {
   relay: el('fault-relay'),
   cached: el('fault-cached'),
 };
-const receivedList = el('received-list');
-const tabBadge = el('tab-badge');
 
 const PLACEHOLDER = 'img/frame-placeholder.svg';
 
+// Every arrival banner dismisses itself. Keyed on banner.at so a later state
+// push re-rendering the SAME banner cannot extend its life.
+const BANNER_DISMISS_MS = 10000;
 let bannerTimer = null;
+let bannerShownAt = null;
 
 // --- formatting -------------------------------------------------------------
 // In viewer/format.js so plain node can require and test them; loaded by the
 // <script> tag above this one.
 const { zulu, megabytes, photoWord } = self.Format;
 
-// Callsigns are remote-supplied strings — everything user-facing goes in via
-// textContent, never innerHTML.
+// Callsigns and filenames are remote-supplied strings — everything user-facing
+// goes in via textContent, never innerHTML.
 function setText(node, text) {
   if (node) node.textContent = text;
 }
 
 // --- render -----------------------------------------------------------------
 
-function renderTopBar(s) {
-  setText(bar.callsign, (s.callsign || 'UNNAMED').toUpperCase());
-  setText(bar.net, `${s.isHost ? 'HOST' : 'JOIN'} · ${s.peers.length}`);
-  setText(
-    bar.staged,
-    s.photoCount ? `${s.selectedCount} OF ${s.photoCount} · ${megabytes(s.stagedBytes)}` : 'NO FOLDER',
-  );
+function renderStrip(s) {
+  setText(strip.callsign, (s.callsign || 'UNNAMED').toUpperCase());
+  setText(strip.net, s.isHost ? `HOST · ${s.peers.length} ON NET` : s.connected ? 'JOINED' : 'NO NET');
+  setText(strip.relay, s.connected ? `RELAY UP · ${zulu(s.lastContactAt)}` : 'RELAY DOWN');
+  strip.relay.classList.toggle('strip__seg--fault', !s.connected);
 }
 
 function renderBanner(s) {
   if (!s.banner) {
     banner.root.classList.add('is-hidden');
+    bannerShownAt = null;
+    clearTimeout(bannerTimer);
     return;
   }
   setText(banner.who, `NEW FROM ${(s.banner.who || 'UNKNOWN').toUpperCase()}`);
-  setText(banner.meta, `${photoWord(s.banner.count)} · SWITCHED AUTOMATICALLY`);
+  setText(banner.meta, `${photoWord(s.banner.count)} · ${s.banner.switched ? 'SWITCHED AUTOMATICALLY' : 'QUEUED'}`);
   banner.root.classList.remove('is-hidden');
-  clearTimeout(bannerTimer);
-  bannerTimer = setTimeout(() => window.viewerAPI.send('banner-dismiss'), 6000);
+  if (bannerShownAt !== s.banner.at) {
+    bannerShownAt = s.banner.at;
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(() => window.viewerAPI.send('banner-dismiss'), BANNER_DISMISS_MS);
+  }
 }
 
-function renderBrief(s) {
-  const newest = s.batches[0];
-  if (newest) {
-    setText(brief.plateTitle, zulu(newest.receivedAt));
-    const subs = [...brief.plateSubs];
-    setText(subs[0], `LAST FROM ${(newest.sharedBy || 'UNKNOWN').toUpperCase()}`);
-    setText(subs[1], photoWord(newest.count));
-  } else {
-    setText(brief.plateTitle, 'STANDBY');
-    const subs = [...brief.plateSubs];
-    setText(subs[0], 'NO INTEL RECEIVED');
-    setText(subs[1], 'SINCE POWER UP');
-  }
-
-  setText(brief.folder, (s.folder ? s.folder.split(/[\\/]/).pop() : 'NOT SET').toUpperCase());
-  const funnelState = s.funnel && s.funnel.funnelOn ? `UP · ${zulu(s.funnel.since)}` : s.isHost ? 'DOWN' : 'N/A';
-  setText(brief.funnel, funnelState);
-  setText(brief.count, String(s.peers.length));
-
-  brief.pilots.textContent = '';
-  if (s.peers.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'pilot';
-    const name = document.createElement('span');
-    name.className = 'pilot__name';
-    name.textContent = s.connected ? 'NOBODY ELSE ON NET' : 'NOT CONNECTED';
-    empty.appendChild(name);
-    brief.pilots.appendChild(empty);
-  }
-  for (const peer of s.peers) {
-    const row = document.createElement('div');
-    row.className = 'pilot';
-    const dot = document.createElement('i');
-    dot.className = 'pilot__dot';
-    const name = document.createElement('span');
-    name.className = 'pilot__name';
-    name.textContent = (peer.callsign || 'UNNAMED').toUpperCase();
-    const meta = document.createElement('span');
-    meta.className = 'pilot__meta';
-    meta.textContent = peer.self ? 'YOU' : peer.host ? 'HOST' : zulu(peer.connectedAt);
-    row.append(dot, name, meta);
-    brief.pilots.appendChild(row);
-  }
-
-  setText(brief.status, s.connected ? `Relay up · ${zulu(s.lastContactAt)}` : 'Relay down');
-}
-
-function renderFrame(s) {
-  if (!s.frame || !s.frame.url) {
-    stage.img.src = PLACEHOLDER;
+function renderStage(s) {
+  const q = s.queue;
+  const empty = !q.current;
+  stage.standby.classList.toggle('is-hidden', !empty);
+  if (empty) {
+    if (stage.img.getAttribute('src') !== PLACEHOLDER) stage.img.src = PLACEHOLDER;
     setText(stage.file, 'NO INTEL');
-    stage.pager.textContent = '';
+    setText(stage.posN, '');
+    setText(stage.posMeta, '');
+    setText(stage.standbyLine1, 'NO INTEL RECEIVED');
+    setText(stage.standbyLine2, s.connected ? 'SINCE POWER UP' : 'RELAY DOWN');
     return;
   }
   // Only reassign src when it actually changed: re-setting it restarts the
   // decode and flashes the stage, which is the one thing that must never
   // happen on the surface a pilot is reading.
-  if (stage.img.getAttribute('src') !== s.frame.url) stage.img.src = s.frame.url;
-  setText(stage.file, (s.frame.filename || '').toUpperCase());
-
-  stage.pager.textContent = '';
-  if (s.frame.count > 1) {
-    for (let i = 0; i < s.frame.count; i++) {
-      const dot = document.createElement('i');
-      dot.className = 'pager__dot' + (i === s.frame.index ? ' is-current' : '');
-      stage.pager.appendChild(dot);
-    }
-  }
+  if (stage.img.getAttribute('src') !== q.current.url) stage.img.src = q.current.url;
+  setText(stage.file, (q.current.filename || '').toUpperCase());
+  setText(stage.posN, `${q.pos + 1} / ${q.total}`);
+  setText(stage.posMeta, ` · ${(q.current.sharedBy || 'UNKNOWN').toUpperCase()} · ${zulu(q.current.receivedAt)}`);
 }
 
 function renderReceived(s) {
-  receivedList.textContent = '';
+  batches.textContent = '';
   if (s.batches.length === 0) {
     const empty = document.createElement('div');
-    empty.className = 'row';
-    const text = document.createElement('div');
-    text.className = 'row__text';
-    const who = document.createElement('div');
-    who.className = 'row__who';
+    empty.className = 'batch';
+    const head = document.createElement('div');
+    head.className = 'batch__head';
+    const who = document.createElement('span');
+    who.className = 'batch__who';
     who.textContent = 'NOTHING RECEIVED YET';
-    const meta = document.createElement('div');
-    meta.className = 'row__meta';
+    const meta = document.createElement('span');
+    meta.className = 'batch__meta';
     meta.textContent = 'ANYTHING THE SQUAD SHARES LANDS HERE';
-    text.append(who, meta);
-    empty.appendChild(text);
-    receivedList.appendChild(empty);
+    head.append(who, meta);
+    empty.appendChild(head);
+    batches.appendChild(empty);
     return;
   }
 
   for (const batch of s.batches) {
-    const row = document.createElement('div');
-    row.className = 'row' + (batch.unread ? ' is-new' : '') + (batch.open ? ' is-open' : '');
-    row.dataset.batchId = String(batch.id);
+    const root = document.createElement('div');
+    root.className = 'batch';
+    root.dataset.batchId = String(batch.id);
 
-    const thumb = document.createElement('img');
-    thumb.className = 'row__thumb';
-    thumb.src = batch.thumbUrl || PLACEHOLDER;
-    thumb.alt = '';
-
-    const text = document.createElement('div');
-    text.className = 'row__text';
-    const who = document.createElement('div');
-    who.className = 'row__who';
+    const head = document.createElement('div');
+    head.className = 'batch__head';
+    const who = document.createElement('span');
+    who.className = 'batch__who';
     who.textContent = (batch.sharedBy || 'UNKNOWN').toUpperCase();
-    const meta = document.createElement('div');
-    meta.className = 'row__meta';
-    meta.textContent = `${photoWord(batch.count)} · ${zulu(batch.receivedAt)}`;
-    text.append(who, meta);
+    const meta = document.createElement('span');
+    meta.className = 'batch__meta';
+    meta.textContent = `${batch.selectedCount} OF ${batch.count} IN BRIEF · ${zulu(batch.receivedAt)}`;
+    const all = document.createElement('button');
+    all.className = 'key key--sm batch__all';
+    all.dataset.batchId = String(batch.id);
+    all.dataset.on = batch.selectedCount === 0 ? '1' : '0';
+    all.textContent = batch.selectedCount === 0 ? 'RESTORE' : 'HIDE';
+    head.append(who, meta, all);
 
-    row.append(thumb, text);
-    if (batch.unread) {
-      const mark = document.createElement('i');
-      mark.className = 'row__mark';
-      row.appendChild(mark);
+    const tiles = document.createElement('div');
+    tiles.className = 'tiles batch__tiles';
+    for (const item of batch.items) {
+      const tile = document.createElement('button');
+      tile.className = 'tile' + (item.selected ? '' : ' is-off');
+      tile.dataset.batchId = String(batch.id);
+      tile.dataset.filename = item.filename;
+
+      const check = document.createElement('i');
+      check.className = 'tile__check';
+      const img = document.createElement('img');
+      img.className = 'tile__img';
+      img.src = item.url || PLACEHOLDER;
+      img.alt = '';
+      const name = document.createElement('span');
+      name.className = 'tile__name';
+      name.textContent = item.filename.toUpperCase();
+
+      tile.append(check, img, name);
+      tiles.appendChild(tile);
     }
-    receivedList.appendChild(row);
+
+    root.append(head, tiles);
+    batches.appendChild(root);
   }
 }
 
@@ -238,8 +210,7 @@ function renderShare(s) {
   }
 
   share.reveal.disabled = s.selectedCount === 0;
-  const label = s.selectedCount === 0 ? 'NOTHING SELECTED' : `REVEAL ${photoWord(s.selectedCount)}`;
-  share.reveal.firstChild.textContent = label;
+  setText(share.reveal, s.selectedCount === 0 ? 'NOTHING SELECTED' : `REVEAL ${photoWord(s.selectedCount)}`);
 }
 
 function renderFault(s) {
@@ -264,16 +235,9 @@ function render(s) {
     tab.classList.toggle('is-active', tab.dataset.tab === s.page && tab.dataset.tab !== 'setup');
   }
 
-  tabBadge.textContent = String(s.unread);
-  tabBadge.classList.toggle('is-hidden', s.unread === 0);
-  // Red is reserved for a broken relay. If it shows up anywhere else it stops
-  // meaning anything.
-  tabBadge.classList.toggle('is-fault', !s.connected);
-
-  renderTopBar(s);
+  renderStrip(s);
   renderBanner(s);
-  renderBrief(s);
-  renderFrame(s);
+  renderStage(s);
   renderReceived(s);
   renderShare(s);
   renderFault(s);
@@ -281,8 +245,10 @@ function render(s) {
 
 // --- intents ----------------------------------------------------------------
 // Every handler sends; none of them mutate. Main decides and pushes back.
+// Guarded: under the dev harnesses (preview.html, geometry) there is no
+// preload and no main — intents go nowhere.
 
-const send = (intent, payload) => window.viewerAPI.send(intent, payload);
+const send = (intent, payload) => window.viewerAPI && window.viewerAPI.send(intent, payload);
 
 for (const tab of document.querySelectorAll('.tab')) {
   tab.addEventListener('click', () => {
@@ -299,9 +265,17 @@ banner.close.addEventListener('click', () => send('banner-dismiss'));
 stage.prev.addEventListener('click', () => send('step', -1));
 stage.next.addEventListener('click', () => send('step', 1));
 
-receivedList.addEventListener('click', (event) => {
-  const row = event.target.closest('.row[data-batch-id]');
-  if (row) send('open-batch', Number(row.dataset.batchId));
+// RECEIVED curation: a tile drops/restores one photo; the head key a batch.
+batches.addEventListener('click', (event) => {
+  const all = event.target.closest('.batch__all[data-batch-id]');
+  if (all) {
+    send('set-batch', { batchId: Number(all.dataset.batchId), on: all.dataset.on === '1' });
+    return;
+  }
+  const tile = event.target.closest('.tile[data-batch-id][data-filename]');
+  if (tile) {
+    send('toggle-received', { batchId: Number(tile.dataset.batchId), filename: tile.dataset.filename });
+  }
 });
 
 share.grid.addEventListener('click', (event) => {
@@ -312,11 +286,8 @@ share.grid.addEventListener('click', (event) => {
 el('share-all').addEventListener('click', () => send('select-all'));
 el('share-none').addEventListener('click', () => send('select-none'));
 el('share-rescan').addEventListener('click', () => send('rescan'));
+el('share-folder-btn').addEventListener('click', () => send('browse-folder'));
 share.reveal.addEventListener('click', () => send('reveal'));
-
-el('key-reveal').addEventListener('click', () => send('reveal'));
-el('key-browse').addEventListener('click', () => send('set-page', 'received'));
-el('key-hide').addEventListener('click', () => send('toggle-chrome'));
 
 el('fault-retry').addEventListener('click', () => send('reconnect'));
 el('fault-setup').addEventListener('click', () => send('open-settings'));
@@ -326,5 +297,12 @@ el('fault-setup').addEventListener('click', () => send('open-settings'));
 window.addEventListener('focus', () => send('focus', true));
 window.addEventListener('blur', () => send('focus', false));
 
-window.viewerAPI.onState(render);
-send('ready');
+if (window.viewerAPI) {
+  window.viewerAPI.onState(render);
+  send('ready');
+} else {
+  // preview.html / the geometry harness, loading this file without Electron:
+  // expose the real render so they can drive it with fake snapshots. The
+  // shipped HTML carries no demo content — this hook is what populates it.
+  window.__preview = { render };
+}

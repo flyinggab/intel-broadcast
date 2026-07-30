@@ -1,15 +1,17 @@
 'use strict';
 
-// End-to-end against the NEW viewer UI, driven through its real DOM.
-// Replaces dev-e2e-panel-test.js (the side panel this UI removed).
+// End-to-end against the v0.4 viewer UI, driven through its real DOM.
 //
-// Covers the parts of BRIEF §6 that can be checked without eyes on a screen:
+// Covers what can be checked without eyes on a screen:
 //   - photos reach the renderer as intel:// URLs, never base64 data URLs (§9.1)
-//   - the auto-switch rule and its mandatory banner
-//   - HIDE CHROME leaves the photo and nothing else (§6.1)
-//   - tabs switch pages, and SETUP does NOT (§6.2)
+//   - an idle arrival takes the BRIEF stage at 1/N and the banner says so
+//   - HIDE CHROME leaves the photo and nothing else
+//   - tabs switch pages, and SETUP does NOT
+//   - rule C: an arrival during interaction queues with a QUEUED banner and
+//     the page holds still — there is no badge any more
+//   - RECEIVED curation: deselecting a tile shrinks the brief's queue without
+//     moving the stage; HIDE/RESTORE empties and refills it
 //   - share tiles drive what actually goes on the wire
-//   - the received list reflects arrivals and re-opening an older batch
 //
 // Usage: node scripts/dev-e2e-ui-test.js
 
@@ -125,30 +127,36 @@ async function main() {
   if (!probe.tiles.every((t) => t.hasThumb)) {
     throw new Error(`thumbnails must be intel:// URLs, got ${JSON.stringify(probe.tiles)}`);
   }
-  console.log('[e2e] gallery lists the folder, thumbnails served over intel://');
+  // The shipped markup boots empty: STANDBY until intel arrives.
+  if (!probe.standby) throw new Error('an empty queue must show STANDBY');
+  console.log('[e2e] gallery lists the folder, thumbnails served over intel://, stage is STANDBY');
 
-  // --- arrival switches the page AND says so --------------------------------
+  // --- arrival takes the BRIEF stage at 1/N AND says so ---------------------
   const alpha = await connectClient('JOKER 2-1');
   await sleep(400);
   alpha.sendRevealBatch([photo('a.jpg', 1), photo('b.jpg', 2), photo('c.jpg', 3)]);
 
-  await waitFor('the arrival to take the stage', () => probe.page === 'frame');
+  await waitFor('the arrival to take the stage', () => probe.stageSrc.startsWith('intel://blob/'));
+  if (probe.page !== 'brief') throw new Error(`expected BRIEF to hold the photo, page=${probe.page}`);
+  if (probe.standby) throw new Error('STANDBY must clear when intel lands');
+  if (probe.pos !== '1 / 3') throw new Error(`arrival should land at 1 / 3, got "${probe.pos}"`);
   if (!probe.banner || !probe.banner.includes('JOKER 2-1')) {
     throw new Error(`a page that moves on its own must say why, got banner: ${probe.banner}`);
   }
-  if (!probe.stageSrc.startsWith('intel://blob/')) {
-    throw new Error(`the photo must be an intel:// blob URL, got "${probe.stageSrc}"`);
+  if (!/SWITCHED AUTOMATICALLY/.test(probe.bannerMeta || '')) {
+    throw new Error(`switched banner must say so, got "${probe.bannerMeta}"`);
   }
-  console.log('[e2e] arrival switched to FRAME, banner announced it, photo is an intel:// blob');
+  console.log('[e2e] arrival took the BRIEF stage at 1/3, banner announced the switch');
 
   // --- HIDE CHROME leaves the photo and nothing else ------------------------
-  await click('#key-hide');
+  // Hotkey-only in the UI now; the intent channel stands in for the hotkey.
+  await runInViewer(`window.viewerAPI.send('toggle-chrome')`);
   await waitFor('chrome hidden', () => probe.chromeHidden === true);
   const chromeVisible = await new Promise((resolve) => {
     fs.writeFileSync(
       EVAL_PATH,
       `console.log('CHROME_PROBE ' + JSON.stringify({
-         topbar: !!document.querySelector('.topbar').offsetParent,
+         strip: !!document.querySelector('.strip').offsetParent,
          tabbar: !!document.querySelector('.tabbar').offsetParent,
          stageChrome: !!document.querySelector('.stage__chrome').offsetParent,
          img: !!document.getElementById('stage-img').offsetParent,
@@ -167,21 +175,24 @@ async function main() {
     }, 8000);
   });
   if (!chromeVisible) throw new Error('chrome probe never reported');
-  if (chromeVisible.topbar || chromeVisible.tabbar || chromeVisible.stageChrome) {
+  if (chromeVisible.strip || chromeVisible.tabbar || chromeVisible.stageChrome) {
     throw new Error(`HIDE CHROME must blank all chrome, got ${JSON.stringify(chromeVisible)}`);
   }
   if (!chromeVisible.img) throw new Error('the photo must remain visible with chrome hidden');
   console.log('[e2e] HIDE CHROME shows the photo and nothing else');
-  await click('#key-hide');
+  await runInViewer(`window.viewerAPI.send('toggle-chrome')`);
   await waitFor('chrome back', () => probe.chromeHidden === false);
 
   // --- tabs switch pages; SETUP does not ------------------------------------
   await click('.tab[data-tab="received"]');
   await waitFor('RECEIVED page', () => probe.page === 'received');
-  if (probe.rows.length !== 1) throw new Error(`expected 1 received row, got ${probe.rows.length}`);
-  if (!probe.rows[0].who.includes('JOKER 2-1')) throw new Error(`row shows "${probe.rows[0].who}"`);
-  if (!/3 PHOTOS · \d{4}Z/.test(probe.rows[0].meta)) throw new Error(`row meta: "${probe.rows[0].meta}"`);
-  console.log('[e2e] RECEIVED lists the batch with callsign, count and Zulu time');
+  if (probe.batches.length !== 1) throw new Error(`expected 1 batch, got ${probe.batches.length}`);
+  if (!probe.batches[0].who.includes('JOKER 2-1')) throw new Error(`batch shows "${probe.batches[0].who}"`);
+  if (!/3 OF 3 IN BRIEF · \d{4}Z/.test(probe.batches[0].meta)) {
+    throw new Error(`batch meta: "${probe.batches[0].meta}"`);
+  }
+  if (probe.batches[0].tiles.length !== 3) throw new Error('every received photo gets a tile');
+  console.log('[e2e] RECEIVED lists the batch with callsign, selection count and Zulu time');
 
   const pageBeforeSetup = probe.page;
   await click('#tab-setup');
@@ -192,23 +203,51 @@ async function main() {
   if (!/\[settingsWindow\] window/.test(output)) throw new Error('SETUP should have opened the settings window');
   console.log('[e2e] SETUP opens the settings window without changing the viewer page');
 
-  // --- a second arrival while reading is badged, not switched (rule C) ------
+  // --- rule C: an arrival during interaction queues, page holds still ------
   const bravo = await connectClient('UZI 1-1');
   await sleep(300);
   await click('.tab[data-tab="share"]'); // deliberate interaction, starts the grace window
   await waitFor('SHARE page', () => probe.page === 'share');
   bravo.sendRevealBatch([photo('d.jpg', 4)]);
-  await waitFor('the badge to count the suppressed arrival', () => probe.badge === 1, 10000);
+  await waitFor('the arrival to join the queue', () => probe.batches.length === 2, 10000);
   if (probe.page !== 'share') throw new Error('a recent interaction must stop the page moving');
-  console.log('[e2e] rule C: arrival during interaction is badged, page held still');
+  if (!probe.banner || !probe.banner.includes('UZI 1-1')) {
+    throw new Error(`with no badge the banner is the only trace — got ${probe.banner}`);
+  }
+  if (!/QUEUED/.test(probe.bannerMeta || '')) {
+    throw new Error(`a held page must announce QUEUED, got "${probe.bannerMeta}"`);
+  }
+  console.log('[e2e] rule C: arrival during interaction queued with a QUEUED banner, page held still');
 
-  // --- re-opening an older batch --------------------------------------------
+  // --- RECEIVED curation drives the brief's queue ---------------------------
+  await click('.tab[data-tab="brief"]');
+  await waitFor('back on the brief', () => probe.page === 'brief');
+  if (probe.pos !== '2 / 4') {
+    // 1 (d.jpg, prepended) + 3 (a/b/c) — the stage stayed on a.jpg, renumbered.
+    throw new Error(`prepend should renumber the held stage to 2 / 4, got "${probe.pos}"`);
+  }
   await click('.tab[data-tab="received"]');
-  await waitFor('two rows', () => probe.rows.length === 2);
-  await click('.row[data-batch-id]:last-child'); // the older one
-  await waitFor('the older batch on the stage', () => probe.page === 'frame');
-  if (probe.badge !== 1) throw new Error('opening the OLD batch must not clear the NEW one’s badge');
-  console.log('[e2e] re-opening an older batch works and leaves the new one badged');
+  await waitFor('RECEIVED again', () => probe.page === 'received');
+
+  // Deselect the photo BEHIND the stage (b.jpg): queue shrinks, stage holds.
+  await click('.tile[data-filename="b.jpg"]');
+  await waitFor('the tile to toggle off', () =>
+    probe.batches.some((b) => b.tiles.some((t) => t.filename === 'b.jpg' && !t.selected)));
+  if (probe.stageFile !== 'A.JPG') throw new Error(`deselecting b.jpg must not move the stage off ${probe.stageFile}`);
+  if (probe.pos !== '2 / 3') throw new Error(`queue must shrink to 3, got "${probe.pos}"`);
+
+  // HIDE the whole JOKER batch (the older one, last in the newest-first
+  // list): only d.jpg remains; the stage falls to it.
+  await click('.batch[data-batch-id]:last-child .batch__all');
+  await waitFor('the batch to hide', () => probe.batches.some((b) => b.all === 'RESTORE'), 10000);
+  if (probe.stageFile !== 'D.JPG') throw new Error(`stage must fall to the surviving photo, got ${probe.stageFile}`);
+  if (probe.pos !== '1 / 1') throw new Error(`queue must be d.jpg alone, got "${probe.pos}"`);
+
+  // RESTORE brings the batch back.
+  await click('.batch__all[data-on="1"]');
+  await waitFor('the batch to restore', () => probe.batches.every((b) => b.all === 'HIDE'), 10000);
+  if (probe.pos !== '1 / 4') throw new Error(`restore must refill the queue, got "${probe.pos}"`);
+  console.log('[e2e] RECEIVED curation: tile off, batch HIDE, RESTORE — queue follows, stage repairs');
 
   // --- share selection decides what goes on the wire ------------------------
   await click('.tab[data-tab="share"]');
@@ -216,7 +255,7 @@ async function main() {
   await click('#share-none');
   await waitFor('nothing selected', () => probe.tiles.every((t) => !t.selected));
   if (!/NOTHING SELECTED/.test(probe.revealBtn)) throw new Error(`button label: "${probe.revealBtn}"`);
-  await click('.tile[data-filename]:last-child');
+  await click('#share-grid .tile[data-filename]:last-child');
   await waitFor('one selected', () => probe.tiles.filter((t) => t.selected).length === 1);
   const picked = probe.tiles.find((t) => t.selected).filename;
 
