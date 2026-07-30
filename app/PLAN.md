@@ -19,12 +19,14 @@ Read "Unified mode" below before changing anything in `relayServer.js`/`relayCli
 **Repo**: `~/intel-broadcast`, pushed to `https://github.com/flyinggab/intel-broadcast` (public).
 Run `git log --oneline` for the authoritative commit list — don't trust hardcoded hashes here.
 
-**⚠️ The published release is very stale — rebuild before any cross-machine/Tailscale testing.**
-`v0.1.0` (https://github.com/flyinggab/intel-broadcast/releases/tag/v0.1.0) is tagged at commit
-`d1ed98d` and is missing **every** feature commit since: the Settings-checkbox mode switch,
-`INTEL_BROADCAST_LOCAL_CONFIG_PATH`, the 4K scaling fix, live settings apply, the
-connected-clients list, unified share/receive mode, and the whole Tailscale panel. That build is
-only useful as a historical artifact — nobody should be testing against it.
+**Current release: `v0.2.0`** (https://github.com/flyinggab/intel-broadcast/releases/tag/v0.2.0),
+published 2026-07-30 with everything below: unified share/receive mode, the Tailscale panel, the
+viewer side panel, 4K scaling and live settings apply. Assets: `Intel-Broadcast-0.2.0.exe`
+(Windows portable) plus both Mac arch zips. The older `v0.1.0` is kept only as history — it
+predates the mode unification and still expects a `--gm` launch flag, so don't test against it.
+Minor bump rather than a patch because dropping GM mode is a breaking change for anyone's
+existing `config.local.json` (`loadConfig()` maps the legacy `gmModeEnabled` key forward, so
+those configs still work).
 
 To cut a fresh release: bump/retag `v0.1.0` (delete the old release + tag first —
 `gh release delete v0.1.0 --repo flyinggab/intel-broadcast --yes --cleanup-tag`, then
@@ -221,8 +223,9 @@ npm's install-script allowlist by default) — already done, recorded in `app/pa
   whether `where tailscale` resolves in a packaged app's environment (the well-known
   `C:\Program Files\Tailscale\tailscale.exe` fallback exists for that).
 - Phase 4 (full squad rehearsal, DCS actually running) — not started. Phase 3's two-network test
-  (home WiFi + phone hotspot) is the next real-machine milestone.
-- Rebuild and republish the GitHub release (see above) before any cross-machine testing.
+  (home WiFi + phone hotspot) is the next real-machine milestone. **In progress as of
+  2026-07-30**: the user is installing Tailscale and running the v0.2.0 build on their Windows
+  PC — the first time any of the Tailscale code meets a real binary.
 - The relay-port setting is the *local* listen port; the public funnel is always :443 (Tailscale
   only allows 443/8443/10000). Nothing surfaces that in the UI yet — harmless today, but a
   confusing detail if someone sets a port expecting it to appear in the public URL.
