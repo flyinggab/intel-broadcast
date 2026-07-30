@@ -70,7 +70,13 @@ function createViewerWindow({ title, initialPosition, uiScale }) {
     window.webContents.send('navigate', direction);
   }
 
-  return { window, showBatch, setConnectionState, navigate };
+  /** Tells the share gallery its folder listing may be out of date. */
+  function invalidateGallery() {
+    if (window.isDestroyed()) return;
+    window.webContents.send('gallery-invalidated');
+  }
+
+  return { window, showBatch, setConnectionState, navigate, invalidateGallery };
 }
 
 module.exports = { createViewerWindow };

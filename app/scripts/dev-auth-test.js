@@ -4,7 +4,7 @@
 const WebSocket = require('ws');
 const { createRelayServer } = require('../src/main/relayServer');
 
-const PORT = 8789;
+const PORT = require('./dev-ports').auth;
 const server = createRelayServer({ port: PORT, token: 'correct-secret', onLog: (m) => console.log(`[relay] ${m}`) });
 
 const ws = new WebSocket(`ws://localhost:${PORT}`);

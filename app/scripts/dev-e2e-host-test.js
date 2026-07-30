@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
+const { killApp } = require('./dev-electron');
 
 const APP_DIR = path.join(__dirname, '..');
 const HOST_CONFIG_PATH = path.join(APP_DIR, 'host-e2e-config.local.json');
@@ -21,9 +22,9 @@ const SHARER_CONFIG_PATH = path.join(APP_DIR, 'sharer-e2e-config.local.json');
 const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
 const MARKER_PATH = path.join(APP_DIR, 'host-received-marker.json');
 
-const RELAY_PORT = 8795;
+const RELAY_PORT = require('./dev-ports').host;
 const TOKEN = 'host-e2e-secret';
-const TRIGGER_PORT = 8796;
+const TRIGGER_PORT = require('./dev-ports').hostTrigger;
 const MISSION_NAME = 'roman-sead-joker1';
 
 fs.rmSync(MARKER_PATH, { force: true });
@@ -49,6 +50,7 @@ fs.writeFileSync(
 // though someone else shared it.
 const hostChild = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
   cwd: APP_DIR,
+    detached: true, // process GROUP, so killTree reaches the real binary
   env: {
     ...process.env,
     INTEL_BROADCAST_LOCAL_CONFIG_PATH: HOST_CONFIG_PATH,
@@ -64,8 +66,8 @@ function cleanup(exitCode) {
   fs.rmSync(HOST_CONFIG_PATH, { force: true });
   fs.rmSync(SHARER_CONFIG_PATH, { force: true });
   fs.rmSync(MARKER_PATH, { force: true });
-  hostChild.kill();
-  if (sharerChild) sharerChild.kill();
+  killApp(hostChild);
+  if (sharerChild) killApp(sharerChild);
   setTimeout(() => process.exit(exitCode), 200);
 }
 
@@ -75,6 +77,7 @@ function cleanup(exitCode) {
 setTimeout(() => {
   sharerChild = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
     cwd: APP_DIR,
+    detached: true, // process GROUP, so killTree reaches the real binary
     env: {
       ...process.env,
       INTEL_BROADCAST_LOCAL_CONFIG_PATH: SHARER_CONFIG_PATH,

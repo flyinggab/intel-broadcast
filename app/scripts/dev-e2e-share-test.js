@@ -16,7 +16,7 @@ const { createRelayServer } = require('../src/main/relayServer');
 const { RelayClient } = require('../src/main/relayClient');
 const { buildRevealFrames, MAX_BATCH_ITEMS } = require('../src/main/protocol');
 
-const PORT = 8799;
+const PORT = require('./dev-ports').share;
 const TOKEN = 'share-e2e-secret';
 
 const logs = [];

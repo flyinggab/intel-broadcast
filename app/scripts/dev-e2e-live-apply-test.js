@@ -15,7 +15,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawn, execSync } = require('child_process');
+const { spawn } = require('child_process');
+const { killApp } = require('./dev-electron');
 const { RelayClient } = require('../src/main/relayClient');
 
 const APP_DIR = path.join(__dirname, '..');
@@ -23,9 +24,9 @@ const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
 const CONFIG_PATH = path.join(APP_DIR, 'live-apply-config.local.json');
 const MARKER_PATH = path.join(APP_DIR, 'live-apply-marker.json');
 
-const OLD_PORT = 8791;
-const NEW_PORT = 8792;
-const TRIGGER_PORT = 8793;
+const OLD_PORT = require('./dev-ports').liveApplyOld;
+const NEW_PORT = require('./dev-ports').liveApplyNew;
+const TRIGGER_PORT = require('./dev-ports').liveApplyTrigger;
 const NEW_TOKEN = 'live-apply-token-2';
 
 const SAVE_PAYLOAD = {
@@ -56,6 +57,7 @@ fs.writeFileSync(
 
 const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
   cwd: APP_DIR,
+    detached: true, // process GROUP, so killTree reaches the real binary
   env: {
     ...process.env,
     INTEL_BROADCAST_LOCAL_CONFIG_PATH: CONFIG_PATH,
@@ -75,15 +77,10 @@ function cleanup(exitCode) {
   fs.rmSync(MARKER_PATH, { force: true });
   if (triggerTimer) clearInterval(triggerTimer);
   if (relayProbe) relayProbe.close();
-  child.kill();
-  // Safety sweep: if a regression brought app.relaunch() back, its child is
-  // not ours and would leak past child.kill(). (ps shows the real binary under
-  // node_modules/electron/dist, not the .bin symlink.)
-  try {
-    execSync(`pkill -9 -f "${APP_DIR}/node_modules/electron/dist/electron"`);
-  } catch {
-    // pkill exits non-zero when nothing matched — fine
-  }
+  // Kills the whole process group, so even a relaunched second generation
+  // (were app.relaunch() ever reintroduced) goes with it — it would inherit
+  // this group. Replaces the pkill-by-pattern sweep this used to need.
+  killApp(child);
   setTimeout(() => process.exit(exitCode), 300);
 }
 

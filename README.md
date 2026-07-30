@@ -23,14 +23,30 @@ value affects (hotkeys, relay server, relay connection) restart in-process.
 
 1. Each pilot points Settings' folder picker at their own mission photos and sets a
    callsign/username.
-2. Pressing the reveal hotkey (default `Ctrl+Shift+I`) sends every photo in *that pilot's* folder
-   up to the relay, which fans it out to everyone — the sharer included. The receiving window
-   shows who shared it ("2 / 5 — from Ghostrider-1").
+2. Pressing the reveal hotkey (default `Ctrl+Shift+I`) sends the selected photos from *that
+   pilot's* folder up to the relay, which fans them out to everyone — the sharer included. The
+   receiving window shows who shared it ("2 / 5 — from Ghostrider-1").
 3. Each pilot browses the received set with their own local hotkeys (`Ctrl+Shift+Right` /
    `Ctrl+Shift+Left`) without touching the network or affecting anyone else.
 
 The host's Settings window shows a live "Connected clients" list of everyone currently on the
 relay, by callsign.
+
+### The side panel
+
+The viewer window has a collapsible panel on its right edge, reachable from the narrow rail
+(which fades out while another app has focus, so it stays invisible in the OpenKneeboard
+capture). It has two tabs plus a Settings button — handy when the tray icon is hard to spot or
+another app already owns the settings hotkey:
+
+- **Received** — one line per incoming batch: who shared it, how many photos, and the time it
+  arrived. New intel gets a red bubble until you've looked at it, with the unread count on the
+  rail. Clicking a line brings that batch back, so a later reveal no longer buries an earlier
+  one you hadn't read.
+- **Share** — a thumbnail gallery of your photos folder. Everything starts selected; untick what
+  you don't want, or use "Select all" / "None". **The reveal hotkey shares exactly this
+  selection**, so you can set it up before a flight and still trigger it by keystroke mid-air.
+  The "Share" button does the same thing with the mouse.
 
 Windows size themselves to the screen: the viewer keeps A4-portrait kneeboard proportions at
 ~85% of the work-area height and the UI text zooms to match, so nothing renders tiny on a 4K

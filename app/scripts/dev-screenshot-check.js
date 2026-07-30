@@ -22,7 +22,7 @@ const APP_DIR = path.join(__dirname, '..');
 const LOCAL_CONFIG_PATH = path.join(APP_DIR, 'resources', 'config.local.json');
 const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
 
-const PORT = 8792;
+const PORT = require('./dev-ports').screenshotCheck;
 const TOKEN = 'screenshot-check-secret';
 
 let connectedClients = 0;

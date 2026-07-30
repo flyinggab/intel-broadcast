@@ -19,6 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 const { spawn } = require('child_process');
+const { killApp } = require('./dev-electron');
 const { LOCAL_CONFIG_PATH } = require('../src/main/config');
 
 const APP_DIR = path.join(__dirname, '..');
@@ -39,6 +40,7 @@ fs.writeFileSync(LOCAL_CONFIG_PATH, JSON.stringify({ uiScale: UI_SCALE }, null, 
 
 const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
   cwd: APP_DIR,
+    detached: true, // process GROUP, so killTree reaches the real binary
   env: {
     ...process.env,
     INTEL_BROADCAST_OPEN_SETTINGS: '1',
@@ -60,7 +62,7 @@ child.stderr.on('data', (d) => {
 
 function finish(exitCode) {
   fs.rmSync(LOCAL_CONFIG_PATH, { force: true });
-  child.kill();
+  killApp(child);
   setTimeout(() => process.exit(exitCode), 200);
 }
 

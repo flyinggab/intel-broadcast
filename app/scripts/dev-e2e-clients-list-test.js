@@ -13,13 +13,14 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { killApp } = require('./dev-electron');
 const { RelayClient } = require('../src/main/relayClient');
 
 const APP_DIR = path.join(__dirname, '..');
 const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
 const CONFIG_PATH = path.join(APP_DIR, 'clients-list-config.local.json');
 
-const RELAY_PORT = 8794;
+const RELAY_PORT = require('./dev-ports').clientsList;
 const TOKEN = 'clients-list-secret';
 const CALLSIGN = 'Ghostrider-1';
 
@@ -30,6 +31,7 @@ fs.writeFileSync(
 
 const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
   cwd: APP_DIR,
+    detached: true, // process GROUP, so killTree reaches the real binary
   env: {
     ...process.env,
     INTEL_BROADCAST_LOCAL_CONFIG_PATH: CONFIG_PATH,
@@ -43,7 +45,7 @@ let probeClient = null;
 function cleanup(exitCode) {
   fs.rmSync(CONFIG_PATH, { force: true });
   if (probeClient) probeClient.close();
-  child.kill();
+  killApp(child);
   setTimeout(() => process.exit(exitCode), 200);
 }
 

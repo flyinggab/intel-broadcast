@@ -18,6 +18,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { killApp } = require('./dev-electron');
 
 const APP_DIR = path.join(__dirname, '..');
 const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
@@ -26,7 +27,7 @@ const CONFIG_PATH = path.join(APP_DIR, 'funnel-e2e-config.local.json');
 const STATE_PATH = path.join(APP_DIR, 'funnel-e2e-tailscale-state.json');
 const LOG_PATH = path.join(APP_DIR, 'funnel-e2e-tailscale-log.txt');
 
-const RELAY_PORT = 8797;
+const RELAY_PORT = require('./dev-ports').funnelFlow;
 const WSS_URL = 'wss://fake-host.tail1234.ts.net';
 
 function baseEnv() {
@@ -87,6 +88,7 @@ async function scenario1() {
   let output = '';
   const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
     cwd: APP_DIR,
+    detached: true, // process GROUP, so killTree reaches the real binary
     env: { ...baseEnv(), INTEL_BROADCAST_OPEN_SETTINGS: '1', INTEL_BROADCAST_TAILSCALE_PROBE: '1' },
   });
   child.stdout.on('data', (d) => {
@@ -115,11 +117,15 @@ async function scenario1() {
     console.log('[e2e] funnel live, wss URL rendered — terminating the app');
 
     const offsBefore = offInvocations();
-    child.kill(); // SIGTERM -> Electron graceful quit -> will-quit -> stopFunnelSync
+    // Graceful shutdown must go to the DIRECT child: the electron shim
+    // forwards SIGTERM to the real binary, which then runs its normal quit
+    // path (will-quit -> stopFunnelSync). Signalling the whole group instead
+    // tears the shim down alongside Electron and the cleanup never finishes.
+    child.kill('SIGTERM');
     await waitFor('the quit path to run `funnel --https=443 off`', () => offInvocations() > offsBefore, 8000);
     console.log('[e2e] scenario 1 OK (blocked -> enabled -> live -> off on quit)');
   } finally {
-    child.kill('SIGKILL');
+    killApp(child);
   }
 }
 
@@ -146,7 +152,11 @@ async function scenario2() {
     }),
   );
 
-  const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], { cwd: APP_DIR, env: baseEnv() });
+  const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
+    cwd: APP_DIR,
+    detached: true, // process GROUP, so killApp reaches the real binary
+    env: baseEnv(),
+  });
   child.stdout.on('data', (d) => process.stdout.write(`[app2] ${d}`));
   child.stderr.on('data', (d) => process.stderr.write(`[app2] ${d}`));
 
@@ -164,7 +174,7 @@ async function scenario2() {
     );
     console.log('[e2e] scenario 2 OK (leftover funnel reconciled off at startup)');
   } finally {
-    child.kill('SIGKILL');
+    killApp(child);
   }
 }
 

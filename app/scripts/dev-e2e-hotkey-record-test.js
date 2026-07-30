@@ -10,12 +10,14 @@
 
 const path = require('path');
 const { spawn } = require('child_process');
+const { killApp } = require('./dev-electron');
 
 const APP_DIR = path.join(__dirname, '..');
 const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
 
 const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
   cwd: APP_DIR,
+    detached: true, // process GROUP, so killTree reaches the real binary
   env: {
     ...process.env,
     INTEL_BROADCAST_OPEN_SETTINGS: '1',
@@ -25,7 +27,7 @@ const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
 
 let output = '';
 function finish(exitCode) {
-  child.kill();
+  killApp(child);
   setTimeout(() => process.exit(exitCode), 200);
 }
 

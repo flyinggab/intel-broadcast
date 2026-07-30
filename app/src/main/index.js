@@ -3,12 +3,13 @@
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
-const { app, globalShortcut, Menu, shell, clipboard } = require('electron');
+const { app, globalShortcut, Menu, shell, clipboard, ipcMain } = require('electron');
 const { loadConfig } = require('./config');
 const { createViewerWindow } = require('./viewerWindow');
 const { RelayClient } = require('./relayClient');
 const { createRelayServer } = require('./relayServer');
 const { revealPhotosFolder } = require('./reveal');
+const { buildGallery } = require('./photoLibrary');
 const { createTray } = require('./tray');
 const tailscale = require('./tailscale');
 const {
@@ -19,6 +20,17 @@ const {
 } = require('./settingsWindow');
 
 const BUNDLED_PHOTOS_DIR = path.join(__dirname, '..', '..', 'photos');
+
+// When the app is launched from a harness (or any parent that exits first),
+// its stdout pipe can close while we're still logging. Node turns that write
+// into an EPIPE exception, which Electron then surfaces to the user as an
+// "A JavaScript error occurred in the main process" dialog — a crash report
+// for nothing. Dropping writes to a dead pipe is the right response.
+for (const stream of [process.stdout, process.stderr]) {
+  stream.on('error', (err) => {
+    if (err.code !== 'EPIPE') console.error(`[stdio] ${err.message}`);
+  });
+}
 
 // Mutable session state: a settings save re-loads `config` and live-restarts
 // just the pieces the changed values affect (hotkey registrations, embedded
@@ -71,10 +83,17 @@ function openSettings() {
   return win;
 }
 
-function doReveal() {
-  revealPhotosFolder({
+// Which photos the share gallery has ticked. null means "everything in the
+// folder" — the default, so the reveal hotkey behaves exactly as it did
+// before the gallery existed. The hotkey and the gallery's Share button both
+// go through doReveal(), so they can never disagree about what gets sent.
+let shareSelection = null;
+
+function doReveal(selection = shareSelection) {
+  return revealPhotosFolder({
     photosFolder: currentPhotosFolder(),
     relayClient,
+    selection,
     onLog: (msg) => console.log(`[reveal] ${msg}`),
   });
 }
@@ -294,6 +313,13 @@ function applyNewConfig(newConfig) {
 
   registerHotkeys();
 
+  // A different folder makes the old filename allowlist meaningless — fall
+  // back to "share everything" and let the gallery re-read.
+  if (old.photosFolder !== config.photosFolder || old.missionName !== config.missionName) {
+    shareSelection = null;
+    if (viewer) viewer.invalidateGallery();
+  }
+
   const wasHost = old.relayHostEnabled === true;
   const oldEffectiveUrl = wasHost ? `ws://127.0.0.1:${old.gm.relayPort}` : old.relayUrl;
 
@@ -353,6 +379,20 @@ app.whenReady().then(() => {
     onSaved: () => applyNewConfig(loadConfig()),
     onTailscaleAction: handleTailscaleAction,
   });
+
+  // The viewer window's side panel: reaching Settings without the tray icon
+  // (unreliable under some window managers) or the global hotkey (which
+  // another app may already own), plus the share gallery.
+  ipcMain.handle('viewer:open-settings', () => {
+    openSettings();
+  });
+  ipcMain.handle('viewer:list-photos', () => buildGallery(currentPhotosFolder(), shareSelection));
+  ipcMain.handle('viewer:set-share-selection', (_event, filenames) => {
+    shareSelection = Array.isArray(filenames) ? filenames.map(String) : null;
+  });
+  ipcMain.handle('viewer:share-selected', (_event, filenames) =>
+    doReveal(Array.isArray(filenames) ? filenames.map(String) : null),
+  );
 
   // A minimal menu bar of our own — NOT Electron's default menu, which binds
   // Ctrl+Shift+I to "Toggle DevTools" and would consume that keypress before
@@ -472,6 +512,52 @@ app.whenReady().then(() => {
   viewer = createViewerWindow({ title: config.windowTitle, initialPosition, uiScale: config.uiScale });
 
   if (process.env.INTEL_BROADCAST_SCREENSHOT_PATH) attachDevScreenshotHook(viewer);
+
+  // Dev/test-only: pipes the viewer renderer's console out and periodically
+  // dumps the side panel's rendered DOM, so a test can assert on the real
+  // panel instead of a renderer-side debug API.
+  if (process.env.INTEL_BROADCAST_VIEWER_PANEL_PROBE) {
+    viewer.window.webContents.on('console-message', (_e, level, message) => {
+      console.log(`[viewer renderer] ${message}`);
+    });
+    const panelProbe = setInterval(() => {
+      if (viewer.window.isDestroyed()) {
+        clearInterval(panelProbe);
+        return;
+      }
+      // Same tick doubles as a "run this in the renderer" channel for tests:
+      // the harness drops a file, we execute it once and delete it. Only
+      // active alongside the probe env var, never in normal use.
+      const evalPath = process.env.INTEL_BROADCAST_VIEWER_EVAL_PATH;
+      if (evalPath && fs.existsSync(evalPath)) {
+        const source = fs.readFileSync(evalPath, 'utf8');
+        fs.rmSync(evalPath, { force: true });
+        viewer.window.webContents
+          .executeJavaScript(source)
+          .catch((err) => console.log(`[viewer eval] failed: ${err.message}`));
+      }
+      viewer.window.webContents
+        .executeJavaScript(
+          `console.log('PANEL_PROBE ' + JSON.stringify({
+             badge: document.getElementById('unread-badge').hidden ? 0 : Number(document.getElementById('unread-badge').textContent),
+             rows: [...document.querySelectorAll('.intel-row')].map((r) => ({
+               who: r.querySelector('.intel-who').textContent,
+               meta: r.querySelector('.intel-meta').textContent,
+               unread: r.classList.contains('unread'),
+               current: r.classList.contains('current'),
+             })),
+             tiles: [...document.querySelectorAll('.share-tile')].map((t) => ({
+               filename: t.dataset.filename,
+               selected: t.classList.contains('selected'),
+               hasThumb: Boolean(t.querySelector('img')),
+             })),
+             shareBtn: document.getElementById('share-btn').textContent,
+             indicator: document.getElementById('index-indicator').textContent,
+           }))`,
+        )
+        .catch(() => {});
+    }, 400);
+  }
 
   registerHotkeys();
 

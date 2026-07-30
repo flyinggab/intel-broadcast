@@ -13,4 +13,9 @@ contextBridge.exposeInMainWorld('viewerAPI', {
   onShowBatch: (callback) => ipcRenderer.on('show-batch', (_event, batch) => callback(batch)),
   onConnectionState: (callback) => ipcRenderer.on('connection-state', (_event, state) => callback(state)),
   onNavigate: (callback) => ipcRenderer.on('navigate', (_event, direction) => callback(direction)),
+  onGalleryInvalidated: (callback) => ipcRenderer.on('gallery-invalidated', () => callback()),
+  openSettings: () => ipcRenderer.invoke('viewer:open-settings'),
+  listPhotos: () => ipcRenderer.invoke('viewer:list-photos'),
+  setShareSelection: (filenames) => ipcRenderer.invoke('viewer:set-share-selection', filenames),
+  shareSelected: (filenames) => ipcRenderer.invoke('viewer:share-selected', filenames),
 });

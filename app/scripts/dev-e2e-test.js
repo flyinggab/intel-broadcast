@@ -17,7 +17,7 @@ if (!folderPath) {
   process.exit(1);
 }
 
-const PORT = 8788;
+const PORT = require('./dev-ports').protocolE2E;
 const TOKEN = 'e2e-test-secret';
 const ITEM_ID_LENGTH = 36;
 
@@ -30,9 +30,15 @@ let mismatches = 0;
 
 function finish(exitCode) {
   server.close();
-  ws.close();
+  // close() on a socket that never finished connecting throws, which would
+  // bury the actual failure under an unrelated stack trace.
+  ws.terminate();
   setTimeout(() => process.exit(exitCode), 100);
 }
+
+// Same reason: a connection that never opens emits 'error', and an unhandled
+// one on an EventEmitter is fatal.
+ws.on('error', (err) => console.error(`[e2e] socket error: ${err.message}`));
 
 ws.on('open', () => {
   ws.send(JSON.stringify({ type: 'auth', token: TOKEN, role: 'viewer', callsign: 'e2e-test' }));

@@ -121,6 +121,49 @@ round-trip.
   can't parse). Public ports are limited to 443/8443/10000. The known "funnel strips WS query
   params" issue doesn't affect us — auth is a first-frame JSON message, not a URL param.
 
+- **Viewer side panel (2026-07-30, session 2)** — collapsible panel on the viewer window's right
+  edge; the collapsed rail fades to 20% opacity while unfocused so it stays effectively
+  invisible in the OpenKneeboard capture, and the panel *overlays* rather than reflowing the
+  photo (a layout shift would move the kneeboard image under the pilot mid-flight).
+  - **Received tab** — one row per batch (callsign · photo count · HH:MM), newest first, red
+    unread bubble per row plus an unread count on the rail. Clicking a row re-displays that
+    batch. This changes real behavior: before, a second reveal *replaced* the first and the
+    earlier intel was unrecoverable. Unread rules: arrivals are unread unless the window already
+    had focus; reading = clicking the row, navigating it, focusing the window, or opening the
+    panel. History caps at 25 batches (entries hold full data URLs — that's ~50 MB worst case).
+    Logic lives in `src/renderer/viewer/intelHistory.js`, deliberately DOM-free so
+    `dev-intel-history-test.js` can unit-test it; the renderer loads it as a plain `<script>`
+    (no bundler in this project, hence the small UMD wrapper).
+  - **Share tab** — thumbnail gallery of the photos folder (`nativeImage.resize`, 96px), tick
+    per photo, Select all / None. **The selection also drives the reveal hotkey**: `photoLibrary.
+    resolveSelection()` treats null as "everything", so the hotkey's out-of-the-box behavior is
+    unchanged, and the gallery and hotkey can never disagree about what gets sent. Selection
+    resets to null when the photos folder changes.
+  - Settings is now reachable from the panel (gear in the rail and in the header) — a real
+    improvement given the tray icon is a placeholder and the settings hotkey can be taken by
+    another app.
+  - `dev-e2e-panel-test.js` drives the real DOM: it asserts row content/order, forces both rows
+    unread (so bubble assertions don't depend on OS focus), clicks an older row, then walks the
+    gallery through None → pick one → Share and asserts on a **real relay client** that only the
+    picked photo went out.
+
+**Test-harness bugs fixed the same session** (these caused visible damage in the WSL sandbox —
+stray app windows on the user's real desktop and a crash dialog — so they're worth not
+reintroducing):
+- **`node_modules/.bin/electron` is a Node shim** that spawns the real binary as its own child.
+  Every e2e test was calling `child.kill()`, which killed only the shim and left a real Electron
+  window running — squatting its relay port and failing whichever test ran next with
+  EADDRINUSE. Fixed in `scripts/dev-electron.js`: spawn with `detached: true` (own process
+  group) and force-kill the **group**. Caveat encoded there and in the funnel test: a *graceful*
+  shutdown must still signal the direct child, because signalling the group tears down the shim
+  and Electron together and cuts `will-quit` cleanup short.
+- **Ports were double-booked** across tests (8788, 8791, 8792, 8797 each used twice), which only
+  showed up as EADDRINUSE when a previous instance lingered. `scripts/dev-ports.js` is now the
+  single table — add new tests there rather than picking a number by hand.
+- **EPIPE crash dialog**: when a harness exits while the app is still logging, writes to the
+  closed stdout pipe threw, and Electron surfaced it as "A JavaScript error occurred in the main
+  process" on the user's desktop. `index.js` now ignores EPIPE on stdout/stderr.
+
 **Real bugs found and fixed** (via the tests above, not just code review — worth knowing the
 *shape* of what broke, since it's the kind of thing that could regress). See also the pre-auth
 frame race in the "Unified share/receive mode" bullet above:

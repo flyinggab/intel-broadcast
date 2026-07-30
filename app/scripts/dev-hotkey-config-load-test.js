@@ -12,6 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { killApp } = require('./dev-electron');
 const { LOCAL_CONFIG_PATH } = require('../src/main/config');
 
 const APP_DIR = path.join(__dirname, '..');
@@ -27,10 +28,13 @@ const CUSTOM_HOTKEYS = {
 fs.rmSync(LOCAL_CONFIG_PATH, { force: true });
 fs.writeFileSync(
   LOCAL_CONFIG_PATH,
-  JSON.stringify({ relayHostEnabled: true, hotkeys: CUSTOM_HOTKEYS, gm: { relayPort: 8797 } }, null, 2),
+  JSON.stringify({ relayHostEnabled: true, hotkeys: CUSTOM_HOTKEYS, gm: { relayPort: require('./dev-ports').hotkeyConfigLoad } }, null, 2),
 );
 
-const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], { cwd: APP_DIR });
+const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
+  cwd: APP_DIR,
+  detached: true, // process GROUP, so killApp reaches the real binary
+});
 
 let output = '';
 child.stdout.on('data', (d) => {
@@ -41,7 +45,7 @@ child.stderr.on('data', (d) => process.stderr.write(`[electron] ${d}`));
 
 function finish(exitCode) {
   fs.rmSync(LOCAL_CONFIG_PATH, { force: true });
-  child.kill();
+  killApp(child);
   setTimeout(() => process.exit(exitCode), 200);
 }
 

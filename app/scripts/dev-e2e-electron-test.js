@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { killApp } = require('./dev-electron');
 const { createRelayServer, readPhotoFolder } = require('../src/main/relayServer');
 
 const folderPath = process.argv[2];
@@ -23,7 +24,7 @@ const APP_DIR = path.join(__dirname, '..');
 const LOCAL_CONFIG_PATH = path.join(APP_DIR, 'resources', 'config.local.json');
 const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
 
-const PORT = 8791;
+const PORT = require('./dev-ports').electronE2E;
 const TOKEN = 'electron-e2e-secret';
 
 let connectedClients = 0;
@@ -41,7 +42,10 @@ fs.writeFileSync(
   JSON.stringify({ relayUrl: `ws://localhost:${PORT}`, token: TOKEN, callsign: 'e2e-electron-test' }, null, 2),
 );
 
-const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], { cwd: APP_DIR });
+const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
+  cwd: APP_DIR,
+  detached: true, // process GROUP, so killApp reaches the real binary
+});
 let stderr = '';
 child.stdout.on('data', (d) => process.stdout.write(`[electron] ${d}`));
 child.stderr.on('data', (d) => {
@@ -52,7 +56,7 @@ child.stderr.on('data', (d) => {
 function cleanup(exitCode) {
   fs.rmSync(LOCAL_CONFIG_PATH, { force: true });
   server.close();
-  child.kill();
+  killApp(child);
   setTimeout(() => process.exit(exitCode), 200);
 }
 
