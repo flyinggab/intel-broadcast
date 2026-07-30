@@ -1,21 +1,24 @@
 'use strict';
 
-const { contextBridge, ipcRenderer, webFrame } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
-// Main computes a per-display zoom (see scaling.js) and passes it via the
-// load URL's query string. Applied with webFrame — NOT webContents zoom,
-// which Chromium scopes per-origin: both windows load from file://, so a
-// webContents zoom set for one would silently retarget the other too.
-const uiZoom = Number(new URLSearchParams(location.search).get('uiZoom'));
-if (uiZoom > 0) webFrame.setZoomFactor(uiZoom);
+// Main computes a per-display scale (scaling.js) and passes it on the load
+// URL. Written to --ui-scale, NOT webFrame zoom: every dimension in the UI is
+// rem off this one custom property, so the whole interface follows it and a
+// second surface (the VR quad in phase 4) can scale independently.
+const uiScale = Number(new URLSearchParams(location.search).get('uiScale'));
+if (uiScale > 0) {
+  const apply = () => document.documentElement.style.setProperty('--ui-scale', String(uiScale));
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+  else apply();
+}
 
+
+// The renderer receives complete state snapshots and sends back intents —
+// never decisions (ROADMAP §5.2). Scaling is applied by main writing the
+// --ui-scale CSS variable, not by zooming the frame, so every rem-based
+// dimension follows one number.
 contextBridge.exposeInMainWorld('viewerAPI', {
-  onShowBatch: (callback) => ipcRenderer.on('show-batch', (_event, batch) => callback(batch)),
-  onConnectionState: (callback) => ipcRenderer.on('connection-state', (_event, state) => callback(state)),
-  onNavigate: (callback) => ipcRenderer.on('navigate', (_event, direction) => callback(direction)),
-  onGalleryInvalidated: (callback) => ipcRenderer.on('gallery-invalidated', () => callback()),
-  openSettings: () => ipcRenderer.invoke('viewer:open-settings'),
-  listPhotos: () => ipcRenderer.invoke('viewer:list-photos'),
-  setShareSelection: (filenames) => ipcRenderer.invoke('viewer:set-share-selection', filenames),
-  shareSelected: (filenames) => ipcRenderer.invoke('viewer:share-selected', filenames),
+  onState: (callback) => ipcRenderer.on('state', (_event, snapshot) => callback(snapshot)),
+  send: (intent, payload) => ipcRenderer.send('viewer:intent', intent, payload),
 });

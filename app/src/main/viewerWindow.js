@@ -5,25 +5,23 @@ const { BrowserWindow, screen } = require('electron');
 const { computeViewerBounds } = require('./scaling');
 
 /**
- * Creates the OpenKneeboard-Window-Capture-friendly viewer window. Uses a
- * normal, framed OS window — OpenKneeboard's Window Capture doesn't need a
- * frameless window (it captures WhatsApp, which has a titlebar, without
- * issue), and a normal frame gets drag/resize/minimize for free instead of
- * reimplementing it.
+ * The OpenKneeboard-capture-friendly viewer window. Normal framed window —
+ * Window Capture handles those fine, and a frame gets drag/resize/minimize for
+ * free.
  *
- * A4-portrait proportions (210mm x 297mm, ~1:1.4142 — kneeboard-page
- * orientation), sized relative to the display's work area so it looks the
- * same on a 4K screen as on 1080p instead of rendering tiny (see scaling.js).
- * Next/prev browsing hotkeys are registered centrally by index.js (so a
- * settings save can re-register them live) and arrive via navigate().
+ * A4-portrait proportions sized off the display's work area (see scaling.js),
+ * so it looks the same on a 4K screen as on 1080p. The kneeboard aspect is
+ * config today and becomes a real choice in phase 4, when we render the quad
+ * ourselves rather than inheriting the shape from window capture.
+ *
+ * The window is a pure renderer: it receives state snapshots via pushState()
+ * and emits intents. It holds no view state of its own.
  */
-function createViewerWindow({ title, initialPosition, uiScale }) {
-  const display = initialPosition
-    ? screen.getDisplayNearestPoint(initialPosition)
-    : screen.getPrimaryDisplay();
+function createViewerWindow({ title, initialPosition, uiScale, onState = () => {} }) {
+  const display = initialPosition ? screen.getDisplayNearestPoint(initialPosition) : screen.getPrimaryDisplay();
   const { width, height, zoom } = computeViewerBounds(display.workAreaSize, uiScale);
   console.log(
-    `[viewerWindow] work area ${display.workAreaSize.width}x${display.workAreaSize.height} -> window ${width}x${height}, zoom ${zoom.toFixed(2)}`,
+    `[viewerWindow] work area ${display.workAreaSize.width}x${display.workAreaSize.height} -> window ${width}x${height}, scale ${zoom.toFixed(2)}`,
   );
 
   const window = new BrowserWindow({
@@ -31,7 +29,7 @@ function createViewerWindow({ title, initialPosition, uiScale }) {
     width,
     height,
     ...(initialPosition ? { x: initialPosition.x, y: initialPosition.y } : {}),
-    backgroundColor: '#000000',
+    backgroundColor: '#747A74',
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'viewer-preload.js'),
       contextIsolation: true,
@@ -39,44 +37,24 @@ function createViewerWindow({ title, initialPosition, uiScale }) {
     },
   });
 
-  // Fixed title set once at creation and never mutated afterwards, per design —
-  // OpenKneeboard's Window Capture source targets it at configuration time.
+  // Fixed title, set once and never mutated — OpenKneeboard's Window Capture
+  // source targets it at configuration time.
   window.setTitle(title);
 
-  window.loadFile(path.join(__dirname, '..', 'renderer', 'viewer', 'index.html'), {
-    query: { uiZoom: String(zoom) },
+  window.loadFile(path.join(__dirname, '..', 'renderer', 'viewer.html'), {
+    query: { uiScale: String(zoom) },
   });
 
-  function toDataUrl(item) {
-    return `data:${item.mimeType};base64,${item.buffer.toString('base64')}`;
-  }
+  // Push the current state as soon as the renderer can receive it, so a reload
+  // repaints from main rather than from anything the DOM remembered.
+  window.webContents.on('did-finish-load', () => onState());
 
-  function showBatch(batch) {
-    if (window.isDestroyed()) return; // relayClient events can still land during shutdown
-    window.webContents.send('show-batch', {
-      batchId: batch.batchId,
-      sharedBy: batch.sharedBy || '',
-      items: batch.items.map((item) => ({ filename: item.filename, dataUrl: toDataUrl(item) })),
-    });
-  }
-
-  function setConnectionState(state) {
-    if (window.isDestroyed()) return; // e.g. the 'disconnected' event firing after window close
-    window.webContents.send('connection-state', state);
-  }
-
-  function navigate(direction) {
+  function pushState(snapshot) {
     if (window.isDestroyed()) return;
-    window.webContents.send('navigate', direction);
+    window.webContents.send('state', snapshot);
   }
 
-  /** Tells the share gallery its folder listing may be out of date. */
-  function invalidateGallery() {
-    if (window.isDestroyed()) return;
-    window.webContents.send('gallery-invalidated');
-  }
-
-  return { window, showBatch, setConnectionState, navigate, invalidateGallery };
+  return { window, pushState };
 }
 
 module.exports = { createViewerWindow };

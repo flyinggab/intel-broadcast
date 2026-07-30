@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Intel Broadcast</title>
+<!--
+  VIEWER WINDOW — this is the window OpenKneeboard captures.
+  Replaces app/src/renderer/viewer/index.html
+
+  Static markup only. Every state is present in the DOM; JS switches between
+  them by setting attributes on <body>:
+
+    body[data-page]        brief | frame | received | share | fault
+    body[data-surface]     window (captured) | vr (phase 2, own compositor)
+    body.is-chrome-hidden  Ctrl+Shift+H — blanks all chrome for the capture
+    body.is-unfocused      DCS has focus; chrome dims but stays present
+
+  SETUP is a tab here but it does NOT switch a page — it opens the separate
+  settings window. See BRIEF.md, "Why setup is not a page in this window".
+-->
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/base.css" />
+<link rel="stylesheet" href="css/components.css" />
+</head>
+
+<body class="viewer" data-surface="window" data-page="brief">
+<div class="shell">
+
+  <!-- ================================================= status bar ==== -->
+  <header class="topbar" id="topbar">
+    <div class="cell">
+      <span class="cap">Callsign</span>
+      <span class="cell__val" id="bar-callsign">GHOSTRIDER 1-1</span>
+    </div>
+    <div class="cell">
+      <span class="cap">Net</span>
+      <span class="cell__val" id="bar-net">HOST · 4</span>
+    </div>
+    <div class="cell">
+      <span class="cap">Staged</span>
+      <span class="cell__val" id="bar-staged">4 OF 6 · 1.4 MB</span>
+    </div>
+  </header>
+
+  <!-- ================================================= arrival banner ====
+       Hidden by default. Shown for a few seconds when a reveal lands and the
+       app switches the page for you. It must say that it switched. -->
+  <div class="banner is-hidden" id="banner">
+    <div class="banner__text">
+      <div class="banner__who" id="banner-who">NEW FROM GHOSTRIDER 1-1</div>
+      <div class="meta" id="banner-meta">5 PHOTOS · SWITCHED AUTOMATICALLY</div>
+    </div>
+    <button class="banner__close" id="banner-close" aria-label="Dismiss">&times;</button>
+  </div>
+
+  <main class="body">
+
+    <!-- =============================================== BRIEF ========== -->
+    <section class="page page--pad stack" data-page="brief">
+      <div class="plate">
+        <p class="plate__title">STANDBY</p>
+        <p class="plate__sub">NO INTEL RECEIVED</p>
+        <p class="plate__sub">SINCE POWER UP</p>
+      </div>
+
+      <div class="cellrow">
+        <div class="cell">
+          <span class="cap">Folder</span>
+          <span class="cell__val truncate" id="brief-folder">ROMAN-SEAD-JOKER1</span>
+        </div>
+        <div class="cell">
+          <span class="cap">Funnel</span>
+          <span class="cell__val" id="brief-funnel">UP · 1402Z</span>
+        </div>
+      </div>
+
+      <div>
+        <span class="cap">Pilots on net &mdash; <span id="brief-count">4</span></span>
+        <div class="well" id="brief-pilots">
+          <div class="pilot"><i class="pilot__dot"></i><span class="pilot__name">GHOSTRIDER 1-1</span><span class="pilot__meta">HOST</span></div>
+          <div class="pilot"><i class="pilot__dot"></i><span class="pilot__name">JOKER 2-1</span><span class="pilot__meta">18 MS</span></div>
+          <div class="pilot"><i class="pilot__dot"></i><span class="pilot__name">UZI 1-1</span><span class="pilot__meta">24 MS</span></div>
+          <div class="pilot"><i class="pilot__dot"></i><span class="pilot__name">WILDCAT 3-2</span><span class="pilot__meta">41 MS</span></div>
+        </div>
+      </div>
+
+      <div class="keyrow">
+        <button class="key key--lg key--primary" id="key-reveal">
+          REVEAL<span class="key__sub">CTRL+SHIFT+I</span>
+        </button>
+        <button class="key key--lg" id="key-browse">
+          BROWSE<span class="key__sub">CTRL+SHIFT+&larr;&rarr;</span>
+        </button>
+        <button class="key key--lg" id="key-hide">
+          HIDE<span class="key__sub">CTRL+SHIFT+H</span>
+        </button>
+      </div>
+
+      <div style="display:flex;justify-content:space-between">
+        <span class="cap">Hotkeys armed</span>
+        <span class="cap" id="brief-status">Relay up · 1431Z</span>
+      </div>
+    </section>
+
+    <!-- =============================================== FRAME ==========
+         Photo edge to edge. Chrome floats and never displaces it, because a
+         layout shift here moves the image under the pilot mid-flight. -->
+    <section class="page page--flush" data-page="frame">
+      <div class="stage">
+        <img class="stage__img" id="stage-img" src="img/frame-placeholder.svg" alt="" />
+        <div class="stage__chrome">
+          <button class="stage__nav stage__nav--prev" id="stage-prev" aria-label="Previous">&lsaquo;</button>
+          <button class="stage__nav stage__nav--next" id="stage-next" aria-label="Next">&rsaquo;</button>
+          <div class="stage__foot">
+            <span class="stage__file" id="stage-file">02-SECONDARY.JPG</span>
+            <div class="pager" id="stage-pager">
+              <i class="pager__dot"></i>
+              <i class="pager__dot is-current"></i>
+              <i class="pager__dot"></i>
+              <i class="pager__dot"></i>
+              <i class="pager__dot"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =============================================== RECEIVED =======
+         .is-new  → unread, carries the bar
+         .is-open → the batch currently on the stage -->
+    <section class="page page--flush" data-page="received">
+      <div id="received-list">
+        <div class="row is-new">
+          <img class="row__thumb" src="img/frame-placeholder.svg" alt="" />
+          <div class="row__text">
+            <div class="row__who">GHOSTRIDER 1-1</div>
+            <div class="row__meta">5 PHOTOS · 1432Z</div>
+          </div>
+          <i class="row__mark"></i>
+        </div>
+        <div class="row is-new">
+          <img class="row__thumb" src="img/frame-placeholder.svg" alt="" />
+          <div class="row__text">
+            <div class="row__who">JOKER 2-1</div>
+            <div class="row__meta">2 PHOTOS · 1419Z</div>
+          </div>
+          <i class="row__mark"></i>
+        </div>
+        <div class="row is-open">
+          <img class="row__thumb" src="img/frame-placeholder.svg" alt="" />
+          <div class="row__text">
+            <div class="row__who">UZI 1-1</div>
+            <div class="row__meta">3 PHOTOS · 1358Z</div>
+          </div>
+        </div>
+        <div class="row">
+          <img class="row__thumb" src="img/frame-placeholder.svg" alt="" />
+          <div class="row__text">
+            <div class="row__who">GHOSTRIDER 1-1</div>
+            <div class="row__meta">1 PHOTO · 1341Z</div>
+          </div>
+        </div>
+        <div class="row">
+          <img class="row__thumb" src="img/frame-placeholder.svg" alt="" />
+          <div class="row__text">
+            <div class="row__who">WILDCAT 3-2</div>
+            <div class="row__meta">4 PHOTOS · 1322Z</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =============================================== SHARE ========== -->
+    <section class="page page--pad stack" data-page="share">
+      <div class="cellrow">
+        <div class="cell">
+          <span class="cap">Folder</span>
+          <span class="cell__val truncate" id="share-folder">ROMAN-SEAD-JOKER1</span>
+        </div>
+        <div class="cell">
+          <span class="cap">Selected</span>
+          <span class="cell__val" id="share-count">4 OF 6 · 1.4 MB</span>
+        </div>
+      </div>
+
+      <div class="tiles" id="share-grid">
+        <button class="tile"><i class="tile__check"></i><img class="tile__img" src="img/frame-placeholder.svg" alt="" /><span class="tile__name">01-TARGET.JPG</span></button>
+        <button class="tile"><i class="tile__check"></i><img class="tile__img" src="img/frame-placeholder.svg" alt="" /><span class="tile__name">02-SECOND.JPG</span></button>
+        <button class="tile is-off"><i class="tile__check"></i><img class="tile__img" src="img/frame-placeholder.svg" alt="" /><span class="tile__name">03-INGRESS.JPG</span></button>
+        <button class="tile"><i class="tile__check"></i><img class="tile__img" src="img/frame-placeholder.svg" alt="" /><span class="tile__name">04-EGRESS.JPG</span></button>
+        <button class="tile"><i class="tile__check"></i><img class="tile__img" src="img/frame-placeholder.svg" alt="" /><span class="tile__name">05-SAM-RING.JPG</span></button>
+        <button class="tile is-off"><i class="tile__check"></i><img class="tile__img" src="img/frame-placeholder.svg" alt="" /><span class="tile__name">06-BDA.JPG</span></button>
+      </div>
+
+      <div class="keyrow">
+        <button class="key--sm key" id="share-all">SELECT ALL</button>
+        <button class="key--sm key" id="share-none">NONE</button>
+        <button class="key--sm key" id="share-rescan">RESCAN</button>
+      </div>
+
+      <button class="key key--lg key--primary" id="share-reveal">
+        REVEAL 4 PHOTOS<span class="key__sub">CTRL+SHIFT+I</span>
+      </button>
+    </section>
+
+    <!-- =============================================== FAULT ==========
+         The only screen in the app that uses a hue. -->
+    <section class="page page--pad stack" data-page="fault">
+      <div class="plate plate--fault">
+        <p class="plate__title">RELAY LOST</p>
+        <p class="plate__sub">RECONNECTING</p>
+        <p class="meta" id="fault-attempt" style="margin-top:.5rem">ATTEMPT 3 · NEXT IN 4S</p>
+      </div>
+
+      <div class="cellrow">
+        <div class="cell">
+          <span class="cap">Last contact</span>
+          <span class="cell__val cell__val--mono" id="fault-last">1436Z</span>
+        </div>
+        <div class="cell">
+          <span class="cap">Relay</span>
+          <span class="cell__val truncate" id="fault-relay">GAB-PC.TAIL9F2B</span>
+        </div>
+      </div>
+
+      <div>
+        <span class="cap">Still available offline</span>
+        <div class="well" style="padding:var(--sp-4)">
+          <div class="val" style="font-size:var(--fs-key)" id="fault-cached">5 BATCHES · 15 PHOTOS</div>
+          <div class="meta" style="margin-top:.35rem">BROWSE AND SHARE STILL WORK</div>
+        </div>
+      </div>
+
+      <div class="keyrow">
+        <button class="key" id="fault-retry">RETRY NOW</button>
+        <button class="key" id="fault-setup">OPEN SETUP</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================================================= tab bar ======== -->
+  <nav class="tabbar">
+    <button class="tab is-active" data-tab="brief">
+      <svg class="tab__icon" viewBox="0 0 20 20"><rect x="3" y="2" width="14" height="16"/><path d="M6 7h8M6 11h8M6 15h5"/></svg>
+      BRIEF
+    </button>
+    <button class="tab" data-tab="received">
+      <svg class="tab__icon" viewBox="0 0 20 20"><path d="M10 2v9M6 8l4 4 4-4" stroke-linecap="round"/><path d="M3 14h14v4H3z"/></svg>
+      RECEIVED
+      <span class="tab__badge is-hidden" id="tab-badge">2</span>
+    </button>
+    <button class="tab" data-tab="share">
+      <svg class="tab__icon" viewBox="0 0 20 20"><path d="M10 13V4M6 7l4-4 4 4" stroke-linecap="round"/><path d="M3 14h14v4H3z"/></svg>
+      SHARE
+    </button>
+    <!-- opens the SEPARATE settings window; does not switch a page here -->
+    <button class="tab" data-tab="setup" id="tab-setup">
+      <svg class="tab__icon" viewBox="0 0 20 20"><path d="M2 5h16M2 10h16M2 15h16"/><circle cx="7" cy="5" r="2" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="2" fill="currentColor" stroke="none"/><circle cx="6" cy="15" r="2" fill="currentColor" stroke="none"/></svg>
+      SETUP
+    </button>
+  </nav>
+
+</div>
+<script src="viewer/viewer.js"></script>
+</body>
+</html>

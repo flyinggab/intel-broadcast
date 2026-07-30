@@ -1,200 +1,256 @@
 'use strict';
 
-const hostFields = document.getElementById('host-fields');
-const connectFields = document.getElementById('connect-fields');
-const relayUrlNote = document.getElementById('relayUrl-note');
-const saveStatusEl = document.getElementById('save-status');
+// SETTINGS — a separate BrowserWindow, deliberately NOT the captured one.
+//
+// Like the viewer, this owns no state: it renders a pushed snapshot and sends
+// intents. The one exception is in-progress form input (what you have typed
+// but not saved), which is local by definition until you press save.
 
-const connectedClientsEl = document.getElementById('connected-clients');
-const photosFolderInput = document.getElementById('photosFolder');
-const relayPortInput = document.getElementById('relayPort');
-const relayUrlInput = document.getElementById('relayUrl');
-const callsignInput = document.getElementById('callsign');
-const tokenInput = document.getElementById('token');
-const hostToggle = document.getElementById('hostToggle');
-const funnelToggle = document.getElementById('funnelToggle');
+const body = document.body;
+const el = (id) => document.getElementById(id);
 
-const tsDot = document.getElementById('ts-dot');
-const tsStatusText = document.getElementById('ts-status-text');
-const tsUrlRow = document.getElementById('ts-url-row');
-const tsUrl = document.getElementById('ts-url');
-const tsActions = document.getElementById('ts-actions');
+const bar = { section: el('bar-section'), callsign: el('bar-callsign') };
 
-let isHost = false;
-const hotkeyValues = { reveal: '', prev: '', next: '', settings: '' };
+const pilot = {
+  callsign: el('in-callsign'),
+  folder: el('fld-folder'),
+  folderMeta: el('fld-folder-meta'),
+  strip: el('folder-strip'),
+  watch: el('tg-watch'),
+  autoshow: el('tg-autoshow'),
+  profileKeys: el('profile-keys'),
+  profileNote: el('profile-note'),
+};
 
-function renderHotkeyValue(key) {
-  document.getElementById(`value-${key}`).textContent = hotkeyValues[key] || '—';
+const net = {
+  code: el('squad-code'),
+  port: el('net-port'),
+  token: el('net-token'),
+  stepInstall: el('step-install'),
+  stepAuth: el('step-auth'),
+  stepFunnel: el('step-funnel'),
+  codeInput: el('in-code'),
+  joinHost: el('join-host'),
+  joinToken: el('join-token'),
+  connect: el('btn-connect'),
+  probe: document.querySelector('[data-mode="join"] .pilot .pilot__name'),
+};
+
+const log = {
+  version: el('log-version'),
+  build: el('log-build'),
+  sent: el('log-sent'),
+  recv: el('log-recv'),
+  drops: el('log-drops'),
+  path: el('log-path'),
+  tail: el('log-tail'),
+};
+
+const PLACEHOLDER = 'img/frame-placeholder.svg';
+
+// Local, pre-save form state only.
+let mode = 'host';
+let modeDirty = false; // the user picked a mode that isn't saved yet
+let profile = 'kneeboard';
+let hotkeys = {};
+let recordingKey = null;
+let lastSnapshot = null;
+
+const send = (intent, payload) => window.settingsAPI.send(intent, payload);
+const setText = (node, text) => {
+  if (node) node.textContent = text;
+};
+
+function setStep(node, state, text) {
+  node.classList.toggle('is-done', state === 'done');
+  node.classList.toggle('is-running', state === 'running');
+  setText(node.querySelector('.step__state'), text);
 }
 
-/** Applies the current isHost to field visibility — called on init AND
- *  whenever the checkbox changes, since hosting is a live, in-session choice.
- *  Everything else (callsign, photos folder, reveal hotkey) belongs to
- *  everyone in unified mode.
- *
- *  The relay URL stays VISIBLE even while hosting (it used to be hidden,
- *  which made the app look like it had nowhere to paste a host's link) — it's
- *  just annotated as unused, since a host connects to its own relay. */
-function updateFieldVisibility() {
-  hostFields.style.display = isHost ? 'block' : 'none';
-  relayUrlInput.disabled = isHost;
-  relayUrlNote.textContent = isHost
-    ? "Not used while you're hosting — your app connects to its own relay. Others paste YOUR link (below, once sharing is on) into this field on their machine."
-    : 'Ask whoever is hosting for their wss:// link, or use their "Copy invite".';
-}
+// --- render -----------------------------------------------------------------
 
-hostToggle.addEventListener('change', () => {
-  isHost = hostToggle.checked;
-  updateFieldVisibility();
-});
+function render(s) {
+  lastSnapshot = s;
+  setText(bar.callsign, (s.callsign || 'UNNAMED').toUpperCase());
 
-/** Renders the host's live "Connected clients" list. Built with textContent
- *  (never innerHTML) — callsigns are remote-supplied strings. */
-function renderConnectedClients(clients) {
-  connectedClientsEl.textContent = '';
-  if (!clients || clients.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'clients-empty';
-    empty.textContent = 'No one connected yet.';
-    connectedClientsEl.appendChild(empty);
-    return;
+  // PILOT --------------------------------------------------------------
+  if (document.activeElement !== pilot.callsign) pilot.callsign.value = s.callsign || '';
+  setText(pilot.folder, (s.folder ? s.folder.split(/[\\/]/).pop() : 'NOT SET').toUpperCase());
+  setText(
+    pilot.folderMeta,
+    s.photoCount ? `${s.photoCount} IMAGES · ${(s.stagedBytes / (1024 * 1024)).toFixed(1)} MB STAGED` : 'NO IMAGES',
+  );
+
+  pilot.strip.textContent = '';
+  for (const photo of s.photos.slice(0, 5)) {
+    const img = document.createElement('img');
+    img.className = 'tile__img';
+    img.src = photo.thumbUrl || PLACEHOLDER;
+    img.alt = '';
+    pilot.strip.appendChild(img);
   }
-  for (const client of clients) {
-    const row = document.createElement('div');
-    row.className = 'client-row';
-    const name = document.createElement('span');
-    name.className = 'client-callsign' + (client.callsign ? '' : ' unnamed');
-    name.textContent = client.callsign || 'unnamed pilot';
-    const role = document.createElement('span');
-    role.className = 'client-role';
-    role.textContent = client.role;
-    row.append(name, role);
-    connectedClientsEl.appendChild(row);
+
+  setToggle(pilot.autoshow, s.autoShow);
+  setToggle(pilot.watch, s.watchFolder);
+
+  profile = s.profile || 'kneeboard';
+  for (const key of pilot.profileKeys.querySelectorAll('[data-profile]')) {
+    key.classList.toggle('key--primary', key.dataset.profile === profile);
   }
-}
+  setText(pilot.profileNote, s.profileNote || '');
 
-window.settingsAPI.onConnectedClients(renderConnectedClients);
+  // NET ----------------------------------------------------------------
+  // Mode is an unsaved form choice until you press save, so a state push must
+  // not overwrite it — otherwise picking JOIN gets silently reverted to HOST
+  // by the next push, exactly like a text field being retyped under you.
+  if (!modeDirty) mode = s.isHost ? 'host' : 'join';
+  body.dataset.mode = mode;
+  for (const key of document.querySelectorAll('[data-set-mode]')) {
+    key.classList.toggle('key--primary', key.dataset.setMode === mode);
+  }
+  setText(net.code, s.squadCode || 'NOT AVAILABLE');
+  setText(net.port, String(s.relayPort || ''));
+  setText(net.token, s.tokenMasked || '••••');
 
-function tsButton(label, action) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.textContent = label;
-  button.addEventListener('click', () => window.settingsAPI.tailscaleAction(action));
-  return button;
-}
+  const f = s.funnel || {};
+  if (!f.installed) setStep(net.stepInstall, 'running', 'NOT FOUND · CLICK TO INSTALL');
+  else setStep(net.stepInstall, 'done', 'INSTALLED');
+  if (!f.installed) setStep(net.stepAuth, '', 'WAITING');
+  else if (!f.loggedIn) setStep(net.stepAuth, 'running', 'SIGN IN REQUIRED');
+  else setStep(net.stepAuth, 'done', (f.dnsName || 'SIGNED IN').toUpperCase());
+  if (f.funnelOn) setStep(net.stepFunnel, 'done', `UP · ${s.squadCode ? 'CODE READY' : 'UP'}`);
+  else if (f.enableUrl) setStep(net.stepFunnel, 'running', 'NEEDS ENABLING IN ADMIN');
+  else if (f.funnelError || f.funnelStatusError) setStep(net.stepFunnel, 'running', 'FAILED · SEE LOG');
+  else setStep(net.stepFunnel, '', 'OFF');
 
-/** Renders the Tailscale panel from a main-process state snapshot — one
- *  status line, the public URL when shared, and only the action buttons that
- *  make sense in the current state. All text via textContent (CLI output and
- *  URLs are not our strings). */
-/** Monospace detail block under the status line — raw CLI output and paths.
- *  Only rendered when there's something diagnostic to say. */
-function tsDetail(text) {
-  const box = document.createElement('div');
-  box.className = 'ts-detail';
-  box.textContent = text;
-  return box;
-}
-
-function renderTailscaleState(state) {
-  tsActions.textContent = '';
-  tsUrlRow.style.display = 'none';
-  if (!state) return;
-
-  if (!state.installed) {
-    tsDot.className = 'ts-dot bad';
-    tsStatusText.textContent =
-      'No tailscale command found on this machine. If you just installed it, click Re-check — and if you installed it while this app was already running, restart the app so it picks up the new PATH.';
-    tsActions.append(tsButton('Open download page…', 'open-download'), tsButton('Re-check', 'refresh'));
-    if (state.triedPaths && state.triedPaths.length) {
-      tsActions.append(tsDetail(`Looked in:\n${state.triedPaths.join('\n')}`));
+  // KEYS ---------------------------------------------------------------
+  hotkeys = { ...s.hotkeys };
+  for (const bind of document.querySelectorAll('[data-record]')) {
+    const key = bind.dataset.record;
+    const field = bind.parentElement.querySelector('.field');
+    if (key === recordingKey) {
+      field.classList.add('field--recording');
+      setText(field, 'PRESS KEYS…');
+      bind.textContent = 'STOP';
+      bind.classList.add('key--primary');
+    } else {
+      field.classList.remove('field--recording');
+      setText(field, (hotkeys[key] || '—').toUpperCase());
+      bind.textContent = 'RECORD';
+      bind.classList.remove('key--primary');
     }
-    return;
   }
-  if (state.error) {
-    tsDot.className = 'ts-dot bad';
-    tsStatusText.textContent = 'Tailscale is installed but the command failed:';
-    tsActions.append(tsDetail(state.error), tsButton('Re-check', 'refresh'));
-    return;
-  }
-  if (!state.loggedIn) {
-    tsDot.className = 'ts-dot warn';
-    tsStatusText.textContent = `Tailscale is installed but not logged in (state: ${state.backendState || 'unknown'}). Log in here, or from the Tailscale icon in your system tray — either way this panel notices.`;
-    tsActions.append(tsButton('Log in to Tailscale…', 'login'), tsButton('Re-check', 'refresh'));
-    if (state.binaryPath) tsActions.append(tsDetail(`Using: ${state.binaryPath}`));
-    return;
-  }
-  if (state.funnelOn) {
-    tsDot.className = 'ts-dot ok';
-    tsStatusText.textContent = 'Shared publicly — squad members outside your network paste this into their Relay URL:';
-    tsUrl.textContent = state.wssUrl || '';
-    tsUrlRow.style.display = 'flex';
-    tsActions.append(tsButton('Re-check', 'refresh'));
-    return;
-  }
-  if (state.enableUrl) {
-    tsDot.className = 'ts-dot warn';
-    tsStatusText.textContent =
-      'Funnel needs enabling for your tailnet — a one-time approval in the Tailscale admin console, then it retries automatically.';
-    tsActions.append(tsButton('Enable Funnel in admin console…', 'open-enable-url'), tsButton('Retry now', 'refresh'));
-    if (state.funnelError) tsActions.append(tsDetail(state.funnelError));
-    return;
-  }
-  if (state.funnelError) {
-    tsDot.className = 'ts-dot warn';
-    tsStatusText.textContent = 'Turning on public sharing failed. Raw output from the tailscale command:';
-    tsActions.append(tsDetail(state.funnelError), tsButton('Retry now', 'refresh'));
-    return;
-  }
-  if (state.funnelStatusError) {
-    // Unknown, not off: the sharing state can't be read right now. The main
-    // process deliberately takes no action off the back of this.
-    tsDot.className = 'ts-dot warn';
-    tsStatusText.textContent = "Can't read the current sharing state (an earlier funnel may still be running):";
-    tsActions.append(tsDetail(state.funnelStatusError), tsButton('Re-check', 'refresh'));
-    return;
-  }
-  tsDot.className = 'ts-dot';
-  tsStatusText.textContent = `Logged in as ${state.dnsName || '(unknown)'} — not shared publicly yet. Tick the box below, then Save & Apply.`;
-  tsActions.append(tsButton('Re-check', 'refresh'));
+
+  // LOG ----------------------------------------------------------------
+  setText(log.version, s.version || '');
+  setText(log.build, s.isHost ? 'HOST' : 'JOIN');
+  setText(log.sent, String(s.counters.sent));
+  setText(log.recv, String(s.counters.received));
+  setText(log.drops, String(s.counters.drops));
+  setText(log.path, (s.logPath || '').toUpperCase());
+  // The squad code is a password: it must never reach the log tail.
+  setText(log.tail, (s.logTail || []).join('\n'));
 }
 
-window.settingsAPI.onTailscaleState(renderTailscaleState);
-document.getElementById('ts-copy-invite').addEventListener('click', () => window.settingsAPI.tailscaleAction('copy-invite'));
+function setToggle(node, on) {
+  node.classList.toggle('is-on', Boolean(on));
+  node.setAttribute('aria-checked', on ? 'true' : 'false');
+}
 
-window.settingsAPI.onInit(({ isHost: host, config, connectedClients, logPath }) => {
-  const logPathEl = document.getElementById('log-path');
-  logPathEl.textContent = logPath || '';
-  logPathEl.title = logPath || '';
-  isHost = host;
-  hostToggle.checked = host;
-  updateFieldVisibility();
-  renderConnectedClients(connectedClients);
-
-  callsignInput.value = config.callsign || '';
-  photosFolderInput.value = config.photosFolder || '';
-  tokenInput.value = config.token || '';
-
-  for (const key of Object.keys(hotkeyValues)) {
-    hotkeyValues[key] = config.hotkeys?.[key] || '';
-    renderHotkeyValue(key);
+// --- JOIN decode ------------------------------------------------------------
+// Decode as the user types. A bad code populates nothing and disables CONNECT
+// — it must not throw into the console and leave the UI looking fine.
+async function refreshJoinPreview() {
+  const decoded = await window.settingsAPI.decodeCode(net.codeInput.value);
+  if (decoded.ok) {
+    setText(net.joinHost, decoded.host.toUpperCase());
+    setText(net.joinToken, 'VALID');
+    net.connect.disabled = false;
+    setText(net.probe, `RESOLVES TO PORT ${decoded.port}`);
+  } else {
+    setText(net.joinHost, '—');
+    setText(net.joinToken, net.codeInput.value.trim() ? 'INVALID' : '—');
+    net.connect.disabled = true;
+    setText(net.probe, net.codeInput.value.trim() ? 'CODE NOT RECOGNISED' : 'PASTE A CODE TO CONNECT');
   }
+}
 
-  // Both host and connect fields are populated regardless of current mode, so
-  // switching the toggle mid-session shows correct values immediately
-  // instead of blank fields.
-  relayPortInput.value = config.gm?.relayPort || '';
-  funnelToggle.checked = config.gm?.funnelEnabled === true;
-  relayUrlInput.value = config.relayUrl || '';
+// --- intents ----------------------------------------------------------------
+
+for (const tab of document.querySelectorAll('.subtab')) {
+  tab.addEventListener('click', () => {
+    for (const other of document.querySelectorAll('.subtab')) {
+      other.classList.toggle('is-active', other === tab);
+    }
+    body.dataset.page = tab.dataset.tab;
+    setText(bar.section, tab.dataset.tab.toUpperCase());
+  });
+}
+
+// Mode is exclusive by construction: body[data-mode] hides the other block, so
+// there is no state where a host toggle and a relay field are both live.
+for (const key of document.querySelectorAll('[data-set-mode]')) {
+  key.addEventListener('click', () => {
+    mode = key.dataset.setMode;
+    modeDirty = true;
+    body.dataset.mode = mode;
+    for (const other of document.querySelectorAll('[data-set-mode]')) {
+      other.classList.toggle('key--primary', other.dataset.setMode === mode);
+    }
+  });
+}
+
+el('btn-folder').addEventListener('click', () => send('browse-folder'));
+el('btn-copy-code').addEventListener('click', () => send('copy-code'));
+el('btn-new-token').addEventListener('click', () => {
+  // Rotating invalidates every code ever issued — say so at the point of the
+  // button, not in a doc nobody reads.
+  send('new-token');
+});
+el('btn-paste').addEventListener('click', async () => {
+  net.codeInput.value = await window.settingsAPI.readClipboard();
+  refreshJoinPreview();
+});
+net.codeInput.addEventListener('input', refreshJoinPreview);
+net.connect.addEventListener('click', () => {
+  modeDirty = false;
+  send('connect', net.codeInput.value);
 });
 
-document.getElementById('browse').addEventListener('click', async () => {
-  const folder = await window.settingsAPI.browseFolder();
-  if (folder) photosFolderInput.value = folder;
+pilot.autoshow.addEventListener('click', () => {
+  const on = !pilot.autoshow.classList.contains('is-on');
+  setToggle(pilot.autoshow, on);
+  send('set-auto-show', on);
+});
+pilot.watch.addEventListener('click', () => {
+  const on = !pilot.watch.classList.contains('is-on');
+  setToggle(pilot.watch, on);
+  send('set-watch-folder', on);
 });
 
-// Browser KeyboardEvent.key names that don't match Electron's accelerator
-// vocabulary 1:1 — everything else (letters, digits, F1-F24) already matches.
+for (const key of pilot.profileKeys.querySelectorAll('[data-profile]')) {
+  key.addEventListener('click', () => send('set-profile', key.dataset.profile));
+}
+
+el('btn-save-pilot').addEventListener('click', () => {
+  modeDirty = false; // saving adopts the chosen mode; pushes may drive it again
+  send('save', {
+    callsign: pilot.callsign.value.trim(),
+    relayHostEnabled: mode === 'host',
+    profile,
+    hotkeys,
+  });
+});
+
+el('btn-open-log').addEventListener('click', () => send('open-log'));
+el('btn-copy-path').addEventListener('click', () => send('copy-log-path'));
+
+// Steps double as the action for their stage.
+net.stepInstall.addEventListener('click', () => send('tailscale', 'open-download'));
+net.stepAuth.addEventListener('click', () => send('tailscale', 'login'));
+net.stepFunnel.addEventListener('click', () => send('tailscale', 'toggle-funnel'));
+
+// --- hotkey capture ---------------------------------------------------------
 const KEY_NAME_MAP = {
   ArrowLeft: 'Left',
   ArrowRight: 'Right',
@@ -212,103 +268,39 @@ const KEY_NAME_MAP = {
   PageDown: 'PageDown',
 };
 
-/** Converts a KeyboardEvent into an Electron accelerator string, or null if
- *  only modifier keys have been pressed so far (nothing to record yet). */
 function keyEventToAccelerator(event) {
   if (['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) return null;
-
   const parts = [];
   if (event.ctrlKey) parts.push('Ctrl');
   if (event.altKey) parts.push('Alt');
   if (event.shiftKey) parts.push('Shift');
   if (event.metaKey) parts.push('Super');
-
-  const mainKey = KEY_NAME_MAP[event.key] || (event.key.length === 1 ? event.key.toUpperCase() : event.key);
-  parts.push(mainKey);
+  parts.push(KEY_NAME_MAP[event.key] || (event.key.length === 1 ? event.key.toUpperCase() : event.key));
   return parts.join('+');
 }
 
-let recordingKey = null;
-let recordingButton = null;
-
-function stopRecording() {
-  if (recordingButton) {
-    recordingButton.textContent = 'Record';
-    recordingButton.classList.remove('recording');
-  }
-  recordingKey = null;
-  recordingButton = null;
+for (const button of document.querySelectorAll('[data-record]')) {
+  button.addEventListener('click', () => {
+    recordingKey = recordingKey === button.dataset.record ? null : button.dataset.record;
+    if (lastSnapshot) render(lastSnapshot);
+  });
 }
 
 document.addEventListener('keydown', (event) => {
   if (!recordingKey) return;
   event.preventDefault();
-
   if (event.key === 'Escape') {
-    stopRecording(); // Escape cancels without changing the bound value
+    recordingKey = null;
+    if (lastSnapshot) render(lastSnapshot);
     return;
   }
-
   const accelerator = keyEventToAccelerator(event);
-  if (!accelerator) return; // only modifiers pressed so far, keep listening
-
-  hotkeyValues[recordingKey] = accelerator;
-  renderHotkeyValue(recordingKey);
-  stopRecording();
+  if (!accelerator) return;
+  const key = recordingKey;
+  recordingKey = null;
+  send('set-hotkey', { key, accelerator });
 });
 
-for (const button of document.querySelectorAll('.record-btn')) {
-  button.addEventListener('click', () => {
-    stopRecording();
-    recordingKey = button.dataset.key;
-    recordingButton = button;
-    button.textContent = 'Press keys… (Esc to cancel)';
-    button.classList.add('recording');
-  });
-}
-
-// Blank values would otherwise overwrite good defaults with '' (which
-// globalShortcut.register() rejects) via config.js's merge — only include a
-// hotkey field if it actually has a value.
-function nonEmptyHotkeys(fields) {
-  const out = {};
-  for (const [key, value] of Object.entries(fields)) {
-    if (value) out[key] = value;
-  }
-  return out;
-}
-
-document.getElementById('save').addEventListener('click', () => {
-  // One unified payload: every field applies to every instance now; the host
-  // checkbox only decides whether this machine also runs the relay. Values
-  // for the hidden section are sent too (deep merge keeps them consistent
-  // with what the form showed).
-  saveStatusEl.textContent = 'Saved — applying…';
-  window.settingsAPI.save({
-    relayHostEnabled: isHost,
-    callsign: callsignInput.value.trim(),
-    photosFolder: photosFolderInput.value.trim() || null,
-    token: tokenInput.value.trim(),
-    relayUrl: relayUrlInput.value.trim(),
-    gm: { relayPort: Number(relayPortInput.value) || 8787, funnelEnabled: funnelToggle.checked },
-    hotkeys: nonEmptyHotkeys(hotkeyValues),
-  }).then((result) => {
-    if (result && result.ok === false) {
-      saveStatusEl.style.color = '#e08a7a';
-      saveStatusEl.textContent = result.error || 'Save failed.';
-      return;
-    }
-    // The window stays open on purpose — for a host turning on public
-    // sharing, the result (URL or error) lands in the panel above a moment
-    // from now, and closing would hide exactly what the save produced.
-    saveStatusEl.style.color = '';
-    saveStatusEl.textContent = isHost && funnelToggle.checked
-      ? 'Saved. Setting up public sharing — watch the Internet sharing panel above.'
-      : 'Saved and applied.';
-    setTimeout(() => {
-      if (saveStatusEl.textContent.startsWith('Saved and applied')) saveStatusEl.textContent = '';
-    }, 4000);
-  });
-});
-
-document.getElementById('open-log').addEventListener('click', () => window.settingsAPI.openLog());
+window.settingsAPI.onState(render);
+send('ready');
+refreshJoinPreview();

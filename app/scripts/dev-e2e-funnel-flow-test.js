@@ -89,7 +89,7 @@ async function scenario1() {
   const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
     cwd: APP_DIR,
     detached: true, // process GROUP, so killTree reaches the real binary
-    env: { ...baseEnv(), INTEL_BROADCAST_OPEN_SETTINGS: '1', INTEL_BROADCAST_TAILSCALE_PROBE: '1' },
+    env: { ...baseEnv(), INTEL_BROADCAST_OPEN_SETTINGS: '1', INTEL_BROADCAST_SETTINGS_PROBE: '1' },
   });
   child.stdout.on('data', (d) => {
     output += d.toString();
@@ -99,8 +99,8 @@ async function scenario1() {
 
   try {
     await waitFor(
-      'settings DOM to show the funnel needs enabling',
-      () => output.includes('TS_PROBE') && output.includes('needs enabling'),
+      'the funnel step to report it needs enabling',
+      () => output.includes('SETTINGS_PROBE') && output.includes('NEEDS ENABLING IN ADMIN'),
       15000,
     );
     console.log('[e2e] blocked state surfaced in the DOM — "approving" funnel in the fake admin console');
@@ -110,8 +110,8 @@ async function scenario1() {
     fs.writeFileSync(STATE_PATH, JSON.stringify(state));
 
     await waitFor(
-      'automatic retry to bring the funnel up and show the wss URL in the DOM',
-      () => output.includes(`| ${WSS_URL}`),
+      'the automatic retry to bring the funnel up',
+      () => /"funnel":\{"state":"done"/.test(output),
       15000,
     );
     console.log('[e2e] funnel live, wss URL rendered — terminating the app');
@@ -221,7 +221,7 @@ async function scenario3() {
   const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
     cwd: APP_DIR,
     detached: true, // process GROUP, so killApp reaches the real binary
-    env: { ...baseEnv(), INTEL_BROADCAST_OPEN_SETTINGS: '1', INTEL_BROADCAST_TAILSCALE_PROBE: '1' },
+    env: { ...baseEnv(), INTEL_BROADCAST_OPEN_SETTINGS: '1', INTEL_BROADCAST_SETTINGS_PROBE: '1' },
   });
   child.stdout.on('data', (d) => {
     output += d.toString();
@@ -230,7 +230,7 @@ async function scenario3() {
   child.stderr.on('data', (d) => process.stderr.write(`[app3] ${d}`));
 
   try {
-    await waitFor('steady state: shared, no start needed', () => output.includes(`| ${WSS_URL}`), 15000);
+    await waitFor('steady state: shared, no start needed', () => /"funnel":\{"state":"done"/.test(output), 15000);
     const startsBefore = stubInvocations('funnel --bg');
     const offsBefore = stubInvocations('funnel --https=443 off');
 
@@ -240,7 +240,7 @@ async function scenario3() {
 
     await waitFor(
       "the panel to say the state can't be read",
-      () => output.includes("Can't read the current sharing state"),
+      () => output.includes('FAILED · SEE LOG'),
       15000,
     );
     await sleep(4000); // several poll ticks worth of opportunity to misbehave
@@ -254,8 +254,8 @@ async function scenario3() {
     await waitFor(
       'the panel to recover to Shared',
       () => {
-        const lines = output.split('\n').filter((l) => l.includes('TS_PROBE'));
-        return lines.length > 0 && lines[lines.length - 1].includes(WSS_URL);
+        const lines = output.split('\n').filter((l) => l.includes('SETTINGS_PROBE'));
+        return lines.length > 0 && /"funnel":\{"state":"done"/.test(lines[lines.length - 1]);
       },
       15000,
     );

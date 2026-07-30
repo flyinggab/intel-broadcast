@@ -20,5 +20,8 @@ module.exports = {
   hotkeyConfigLoad: 8804, // dev-hotkey-config-load-test.js
   panel: 8805, // dev-e2e-panel-test.js
   screenshotCheck: 8806, // dev-screenshot-check.js
+  settingsE2E: 8809, // dev-e2e-settings-test.js
+  uiE2E: 8808, // dev-e2e-ui-test.js
+  hardening: 8807, // dev-hardening-test.js
   settingsSave: 9123, // dev-e2e-settings-test.js (relay started by the live apply)
 };

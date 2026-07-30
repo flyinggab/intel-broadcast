@@ -49,13 +49,17 @@ function resolveSelection(available, selection) {
   return available.filter((name) => wanted.has(name));
 }
 
-/** Small data-URL thumbnail for the gallery grid, or null if unreadable. */
+/**
+ * Small thumbnail BUFFER for the gallery grid, or null if unreadable.
+ * Returns bytes rather than a data URL: the caller puts them in the blob store
+ * and hands the renderer an intel:// URL, so no base64 crosses IPC.
+ */
 function makeThumbnail(fullPath) {
   const { nativeImage } = require('electron');
   try {
     const image = nativeImage.createFromPath(fullPath);
     if (image.isEmpty()) return null;
-    return image.resize({ height: THUMBNAIL_HEIGHT, quality: 'good' }).toDataURL();
+    return image.resize({ height: THUMBNAIL_HEIGHT, quality: 'good' }).toPNG();
   } catch {
     return null;
   }

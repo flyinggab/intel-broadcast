@@ -44,7 +44,25 @@ function initFileLogging(userDataDir) {
   return filePath;
 }
 
+function formatLine(args) {
+  return args
+    .map((arg) => {
+      if (typeof arg === 'string') return arg;
+      try {
+        return JSON.stringify(arg);
+      } catch {
+        return String(arg);
+      }
+    })
+    .join(' ');
+}
+
 function write(level, args) {
+  try {
+    remember(formatLine(args));
+  } catch {
+    // never let logging bookkeeping throw
+  }
   if (!stream) return;
   try {
     const text = args
@@ -67,4 +85,20 @@ function getLogFilePath() {
   return filePath;
 }
 
-module.exports = { initFileLogging, getLogFilePath };
+// A small ring of recent lines for the LOG page's tail. Kept in memory rather
+// than re-read from disk so rendering the settings window never does file I/O.
+// NOTE: the squad code is a password and is never logged, so it cannot reach
+// this buffer either.
+const RING_SIZE = 40;
+const ring = [];
+
+function remember(line) {
+  ring.push(line);
+  if (ring.length > RING_SIZE) ring.shift();
+}
+
+function recentLines(n = 12) {
+  return ring.slice(-n);
+}
+
+module.exports = { initFileLogging, getLogFilePath, recentLines };

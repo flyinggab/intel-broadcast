@@ -1,0 +1,149 @@
+/* ==========================================================================
+   Intel Broadcast — fonts and base
+   ========================================================================== */
+
+/* B612 was commissioned by Airbus and developed with ENAC for cockpit
+   displays. SIL OFL 1.1 — see fonts/OFL.txt. Files are vendored so the app
+   works offline; never load these from a CDN. */
+@font-face {
+  font-family: "B612";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("../fonts/b612-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "B612";
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url("../fonts/b612-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "B612 Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("../fonts/b612-mono-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "B612 Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url("../fonts/b612-mono-700.woff2") format("woff2");
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: calc(16px * var(--ui-scale));
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--lit);
+  font-family: var(--font-ui);
+  font-size: var(--fs-row);
+  cursor: default;
+  user-select: none;
+}
+
+/* Nothing on the glass is selectable except the things you actually copy. */
+.selectable, input, textarea { user-select: text; cursor: text; }
+
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; }
+
+:focus-visible {
+  outline: 2px solid var(--lit);
+  outline-offset: -3px;
+}
+
+/* --- window shell --------------------------------------------------------
+   Fixed top bar, fixed bottom bar, one scrolling region between them.
+   The page never reflows when a panel opens, because there are no panels —
+   that constraint exists because OpenKneeboard captures this window and a
+   layout shift would move the image under the pilot.                       */
+.shell {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  height: 100vh;
+}
+
+.body {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--edge) var(--bg);
+}
+.body::-webkit-scrollbar { width: 8px; }
+.body::-webkit-scrollbar-thumb { background: var(--edge); }
+
+/* --- page switching ------------------------------------------------------
+   JS sets data-page on <body>. Exactly one .page is visible.               */
+.page { display: none; }
+body[data-page="brief"]    .page[data-page="brief"],
+body[data-page="frame"]    .page[data-page="frame"],
+body[data-page="received"] .page[data-page="received"],
+body[data-page="share"]    .page[data-page="share"],
+body[data-page="fault"]    .page[data-page="fault"],
+body[data-page="pilot"]    .page[data-page="pilot"],
+body[data-page="net"]      .page[data-page="net"],
+body[data-page="keys"]     .page[data-page="keys"],
+body[data-page="log"]      .page[data-page="log"] { display: block; }
+
+.page--flush { padding: 0; height: 100%; }
+.page--pad   { padding: var(--sp-3); }
+
+/* The frame page must not scroll: the photo owns the whole region. */
+body[data-page="frame"] .body { overflow: hidden; }
+
+/* --- surface mode --------------------------------------------------------
+   data-surface="window": OpenKneeboard captures the whole window, so chrome
+   has to be blankable. data-surface="vr" (phase 2): we own the compositor and
+   chrome lives outside the captured quad, so it never needs hiding. Scoping
+   the rules now means phase 2 adds a branch instead of unpicking one. */
+
+/* --- capture-clean -------------------------------------------------------
+   Ctrl+Shift+H. Everything except the photo goes away, so the kneeboard
+   grab is a clean page. This is the state that matters most in the air.    */
+body[data-surface="window"].is-chrome-hidden .topbar,
+body[data-surface="window"].is-chrome-hidden .tabbar,
+body[data-surface="window"].is-chrome-hidden .banner,
+body[data-surface="window"].is-chrome-hidden .stage__chrome { display: none !important; }
+body[data-surface="window"].is-chrome-hidden .shell { grid-template-rows: 1fr; }
+
+/* Dim the chrome while another app (DCS) holds focus, so it stays out of
+   the capture without being gone when you look at the real window. */
+body.is-unfocused .tabbar,
+body.is-unfocused .stage__chrome { opacity: .25; }
+.tabbar, .stage__chrome { transition: opacity .15s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* --- helpers ------------------------------------------------------------ */
+.cap {
+  font-size: var(--fs-cap);
+  font-weight: 700;
+  letter-spacing: var(--ls-cap);
+  text-transform: uppercase;
+  color: var(--ink);
+  text-shadow: var(--engrave);
+  display: block;
+}
+.meta {
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  color: var(--hi);
+}
+.mono { font-family: var(--font-mono); }
+.val  { color: var(--lit); font-weight: 700; letter-spacing: var(--ls-tight); }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rule { border: 0; border-top: var(--rule); margin: 0; }
+.is-hidden { display: none !important; }

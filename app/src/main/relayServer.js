@@ -19,8 +19,20 @@ const { buildRevealFrames, BatchReassembler, ITEM_ID_LENGTH } = require('./proto
  * and delivery confirmation. `sharedBy` on the fan-out is stamped from the
  * sender's authenticated callsign, never trusted from the incoming frame.
  */
+// `ws` defaults maxPayload to 100 MiB per message — far more than any single
+// photo frame should ever be, and an easy way for one client to make the host
+// allocate. The protocol caps a whole batch at 256 MB; a single frame has no
+// business exceeding this.
+const MAX_FRAME_BYTES = 32 * 1024 * 1024;
+
+// Backpressure ceiling for the fan-out. A slow client must not make the host
+// buffer without bound: past this, that client's copy of the batch is dropped
+// rather than queued. Dropping one recipient's batch beats the host swelling
+// until it dies, and they get the next reveal normally.
+const MAX_BUFFERED_BYTES = 48 * 1024 * 1024;
+
 function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = () => {} }) {
-  const wss = new WebSocketServer({ port });
+  const wss = new WebSocketServer({ port, maxPayload: MAX_FRAME_BYTES });
   // ws -> { role, callsign, connectedAt } for every authenticated client —
   // identity kept so the settings window can show who's connected and so
   // rebroadcasts can be attributed to their sender.
@@ -66,7 +78,7 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
       handleFrame(data, isBinary);
     });
 
-    authenticateConnection(ws, token)
+    authenticateConnection(ws, token, { onLog })
       .then((authMsg) => {
         senderCallsign = authMsg.callsign || '';
         clients.set(ws, { role: authMsg.role, callsign: senderCallsign, connectedAt: Date.now() });
@@ -99,15 +111,26 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
   function broadcastRevealBatch(items, { sourceType = 'prebundled', sharedBy = '' } = {}) {
     const { batchId, metaFrame, binaryFrames } = buildRevealFrames(items, { sourceType, sharedBy });
 
-    for (const ws of clients.keys()) {
+    let dropped = 0;
+    for (const [ws, info] of clients) {
       if (ws.readyState !== ws.OPEN) continue;
+      // Backpressure: a client too far behind gets this batch dropped rather
+      // than letting the host's send queue grow without bound.
+      if (ws.bufferedAmount > MAX_BUFFERED_BYTES) {
+        dropped += 1;
+        onLog(
+          `dropped batch for ${info.callsign || '(none)'}: ${(ws.bufferedAmount / (1024 * 1024)).toFixed(0)}MB still queued`,
+        );
+        continue;
+      }
       ws.send(metaFrame);
       for (const frame of binaryFrames) ws.send(frame, { binary: true });
     }
 
     onLog(
-      `broadcast reveal-batch ${batchId}: ${items.length} item(s) to ${clients.size} client(s)` +
-        (sharedBy ? ` (shared by ${sharedBy})` : ''),
+      `broadcast reveal-batch ${batchId}: ${items.length} item(s) to ${clients.size - dropped}/${clients.size} client(s)` +
+        (sharedBy ? ` (shared by ${sharedBy})` : '') +
+        (dropped ? ` — ${dropped} too far behind` : ''),
     );
     return batchId;
   }

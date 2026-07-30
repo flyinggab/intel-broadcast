@@ -1,35 +1,41 @@
 'use strict';
 
 const fs = require('fs');
+const path = require('path');
 const { readPhotoFolder } = require('./relayServer');
 const { resolveSelection } = require('./photoLibrary');
 
 /**
- * Reads the selected photos from `photosFolder` and sends them UP to the
- * relay through this instance's RelayClient. The relay fans them out to every
- * connected client INCLUDING this sender — the photos appear on this
- * machine's own viewer when the echo comes back, which doubles as delivery
- * confirmation. Any instance can share (unified mode).
+ * Sends the selected photos from `photosFolder` UP to the relay, which fans
+ * them out to every connected client INCLUDING this sender — the echo is this
+ * machine's own render path and its delivery confirmation.
  *
- * `selection` is a filename allowlist from the share gallery, or null for
- * "everything in the folder" — the default, which keeps the reveal hotkey
- * behaving exactly as it did before the gallery existed. The hotkey and the
- * gallery's Share button are two entry points to this one function, so the
- * hotkey always sends whatever the gallery shows as selected.
+ * `selection` is the filename allowlist from the share gallery; null means
+ * everything in the folder, which is what keeps the reveal hotkey behaving as
+ * it did before the gallery existed.
  *
- * Returns { ok, count } / { ok: false, reason } so the gallery can report
- * back in the UI; the hotkey path just logs.
+ * When `prep` is supplied, each photo goes through sender-side compression
+ * first (BRIEF §8). That happens ONCE here rather than on every rebroadcast:
+ * the host multiplies payload size by the number of pilots, so one pass by the
+ * sharer removes it from N transmissions. The cache is normally already warm,
+ * because the gallery warms it when the selection changes.
  */
-function revealPhotosFolder({ photosFolder, relayClient, selection = null, onLog = () => {} }) {
+function revealPhotosFolder({
+  photosFolder,
+  relayClient,
+  selection = null,
+  prep = null,
+  profileName = 'kneeboard',
+  onLog = () => {},
+}) {
   if (!photosFolder || !fs.existsSync(photosFolder)) {
-    const reason = `photos folder not found: ${photosFolder} (set it via the Settings window)`;
-    onLog(reason);
+    onLog(`photos folder not found: ${photosFolder} (set it via the Settings window)`);
     return { ok: false, reason: 'photos folder not found — set it in Settings' };
   }
 
   const all = readPhotoFolder(photosFolder);
   const wanted = new Set(resolveSelection(all.map((item) => item.filename), selection));
-  const items = all.filter((item) => wanted.has(item.filename));
+  let items = all.filter((item) => wanted.has(item.filename));
 
   if (items.length === 0) {
     const reason = selection && selection.length > 0 ? 'selected photos are no longer in the folder' : 'no photos in the folder';
@@ -37,13 +43,23 @@ function revealPhotosFolder({ photosFolder, relayClient, selection = null, onLog
     return { ok: false, reason };
   }
 
-  const batchId = relayClient.sendRevealBatch(items);
+  if (prep) {
+    items = items.map((item) => {
+      const prepared = prep.get(path.join(photosFolder, item.filename), profileName);
+      // Falls back to the original on any failure: a reveal that ships a fat
+      // photo beats a reveal that ships nothing.
+      return prepared || item;
+    });
+  }
+
+  const batchId = relayClient && relayClient.sendRevealBatch(items);
   if (!batchId) {
     onLog('not connected to the relay — reveal not sent');
     return { ok: false, reason: 'not connected to the relay' };
   }
-  onLog(`sent ${items.length} photo(s) from ${photosFolder} to the relay`);
-  return { ok: true, count: items.length };
+  const bytes = items.reduce((n, i) => n + i.buffer.length, 0);
+  onLog(`sent ${items.length} photo(s), ${(bytes / 1024).toFixed(0)}KB from ${photosFolder}`);
+  return { ok: true, count: items.length, bytes };
 }
 
 module.exports = { revealPhotosFolder };

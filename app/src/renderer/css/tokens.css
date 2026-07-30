@@ -1,0 +1,94 @@
+/* ==========================================================================
+   Intel Broadcast — design tokens
+   Every value in the UI comes from here. Do not hard-code colours or sizes
+   in component CSS; add a token instead.
+
+   SCALING: the app already computes a UI scale (app/src/main/scaling.js and
+   the `uiScale` override in config.local.json). Wire that to --ui-scale and
+   every dimension below follows, because they are all rem.
+   ========================================================================== */
+
+:root {
+  --ui-scale: 1;
+
+  /* --- surface -----------------------------------------------------------
+     Mid-tone by design. Dark text and light text share one surface, which is
+     what lets labels be engraved into the panel while values sit on top.
+     Both directions measure ~4.2:1 against --bg. That is the ceiling for a
+     mid surface: raising one lowers the other. Do not "fix" this by
+     lightening --bg without re-checking both.                              */
+  --bg:      #747A74;   /* panel */
+  --up:      #868D86;   /* raised face (keys, tabs at rest) */
+  --dn:      #626762;   /* recessed face (fields, wells, active tab) */
+  --edge:    #474F47;   /* shadowed edge */
+  --hi:      #A2A5A2;   /* lit edge, and secondary text on --bg */
+  --ink:     #121612;   /* engraved label text */
+  --lit:     #F9F9F9;   /* value text, active state */
+  --muted:   #3B403B;   /* tertiary */
+
+  /* --- device / stage --------------------------------------------------- */
+  --glass:   #2E312F;   /* bezel, only used by preview.html */
+  --rim:     #4A4E4B;
+  --scrim:   rgba(16, 18, 16, .55);   /* chrome floating over a photo */
+  --scrim-2: rgba(16, 18, 16, .42);
+
+  /* --- the only hue in the product --------------------------------------
+     Reserved for a broken relay. If it appears anywhere else it stops
+     meaning anything.                                                      */
+  --fault:    #E85F52;
+  --fault-dk: #5E2420;
+
+  /* --- type -------------------------------------------------------------
+     B612 (Airbus / ENAC cockpit face) for interface, B612 Mono for anything
+     numeric, keyed or machine-generated: times, latencies, paths, hotkeys,
+     the squad code. B612 is WIDE — roughly 0.64em per cap. Measure before
+     you shrink a container.                                               */
+  --font-ui:   "B612", system-ui, sans-serif;
+  --font-mono: "B612 Mono", ui-monospace, monospace;
+
+  --fs-cap:     0.594rem;  /*  9.5px — captions, engraved labels */
+  --fs-micro:   0.625rem;  /* 10px   — log lines */
+  --fs-meta:    0.688rem;  /* 11px   — mono metadata */
+  --fs-val:     0.813rem;  /* 13px   — cell values */
+  --fs-row:     0.875rem;  /* 14px   — list rows */
+  --fs-key:     0.938rem;  /* 15px   — key labels, field values */
+  --fs-lead:    1.063rem;  /* 17px   — callsign field */
+  --fs-fault:   2.250rem;  /* 36px */
+  --fs-display: 2.625rem;  /* 42px   — STANDBY */
+
+  --ls-cap:     0.18em;
+  --ls-tab:     0.12em;
+  --ls-display: 0.17em;
+  --ls-tight:   0.03em;
+
+  /* --- dimension --------------------------------------------------------
+     --touch-min is a floor, not a target. Nothing interactive goes under it. */
+  --touch-min: 2.750rem;  /* 44px */
+  --h-top:     2.875rem;  /* 46px — status bar */
+  --h-sub:     2.125rem;  /* 34px — settings sub-tabs */
+  --h-tab:     3.625rem;  /* 58px — tab bar */
+  --h-field:   3.250rem;  /* 52px */
+  --h-key:     3.500rem;  /* 56px */
+  --h-key-lg:  4.000rem;  /* 64px — the three brief keys */
+  --h-row:     4.625rem;  /* 74px — received list row */
+  --h-step:    2.250rem;  /* 36px — tailscale step */
+
+  --sp-1: 0.250rem;
+  --sp-2: 0.500rem;
+  --sp-3: 0.625rem;
+  --sp-4: 0.750rem;
+  --sp-5: 1.000rem;
+  --sp-6: 1.250rem;
+
+  --bar-w: 0.3125rem;  /* 5px — the unread / fault marker bar */
+
+  /* --- elevation --------------------------------------------------------
+     Panel edges, not drop shadows. Raised catches light on the top-left;
+     recessed catches it on the bottom-right. That inversion is the whole
+     depth language — there are no blurred shadows anywhere in this UI.     */
+  --bevel-up: inset 1px 1px 0 var(--hi), inset -1px -1px 0 var(--edge);
+  --bevel-dn: inset 1px 1px 0 var(--edge), inset -1px -1px 0 var(--hi);
+  --engrave:  0 1px 0 rgba(255, 255, 255, .28);
+
+  --rule: 1px solid var(--edge);
+}

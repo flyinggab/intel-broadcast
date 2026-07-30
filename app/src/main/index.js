@@ -3,272 +3,179 @@
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
-const { app, globalShortcut, Menu, shell, clipboard, ipcMain } = require('electron');
+const { app, globalShortcut, Menu, shell, clipboard, ipcMain, protocol, net: enet } = require('electron');
 const { loadConfig, LOCAL_CONFIG_PATH } = require('./config');
 const { createViewerWindow } = require('./viewerWindow');
 const { RelayClient } = require('./relayClient');
 const { createRelayServer } = require('./relayServer');
 const { revealPhotosFolder } = require('./reveal');
-const { buildGallery } = require('./photoLibrary');
+const { listPhotoFilenames, makeThumbnail } = require('./photoLibrary');
+const { createBlobStore } = require('./blobStore');
+const { createViewState } = require('./viewState');
+const { createImagePrep, PROFILES } = require('./imagePrep');
+const squad = require('./squadCode');
 const { createTray } = require('./tray');
-const { initFileLogging } = require('./logger');
+const { initFileLogging, getLogFilePath, recentLines } = require('./logger');
 const tailscale = require('./tailscale');
 const {
   openSettingsWindow,
   registerSettingsIpc,
-  pushConnectedClients,
-  pushTailscaleState,
+  saveSettingsValues,
+  pushSettingsState,
+  isSettingsOpen,
 } = require('./settingsWindow');
 
 const BUNDLED_PHOTOS_DIR = path.join(__dirname, '..', '..', 'photos');
 
-// When the app is launched from a harness (or any parent that exits first),
-// its stdout pipe can close while we're still logging. Node turns that write
-// into an EPIPE exception, which Electron then surfaces to the user as an
-// "A JavaScript error occurred in the main process" dialog — a crash report
-// for nothing. Dropping writes to a dead pipe is the right response.
+// A harness (or any parent) that exits while we're still logging leaves us
+// writing to a closed pipe; Node turns that into an EPIPE exception and
+// Electron shows it as a crash dialog. Dropping those writes is correct.
 for (const stream of [process.stdout, process.stderr]) {
   stream.on('error', (err) => {
     if (err.code !== 'EPIPE') console.error(`[stdio] ${err.message}`);
   });
 }
 
-// Mutable session state: a settings save re-loads `config` and live-restarts
-// just the pieces the changed values affect (hotkey registrations, embedded
-// relay server, relay client) via applyNewConfig() — no app relaunch.
-//
-// Unified mode: EVERY instance runs a RelayClient and can both share and
-// receive. The instance with "Host the relay" checked additionally runs the
-// embedded relay server (the center node — the only machine that needs
-// Tailscale), and its own client simply connects to localhost.
+// intel:// serves image bytes to the renderer instead of base64 data URLs
+// (BRIEF §9.1). Must be declared before app.ready.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'intel', privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: false } },
+]);
+
 let config = loadConfig();
 let viewer = null;
-let relayServer = null; // present iff this instance hosts the relay
-let relayClient = null; // always present once the app is ready
+let relayServer = null;
+let relayClient = null;
+
+const blobs = createBlobStore();
+const view = createViewState();
+const prep = createImagePrep({ onLog: (msg) => console.log(`[prep] ${msg}`) });
 
 function isHost() {
   return config.relayHostEnabled === true;
 }
-
-// The host's own client talks to its own embedded server; everyone else uses
-// the configured (usually wss://…ts.net) relay URL.
 function effectiveRelayUrl() {
   return isHost() ? `ws://127.0.0.1:${config.gm.relayPort}` : config.relayUrl;
 }
-
-// The settings page can point photosFolder at any arbitrary absolute path;
-// falls back to the bundled test-fixture convention (photos/<mission-name>/)
-// until it's been set once. Resolved at reveal time, so a folder change in
-// Settings applies from the very next hotkey press.
 function currentPhotosFolder() {
   return config.photosFolder || path.join(BUNDLED_PHOTOS_DIR, config.missionName);
 }
 
-function openSettings() {
-  const win = openSettingsWindow({
-    isHost: isHost(),
-    config,
-    getConnectedClients: () => (relayServer ? relayServer.getConnectedClients() : []),
-  });
-  // Keep the Tailscale panel fresh while the settings window is open — the
-  // poll also auto-detects a just-completed install/login and (re)applies the
-  // funnel whenever config wants it on but it isn't yet.
-  if (!tailscalePollTimer) {
-    refreshTailscaleState({ reconcile: true });
-    tailscalePollTimer = setInterval(() => refreshTailscaleState({ reconcile: true }), 3000);
-    win.on('closed', () => {
-      clearInterval(tailscalePollTimer);
-      tailscalePollTimer = null;
-    });
-  }
-  return win;
-}
-
-// Which photos the share gallery has ticked. null means "everything in the
-// folder" — the default, so the reveal hotkey behaves exactly as it did
-// before the gallery existed. The hotkey and the gallery's Share button both
-// go through doReveal(), so they can never disagree about what gets sent.
-let shareSelection = null;
-
-function doReveal(selection = shareSelection) {
-  return revealPhotosFolder({
-    photosFolder: currentPhotosFolder(),
-    relayClient,
-    selection,
-    onLog: (msg) => console.log(`[reveal] ${msg}`),
-  });
-}
-
 // ---------------------------------------------------------------------------
-// Tailscale Funnel (host machine only) — the panel in Settings drives this.
-// The funnel's lifetime follows the host session: reconciliation turns it on
-// while `relayHostEnabled` + `gm.funnelEnabled` are both set, off otherwise,
-// and will-quit shuts it down when the app exits.
+// State push. Both windows are pure renderers of these snapshots (§5.2).
 // ---------------------------------------------------------------------------
 
-let lastTailscaleState = null;
-let tailscalePollTimer = null;
-let lastFunnelAttempt = 0;
-let loginInFlight = false;
-// Failed funnel starts (e.g. waiting for the one-time admin-console enable)
-// are retried on this cadence rather than every poll tick.
-const FUNNEL_RETRY_MS = Number(process.env.INTEL_BROADCAST_FUNNEL_RETRY_MS) || 10000;
-
-function wantFunnel() {
-  return isHost() && config.gm.funnelEnabled === true;
+function pushState() {
+  const snapshot = view.snapshot();
+  if (viewer) viewer.pushState(snapshot);
+  if (isSettingsOpen()) pushSettingsState(settingsSnapshot(snapshot));
 }
 
-let lastLoggedFunnelRaw;
+/** The viewer snapshot plus the fields only the settings window renders. */
+function settingsSnapshot(base) {
+  const profile = PROFILES[config.sendProfile] || PROFILES.kneeboard;
+  return {
+    ...base,
+    watchFolder: config.watchFolder === true,
+    relayPort: config.gm.relayPort,
+    tokenMasked: squad.maskToken(config.token),
+    squadCode: hostSquadCode(),
+    hotkeys: config.hotkeys,
+    profileNote: profile.longEdge
+      ? `${profile.longEdge} PX · Q${profile.quality} · STAGED ${megabytesOf(base.stagedBytes)}`
+      : 'SENT UNCHANGED · NO RESIZE',
+    // The squad code is a password and must never appear here.
+    logTail: recentLines(12),
+  };
+}
 
-/**
- * Fetches the current Tailscale state, optionally starting the funnel when
- * config wants it on, and pushes the result to the settings window.
- *
- * Reconciliation deliberately only ever turns the funnel ON. The first real
- * Windows run flapped on/off every few seconds because this also enforced
- * "off": anything that made a status read look like "no funnel" — a failed
- * readback, or a second app instance whose config didn't want sharing —
- * triggered a stop that the next pass undid. Turning the funnel OFF now
- * happens only at three explicit moments: the user disabling it in Settings
- * (applyNewConfig), app quit (will-quit), and a port-matched leftover check
- * once at startup.
- */
-async function refreshTailscaleState({ reconcile = false } = {}) {
-  let state;
+function megabytesOf(bytes) {
+  return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** The code this host hands out, or null when we aren't hosting/reachable. */
+function hostSquadCode() {
+  if (!isHost()) return null;
+  const funnel = view.state.funnel;
+  const host = funnel && funnel.funnelOn && funnel.dnsName ? funnel.dnsName : null;
+  // Funnel up: the public name on 443. Otherwise a LAN address is the honest
+  // answer — a code that only works locally beats a code that works nowhere.
+  const port = host ? 443 : config.gm.relayPort;
+  const hostname = host || localHostname();
   try {
-    state = await tailscale.getState();
-    // The raw funnel-status output goes to the log whenever it changes — this
-    // is the line to look at when the panel disagrees with reality.
-    if (state.funnelRaw !== undefined && state.funnelRaw !== lastLoggedFunnelRaw) {
-      lastLoggedFunnelRaw = state.funnelRaw;
-      console.log(`[tailscale] funnel status raw: ${state.funnelRaw || '(empty)'}`);
-    }
-    if (state.funnelStatusError) console.log(`[tailscale] ${state.funnelStatusError}`);
+    return squad.encodeSquadCode(hostname, port, config.token);
+  } catch {
+    return null;
+  }
+}
 
-    const startable =
-      reconcile &&
-      wantFunnel() &&
-      state.installed &&
-      state.loggedIn &&
-      !state.funnelOn &&
-      // "unknown" is not "off" — never start (or imply restarts) off the back
-      // of a status read that failed.
-      !state.funnelStatusError;
-    if (startable) {
-      if (Date.now() - lastFunnelAttempt >= FUNNEL_RETRY_MS) {
-        lastFunnelAttempt = Date.now();
-        const res = await tailscale.startFunnel(config.gm.relayPort);
-        if (res.ok) {
-          console.log(`[tailscale] funnel started: public :443 -> 127.0.0.1:${config.gm.relayPort}`);
-          state = await tailscale.getState();
-        } else {
-          // funnelError, not error: `error` means the status command itself
-          // failed, which the panel reports differently.
-          state.enableUrl = res.enableUrl || null;
-          state.funnelError = res.message;
-          console.log(`[tailscale] funnel start failed: ${res.message}`);
-        }
-      } else if (lastTailscaleState) {
-        // between retries, keep showing the last failure instead of
-        // flickering back to a clean "not shared" state
-        state.enableUrl = lastTailscaleState.enableUrl || null;
-        state.funnelError = lastTailscaleState.funnelError || null;
+function localHostname() {
+  try {
+    const os = require('os');
+    for (const list of Object.values(os.networkInterfaces())) {
+      for (const iface of list || []) {
+        if (iface.family === 'IPv4' && !iface.internal) return iface.address;
       }
     }
-  } catch (err) {
-    state = { installed: true, error: err.message };
+  } catch {
+    // fall through
   }
-  lastTailscaleState = state;
-  pushTailscaleState(state);
-  return state;
+  return 'localhost';
+}
+
+// ---------------------------------------------------------------------------
+// Gallery + staging
+// ---------------------------------------------------------------------------
+
+/** Rebuilds the share gallery, preserving which photos were ticked. */
+function refreshGallery() {
+  const folder = currentPhotosFolder();
+  const available = listPhotoFilenames(folder);
+  const previous = new Map(view.state.photos.map((p) => [p.filename, p.selected]));
+  const photos = available.map((filename) => {
+    // Thumbnails go through the blob store too, so the renderer never holds
+    // pixel data — only intel:// URLs (BRIEF §9.1).
+    const thumb = makeThumbnail(path.join(folder, filename));
+    let thumbUrl = null;
+    if (thumb) thumbUrl = blobs.urlFor(blobs.put(thumb, 'image/png'));
+    return {
+      filename,
+      // Default to selected so the reveal hotkey behaves as it always has.
+      selected: previous.has(filename) ? previous.get(filename) : true,
+      thumbUrl,
+    };
+  });
+  view.setGallery({ folder, photos });
+  restage();
 }
 
 /**
- * One-shot at startup: a `--bg` funnel survives crashes/reboots, so if config
- * doesn't want sharing but a funnel is up AND it forwards to OUR relay port,
- * treat it as ours from a previous session and stop it. The port match is
- * what keeps this from killing a funnel some other instance/tool owns.
+ * Recomputes what a reveal would actually put on the wire, and warms the
+ * compression cache. Warming happens HERE, on selection change — not on the
+ * hotkey, which is the one moment we cannot afford to block the main process.
  */
-async function cleanupLeftoverFunnel() {
-  try {
-    const state = await tailscale.getState();
-    if (!wantFunnel() && state.funnelOn && tailscale.funnelTargetPort(state) === config.gm.relayPort) {
-      console.log('[tailscale] stopping leftover funnel from a previous session (it targets our relay port)');
-      await tailscale.stopFunnel();
-    }
-  } catch (err) {
-    console.log(`[tailscale] leftover-funnel check failed: ${err.message}`);
-  }
+function restage() {
+  const folder = view.state.folder;
+  const selected = view.selectedFilenames().map((f) => path.join(folder, f));
+  prep.warm(selected, config.sendProfile);
+  view.state.stagedBytes = prep.stagedBytes(selected, config.sendProfile);
+  pushState();
 }
 
-/** Handles a button press from the settings panel's Tailscale section. */
-async function handleTailscaleAction(action) {
-  if (action === 'open-download') {
-    shell.openExternal(tailscale.DOWNLOAD_URL);
-    return;
-  }
-  if (action === 'open-enable-url') {
-    if (lastTailscaleState && lastTailscaleState.enableUrl) shell.openExternal(lastTailscaleState.enableUrl);
-    return;
-  }
-  if (action === 'login') {
-    if (loginInFlight) return;
-    loginInFlight = true;
-    // Resolves when the CLI exits; the browser URL opens as soon as it's
-    // printed. State polling picks up the resulting login either way.
-    tailscale
-      .login({ onAuthUrl: (url) => shell.openExternal(url) })
-      .catch(() => {})
-      .finally(() => {
-        loginInFlight = false;
-        refreshTailscaleState({ reconcile: true });
-      });
-    return;
-  }
-  if (action === 'copy-invite') {
-    if (lastTailscaleState && lastTailscaleState.wssUrl) {
-      clipboard.writeText(`Intel Broadcast relay: ${lastTailscaleState.wssUrl}\nToken: ${config.token}`);
-    }
-    return;
-  }
-  if (action === 'refresh') {
-    lastFunnelAttempt = 0; // user asked — retry immediately
-    await refreshTailscaleState({ reconcile: true });
-  }
-}
+// ---------------------------------------------------------------------------
+// Roles
+// ---------------------------------------------------------------------------
 
-function registerHotkey(name, accelerator, handler) {
-  if (!accelerator) return;
-  const ok = globalShortcut.register(accelerator, handler);
-  console.log(`[hotkeys] register ${name} "${accelerator}": ${ok ? 'OK' : 'FAILED (already taken by another app?)'}`);
-}
-
-/**
- * (Re-)registers every global shortcut from the current config — called once
- * at startup and again on every settings save. Starting from unregisterAll()
- * is what makes a hotkey change apply live: the old accelerators are released
- * in the same step that claims the new ones. The reveal hotkey belongs to
- * everyone now, not just the host.
- */
-function registerHotkeys() {
-  globalShortcut.unregisterAll();
-  registerHotkey('settings', config.hotkeys.settings, openSettings);
-  registerHotkey('next', config.hotkeys.next, () => viewer.navigate('next'));
-  registerHotkey('prev', config.hotkeys.prev, () => viewer.navigate('prev'));
-  registerHotkey('reveal', config.hotkeys.reveal, doReveal);
-
-  // Dev/test-only: reports what got registered to a file. Rewritten on every
-  // (re-)registration, so a test can watch a live settings apply swap hotkeys
-  // without the process restarting.
-  if (process.env.INTEL_BROADCAST_HOTKEY_REGISTER_MARKER_PATH) {
-    fs.writeFileSync(
-      process.env.INTEL_BROADCAST_HOTKEY_REGISTER_MARKER_PATH,
-      JSON.stringify({
-        reveal: config.hotkeys.reveal,
-        revealRegistered: globalShortcut.isRegistered(config.hotkeys.reveal),
-      }),
-    );
-  }
+function peerList() {
+  const peers = relayServer
+    ? relayServer.getConnectedClients().map((c) => ({
+        callsign: c.callsign,
+        connectedAt: c.connectedAt,
+        self: c.callsign === config.callsign,
+        host: false,
+      }))
+    : [];
+  return peers;
 }
 
 function startHost() {
@@ -276,21 +183,15 @@ function startHost() {
     port: config.gm.relayPort,
     token: config.token,
     onLog: (msg) => console.log(`[relay] ${msg}`),
-    // Keeps the settings window's "Connected clients" section live while open.
-    onClientsChanged: pushConnectedClients,
+    onClientsChanged: () => {
+      view.state.peers = peerList();
+      pushState();
+    },
   });
 }
 
-/**
- * Tears down the embedded relay (terminating client sockets so the port is
- * released immediately) and calls `done` once it's fully closed — restarting
- * on the same port must wait for that, or it races into EADDRINUSE.
- */
 function stopHost(done = () => {}) {
-  if (!relayServer) {
-    done();
-    return;
-  }
+  if (!relayServer) return void done();
   const server = relayServer;
   relayServer = null;
   server.close(done);
@@ -304,16 +205,28 @@ function startClient() {
     callsign: config.callsign,
   });
 
-  relayClient.on('connected', () => viewer.setConnectionState({ connected: true }));
-  relayClient.on('disconnected', () => viewer.setConnectionState({ connected: false }));
+  relayClient.on('connected', () => {
+    view.setConnection({ connected: true, relayLabel: labelFor(effectiveRelayUrl()) });
+    pushState();
+  });
+  relayClient.on('disconnected', () => {
+    view.setConnection({ connected: false, relayLabel: labelFor(effectiveRelayUrl()) });
+    pushState();
+  });
+  relayClient.on('reconnecting', (info) => {
+    view.state.reconnect = info;
+    pushState();
+  });
   relayClient.on('reveal-batch', (batch) => {
-    viewer.showBatch(batch);
-    // Dev-only visual verification hook: INTEL_BROADCAST_SCREENSHOT_PATH captures
-    // the rendered window to a PNG after a batch lands, then quits. Not used in
-    // normal operation.
-    if (process.env.INTEL_BROADCAST_SCREENSHOT_PATH) takeDevScreenshotAndQuit(viewer);
-    // Dev-only test hook: writes batch metadata to a file so a test harness can
-    // confirm this instance actually received a broadcast, without needing pixels.
+    // Bytes go to the blob store keyed by content hash; the renderer only ever
+    // sees intel:// URLs (§9.1, §5.1).
+    const items = batch.items.map((item) => {
+      const hash = blobs.put(item.buffer, item.mimeType);
+      return { filename: item.filename, url: blobs.urlFor(hash) };
+    });
+    view.addBatch({ sharedBy: batch.sharedBy, items });
+    pushState();
+
     if (process.env.INTEL_BROADCAST_RECEIVED_MARKER_PATH) {
       fs.writeFileSync(
         process.env.INTEL_BROADCAST_RECEIVED_MARKER_PATH,
@@ -326,18 +239,18 @@ function startClient() {
     }
   });
 
-  // Until the first 'connected' fires this shows the disconnected banner —
-  // truthful during a live settings change. At first boot the renderer
-  // hasn't loaded yet and the message is simply dropped, same as before.
-  viewer.setConnectionState({ connected: false });
+  view.setConnection({ connected: false, relayLabel: labelFor(effectiveRelayUrl()) });
   relayClient.connect();
 }
 
-/**
- * Closes the relay client and drops its listeners first, so the 'disconnected'
- * its closing socket emits asynchronously can't repaint the banner after a
- * replacement client has already taken over the connection state.
- */
+function labelFor(url) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
 function stopClient() {
   if (!relayClient) return;
   relayClient.removeAllListeners();
@@ -345,28 +258,173 @@ function stopClient() {
   relayClient = null;
 }
 
-/**
- * Live-applies a freshly saved config: hotkeys always re-register; the relay
- * server / relay client only restart when a value they depend on actually
- * changed, so an unrelated save (e.g. a hotkey tweak) never drops anyone's
- * connection.
- */
+// ---------------------------------------------------------------------------
+// Reveal
+// ---------------------------------------------------------------------------
+
+function doReveal() {
+  const result = revealPhotosFolder({
+    photosFolder: view.state.folder || currentPhotosFolder(),
+    relayClient,
+    selection: view.selectedFilenames(),
+    prep,
+    profileName: config.sendProfile,
+    onLog: (msg) => console.log(`[reveal] ${msg}`),
+  });
+  if (result.ok) view.state.counters.sent += 1;
+  pushState();
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Hotkeys
+// ---------------------------------------------------------------------------
+
+function registerHotkey(name, accelerator, handler) {
+  if (!accelerator) return;
+  const ok = globalShortcut.register(accelerator, handler);
+  console.log(`[hotkeys] register ${name} "${accelerator}": ${ok ? 'OK' : 'FAILED (already taken by another app?)'}`);
+}
+
+function registerHotkeys() {
+  globalShortcut.unregisterAll();
+  registerHotkey('settings', config.hotkeys.settings, openSettings);
+  registerHotkey('next', config.hotkeys.next, () => {
+    view.step(1);
+    pushState();
+  });
+  registerHotkey('prev', config.hotkeys.prev, () => {
+    view.step(-1);
+    pushState();
+  });
+  registerHotkey('reveal', config.hotkeys.reveal, doReveal);
+  // New in this build: blanks all chrome so the kneeboard capture is just the
+  // photo. This is the state that matters most in the air.
+  registerHotkey('hide', config.hotkeys.hide, () => {
+    view.toggleChrome();
+    pushState();
+  });
+
+  if (process.env.INTEL_BROADCAST_HOTKEY_REGISTER_MARKER_PATH) {
+    fs.writeFileSync(
+      process.env.INTEL_BROADCAST_HOTKEY_REGISTER_MARKER_PATH,
+      JSON.stringify({
+        reveal: config.hotkeys.reveal,
+        revealRegistered: globalShortcut.isRegistered(config.hotkeys.reveal),
+      }),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tailscale (unchanged behaviour; see PLAN.md for why reconcile only turns ON)
+// ---------------------------------------------------------------------------
+
+let lastFunnelAttempt = 0;
+let tailscalePollTimer = null;
+let lastLoggedFunnelRaw;
+const FUNNEL_RETRY_MS = Number(process.env.INTEL_BROADCAST_FUNNEL_RETRY_MS) || 10000;
+
+function wantFunnel() {
+  return isHost() && config.gm.funnelEnabled === true;
+}
+
+async function refreshTailscaleState({ reconcile = false } = {}) {
+  let state;
+  try {
+    state = await tailscale.getState();
+    if (state.funnelRaw !== undefined && state.funnelRaw !== lastLoggedFunnelRaw) {
+      lastLoggedFunnelRaw = state.funnelRaw;
+      console.log(`[tailscale] funnel status raw: ${state.funnelRaw || '(empty)'}`);
+    }
+    const startable =
+      reconcile && wantFunnel() && state.installed && state.loggedIn && !state.funnelOn && !state.funnelStatusError;
+    if (startable && Date.now() - lastFunnelAttempt >= FUNNEL_RETRY_MS) {
+      lastFunnelAttempt = Date.now();
+      const res = await tailscale.startFunnel(config.gm.relayPort);
+      if (res.ok) {
+        console.log(`[tailscale] funnel started: public :443 -> 127.0.0.1:${config.gm.relayPort}`);
+        state = await tailscale.getState();
+        state.since = Date.now();
+      } else {
+        state.enableUrl = res.enableUrl || null;
+        state.funnelError = res.message;
+        console.log(`[tailscale] funnel start failed: ${res.message}`);
+      }
+    } else if (startable && view.state.funnel) {
+      state.enableUrl = view.state.funnel.enableUrl || null;
+      state.funnelError = view.state.funnel.funnelError || null;
+    }
+    if (state.funnelOn && view.state.funnel && view.state.funnel.since) state.since = view.state.funnel.since;
+    else if (state.funnelOn && !state.since) state.since = Date.now();
+  } catch (err) {
+    state = { installed: true, error: err.message };
+  }
+  view.state.funnel = state;
+  pushState();
+  return state;
+}
+
+async function cleanupLeftoverFunnel() {
+  try {
+    const state = await tailscale.getState();
+    if (!wantFunnel() && state.funnelOn && tailscale.funnelTargetPort(state) === config.gm.relayPort) {
+      console.log('[tailscale] stopping leftover funnel from a previous session (it targets our relay port)');
+      await tailscale.stopFunnel();
+    }
+  } catch (err) {
+    console.log(`[tailscale] leftover-funnel check failed: ${err.message}`);
+  }
+}
+
+async function handleTailscaleAction(action) {
+  if (action === 'open-download') return void shell.openExternal(tailscale.DOWNLOAD_URL);
+  if (action === 'open-enable-url') {
+    const url = view.state.funnel && view.state.funnel.enableUrl;
+    if (url) shell.openExternal(url);
+    return;
+  }
+  if (action === 'login') {
+    tailscale
+      .login({ onAuthUrl: (url) => shell.openExternal(url) })
+      .catch(() => {})
+      .finally(() => refreshTailscaleState({ reconcile: true }));
+    return;
+  }
+  if (action === 'toggle-funnel') {
+    const next = !(config.gm.funnelEnabled === true);
+    applyNewConfig(saveSettingsValues({ gm: { ...config.gm, funnelEnabled: next } }));
+    return;
+  }
+  if (action === 'refresh') {
+    lastFunnelAttempt = 0;
+    await refreshTailscaleState({ reconcile: true });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Config apply
+// ---------------------------------------------------------------------------
+
 function applyNewConfig(newConfig) {
   const old = config;
   config = newConfig;
 
+  view.state.callsign = config.callsign;
+  view.state.isHost = isHost();
+  view.state.autoShow = config.autoShow !== false;
+  view.state.profile = config.sendProfile || 'kneeboard';
+
   registerHotkeys();
 
-  // A different folder makes the old filename allowlist meaningless — fall
-  // back to "share everything" and let the gallery re-read.
   if (old.photosFolder !== config.photosFolder || old.missionName !== config.missionName) {
-    shareSelection = null;
-    if (viewer) viewer.invalidateGallery();
+    refreshGallery();
+  } else if (old.sendProfile !== config.sendProfile) {
+    restage();
   }
 
   const wasHost = old.relayHostEnabled === true;
-  const oldEffectiveUrl = wasHost ? `ws://127.0.0.1:${old.gm.relayPort}` : old.relayUrl;
-
+  const oldUrl = wasHost ? `ws://127.0.0.1:${old.gm.relayPort}` : old.relayUrl;
   if (isHost() && !wasHost) {
     startHost();
     console.log('[index] hosting enabled — embedded relay started');
@@ -380,17 +438,12 @@ function applyNewConfig(newConfig) {
     });
   }
 
-  const clientChanged =
-    oldEffectiveUrl !== effectiveRelayUrl() || old.token !== config.token || old.callsign !== config.callsign;
-  if (clientChanged) {
+  if (oldUrl !== effectiveRelayUrl() || old.token !== config.token || old.callsign !== config.callsign) {
     stopClient();
     startClient();
     console.log('[index] relay connection changed — reconnecting');
   }
 
-  // A save is explicit user intent — apply the funnel side right away.
-  // Turning it OFF happens here and only here (plus quit/startup-leftover):
-  // the polling reconcile never stops a funnel, so nothing can flap it.
   const wantedBefore = old.relayHostEnabled === true && old.gm.funnelEnabled === true;
   lastFunnelAttempt = 0;
   if (wantedBefore && !wantFunnel()) {
@@ -402,44 +455,164 @@ function applyNewConfig(newConfig) {
   } else {
     refreshTailscaleState({ reconcile: true });
   }
+  pushState();
 }
 
-function attachDevScreenshotHook(viewer) {
-  viewer.window.webContents.on('console-message', (_e, level, message) => {
-    console.log(`[renderer console] ${message}`);
-  });
-  viewer.window.webContents.on('did-finish-load', () => {
-    console.log('[main] renderer did-finish-load');
-  });
+function openSettings() {
+  const win = openSettingsWindow({ config, uiScale: config.uiScale });
+  pushSettingsState(settingsSnapshot(view.snapshot()));
+  if (process.env.INTEL_BROADCAST_SETTINGS_PROBE) attachSettingsProbe(win);
+  // Dev/test-only: hands the squad code to a harness through a FILE, never
+  // through stdout — writing it to a log is exactly what must not happen.
+  if (process.env.INTEL_BROADCAST_SQUAD_CODE_MARKER_PATH) {
+    const code = hostSquadCode();
+    if (code) fs.writeFileSync(process.env.INTEL_BROADCAST_SQUAD_CODE_MARKER_PATH, code);
+  }
+  if (!tailscalePollTimer) {
+    refreshTailscaleState({ reconcile: true });
+    tailscalePollTimer = setInterval(() => refreshTailscaleState({ reconcile: true }), 3000);
+    win.on('closed', () => {
+      clearInterval(tailscalePollTimer);
+      tailscalePollTimer = null;
+    });
+  }
+  return win;
 }
 
-function takeDevScreenshotAndQuit(viewer) {
-  setTimeout(async () => {
-    if (viewer.window.isDestroyed()) return;
-    try {
-      const image = await viewer.window.webContents.capturePage();
-      if (viewer.window.isDestroyed()) return; // window closed while capture was in flight
-      fs.writeFileSync(process.env.INTEL_BROADCAST_SCREENSHOT_PATH, image.toPNG());
-    } catch (err) {
-      console.error(`[screenshot hook] capture failed: ${err.message}`);
-    } finally {
-      app.quit();
+// ---------------------------------------------------------------------------
+// Intents from the renderers
+// ---------------------------------------------------------------------------
+
+function handleViewerIntent(intent, payload) {
+  switch (intent) {
+    case 'ready':
+      break;
+    case 'set-page':
+      view.setPage(payload);
+      if (payload === 'received') view.markOpenRead();
+      break;
+    case 'open-batch':
+      view.openBatch(payload);
+      break;
+    case 'step':
+      view.step(payload);
+      break;
+    case 'toggle-chrome':
+      view.toggleChrome();
+      break;
+    case 'focus':
+      view.setFocused(Boolean(payload));
+      break;
+    case 'banner-dismiss':
+      view.clearBanner();
+      break;
+    case 'toggle-photo':
+      view.togglePhoto(payload);
+      return restage();
+    case 'select-all':
+      view.setAllSelected(true);
+      return restage();
+    case 'select-none':
+      view.setAllSelected(false);
+      return restage();
+    case 'rescan':
+      return refreshGallery();
+    case 'reveal':
+      return void doReveal();
+    case 'reconnect':
+      stopClient();
+      startClient();
+      break;
+    case 'open-settings':
+      openSettings();
+      return;
+    default:
+      console.log(`[viewer] unknown intent: ${intent}`);
+      return;
+  }
+  pushState();
+}
+
+async function handleSettingsIntent(intent, payload) {
+  switch (intent) {
+    case 'ready':
+      break;
+    case 'browse-folder': {
+      const folder = await openSettingsWindow.browseFolder();
+      if (folder) applyNewConfig(saveSettingsValues({ photosFolder: folder }));
+      return;
     }
-  }, 500);
+    case 'copy-code': {
+      const code = hostSquadCode();
+      if (code) clipboard.writeText(code);
+      return;
+    }
+    case 'new-token': {
+      // Rotating invalidates every code ever issued.
+      applyNewConfig(saveSettingsValues({ token: squad.generateToken() }));
+      return;
+    }
+    case 'connect': {
+      const decoded = squad.tryDecodeSquadCode(payload);
+      if (!decoded.ok) return; // CONNECT is disabled in the UI for this case
+      applyNewConfig(
+        saveSettingsValues({
+          relayHostEnabled: false,
+          relayUrl: squad.relayUrlFor(decoded),
+          token: decoded.token,
+        }),
+      );
+      return;
+    }
+    case 'set-auto-show':
+      applyNewConfig(saveSettingsValues({ autoShow: Boolean(payload) }));
+      return;
+    case 'set-watch-folder':
+      applyNewConfig(saveSettingsValues({ watchFolder: Boolean(payload) }));
+      return;
+    case 'set-profile':
+      applyNewConfig(saveSettingsValues({ sendProfile: String(payload) }));
+      return;
+    case 'set-hotkey':
+      if (payload && payload.key && payload.accelerator) {
+        applyNewConfig(saveSettingsValues({ hotkeys: { [payload.key]: payload.accelerator } }));
+      }
+      return;
+    case 'save':
+      applyNewConfig(
+        saveSettingsValues({
+          callsign: String((payload && payload.callsign) || ''),
+          relayHostEnabled: Boolean(payload && payload.relayHostEnabled),
+          sendProfile: String((payload && payload.profile) || config.sendProfile),
+        }),
+      );
+      return;
+    case 'tailscale':
+      return void handleTailscaleAction(payload);
+    case 'open-log': {
+      const logPath = getLogFilePath();
+      if (logPath) shell.showItemInFolder(logPath);
+      return;
+    }
+    case 'copy-log-path':
+      clipboard.writeText(getLogFilePath() || '');
+      return;
+    default:
+      console.log(`[settings] unknown intent: ${intent}`);
+      return;
+  }
+  pushState();
 }
 
-// One instance per machine. Two copies of the app fight: both grab hotkeys,
-// both may host, and their funnel opinions can differ (the on/off flapping in
-// the first real Windows test is exactly what that looks like — an old
-// instance turning off what the new one turned on). The deliberate
-// two-instance DEV workflow opts out via its per-instance config env var.
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+
 let isPrimaryInstance = true;
 if (!process.env.INTEL_BROADCAST_LOCAL_CONFIG_PATH) {
   isPrimaryInstance = app.requestSingleInstanceLock();
-  if (!isPrimaryInstance) {
-    app.quit();
-  } else {
-    // Someone double-clicked the exe again — surface the existing window.
+  if (!isPrimaryInstance) app.quit();
+  else {
     app.on('second-instance', () => {
       if (viewer && !viewer.window.isDestroyed()) {
         if (viewer.window.isMinimized()) viewer.window.restore();
@@ -451,40 +624,32 @@ if (!process.env.INTEL_BROADCAST_LOCAL_CONFIG_PATH) {
 }
 
 app.whenReady().then(() => {
-  if (!isPrimaryInstance) return; // quitting — don't build windows on the way out
+  if (!isPrimaryInstance) return;
 
-  // First thing: a packaged build has no console, so without this a user
-  // hitting trouble has nothing to send back.
   initFileLogging(app.getPath('userData'));
   console.log(
-    `[index] Intel Broadcast ${app.getVersion()} on ${process.platform} — packaged=${app.isPackaged} hosting=${isHost()} funnelEnabled=${config.gm.funnelEnabled === true}`,
+    `[index] Intel Broadcast ${app.getVersion()} on ${process.platform} — packaged=${app.isPackaged} hosting=${isHost()}`,
   );
   console.log(`[index] settings file: ${LOCAL_CONFIG_PATH}`);
-  console.log(`[index] photos folder: ${currentPhotosFolder()}`);
 
-  registerSettingsIpc({
-    onSaved: () => applyNewConfig(loadConfig()),
-    onTailscaleAction: handleTailscaleAction,
+  // Serve image bytes by content hash. The renderer never holds pixels.
+  protocol.handle('intel', (request) => {
+    const hash = blobs.hashFromUrl(request.url);
+    const entry = hash && blobs.get(hash);
+    if (!entry) return new Response(null, { status: 404 });
+    return new Response(entry.buffer, { headers: { 'content-type': entry.mimeType } });
   });
 
-  // The viewer window's side panel: reaching Settings without the tray icon
-  // (unreliable under some window managers) or the global hotkey (which
-  // another app may already own), plus the share gallery.
-  ipcMain.handle('viewer:open-settings', () => {
-    openSettings();
+  registerSettingsIpc();
+  ipcMain.on('viewer:intent', (_event, intent, payload) => handleViewerIntent(intent, payload));
+  ipcMain.on('settings:intent', (_event, intent, payload) => handleSettingsIntent(intent, payload));
+  ipcMain.handle('settings:decode-code', (_event, raw) => {
+    const decoded = squad.tryDecodeSquadCode(raw);
+    // Never return the token to the renderer: it only needs to know it parsed.
+    return decoded.ok ? { ok: true, host: decoded.host, port: decoded.port } : { ok: false };
   });
-  ipcMain.handle('viewer:list-photos', () => buildGallery(currentPhotosFolder(), shareSelection));
-  ipcMain.handle('viewer:set-share-selection', (_event, filenames) => {
-    shareSelection = Array.isArray(filenames) ? filenames.map(String) : null;
-  });
-  ipcMain.handle('viewer:share-selected', (_event, filenames) =>
-    doReveal(Array.isArray(filenames) ? filenames.map(String) : null),
-  );
+  ipcMain.handle('settings:read-clipboard', () => clipboard.readText());
 
-  // A minimal menu bar of our own — NOT Electron's default menu, which binds
-  // Ctrl+Shift+I to "Toggle DevTools" and would consume that keypress before
-  // our globalShortcut reveal-hotkey listener ever saw it. This gives a
-  // normal, discoverable "Settings" entry without that collision.
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
@@ -497,168 +662,31 @@ app.whenReady().then(() => {
       },
     ]),
   );
-
   createTray({ onOpenSettings: openSettings });
 
-  // Dev/test-only: opens the settings window immediately on startup instead of
-  // waiting for a tray click, and optionally drives a real save through it —
-  // lets a test harness exercise the full preload/contextBridge/ipcMain wiring
-  // without needing to click a real tray icon or dialog. Never triggered
-  // unless these env vars are explicitly set.
-  if (process.env.INTEL_BROADCAST_OPEN_SETTINGS) {
-    const settingsWin = openSettings();
-    settingsWin.webContents.on('console-message', (_e, level, message) => {
-      console.log(`[settings renderer console] ${message}`);
-    });
-    settingsWin.webContents.on('did-finish-load', () => {
-      console.log('[main] settings did-finish-load');
-      // Reports the renderer's actual viewport metrics so a test can confirm
-      // the uiZoom from scaling.js was really applied by the preload.
-      if (process.env.INTEL_BROADCAST_ZOOM_PROBE) {
-        settingsWin.webContents.executeJavaScript(
-          'console.log(`ZOOM_PROBE innerWidth=${window.innerWidth} dpr=${window.devicePixelRatio}`)',
-        );
-      }
-      // Periodically reports the rendered Tailscale panel so a test can walk
-      // the install -> login -> funnel-on states against the stub binary.
-      if (process.env.INTEL_BROADCAST_TAILSCALE_PROBE) {
-        const tsProbe = setInterval(() => {
-          if (settingsWin.isDestroyed()) {
-            clearInterval(tsProbe);
-            return;
-          }
-          settingsWin.webContents
-            .executeJavaScript(
-              `console.log('TS_PROBE ' + document.getElementById('ts-status-text').textContent + ' | ' + document.getElementById('ts-url').textContent)`,
-            )
-            .catch(() => {});
-        }, 400);
-      }
-      // Periodically reports the rendered "Connected clients" list so a test
-      // can confirm live client join/leave updates reach the settings DOM.
-      if (process.env.INTEL_BROADCAST_CLIENTS_PROBE) {
-        const probe = setInterval(() => {
-          if (settingsWin.isDestroyed()) {
-            clearInterval(probe);
-            return;
-          }
-          settingsWin.webContents
-            .executeJavaScript(
-              `console.log('CLIENTS_PROBE ' + document.getElementById('connected-clients').textContent.trim().replace(/\\s+/g, ' '))`,
-            )
-            .catch(() => {});
-        }, 400);
-      }
-      if (process.env.INTEL_BROADCAST_SETTINGS_AUTOSAVE_JSON) {
-        setTimeout(() => {
-          settingsWin.webContents
-            .executeJavaScript(`window.settingsAPI.save(${process.env.INTEL_BROADCAST_SETTINGS_AUTOSAVE_JSON})`)
-            // The window closes right after a save is applied, which can reject
-            // this promise mid-flight — expected, not a test failure.
-            .catch(() => {});
-        }, 300);
-      }
-      // Simulates the Record-button UX (click -> synthetic keydown -> value
-      // captured; click -> Escape -> value unchanged) and reports PASS/FAIL
-      // via console, which the console-message listener above already pipes
-      // to this process's stdout for a test harness to grep.
-      if (process.env.INTEL_BROADCAST_HOTKEY_RECORD_TEST) {
-        setTimeout(() => {
-          settingsWin.webContents.executeJavaScript(`
-            (function() {
-              try {
-                const revealBtn = document.querySelector('.record-btn[data-key="reveal"]');
-                revealBtn.click();
-                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'u', ctrlKey: true, shiftKey: true, bubbles: true }));
-                if (hotkeyValues.reveal !== 'Ctrl+Shift+U') throw new Error('expected Ctrl+Shift+U, got ' + hotkeyValues.reveal);
-                if (revealBtn.textContent !== 'Record') throw new Error('button should reset after capture, got ' + revealBtn.textContent);
+  view.state.callsign = config.callsign;
+  view.state.isHost = isHost();
+  view.state.autoShow = config.autoShow !== false;
+  view.state.profile = config.sendProfile || 'kneeboard';
+  view.state.logPath = getLogFilePath() || '';
+  view.state.version = app.getVersion();
 
-                const nextBtn = document.querySelector('.record-btn[data-key="next"]');
-                const beforeNext = hotkeyValues.next;
-                nextBtn.click();
-                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-                if (hotkeyValues.next !== beforeNext) throw new Error('Escape changed the value: ' + beforeNext + ' -> ' + hotkeyValues.next);
-                if (nextBtn.textContent !== 'Record') throw new Error('button should reset after Escape, got ' + nextBtn.textContent);
-
-                console.log('RECORD_TEST_PASS');
-              } catch (err) {
-                console.log('RECORD_TEST_FAIL: ' + err.message);
-              }
-            })();
-          `);
-        }, 300);
-      }
-    });
-  }
-
-  // Distinct default starting spot per role, purely so two instances launched
-  // on the same machine (e.g. local testing) don't land exactly on top of
-  // each other before you've dragged either one. Irrelevant once everyone is
-  // on separate physical machines.
   const initialPosition = isHost() ? { x: 80, y: 80 } : { x: 460, y: 200 };
-  viewer = createViewerWindow({ title: config.windowTitle, initialPosition, uiScale: config.uiScale });
+  viewer = createViewerWindow({
+    title: config.windowTitle,
+    initialPosition,
+    uiScale: config.uiScale,
+    onState: pushState,
+  });
 
-  if (process.env.INTEL_BROADCAST_SCREENSHOT_PATH) attachDevScreenshotHook(viewer);
-
-  // Dev/test-only: pipes the viewer renderer's console out and periodically
-  // dumps the side panel's rendered DOM, so a test can assert on the real
-  // panel instead of a renderer-side debug API.
-  if (process.env.INTEL_BROADCAST_VIEWER_PANEL_PROBE) {
-    viewer.window.webContents.on('console-message', (_e, level, message) => {
-      console.log(`[viewer renderer] ${message}`);
-    });
-    const panelProbe = setInterval(() => {
-      if (viewer.window.isDestroyed()) {
-        clearInterval(panelProbe);
-        return;
-      }
-      // Same tick doubles as a "run this in the renderer" channel for tests:
-      // the harness drops a file, we execute it once and delete it. Only
-      // active alongside the probe env var, never in normal use.
-      const evalPath = process.env.INTEL_BROADCAST_VIEWER_EVAL_PATH;
-      if (evalPath && fs.existsSync(evalPath)) {
-        const source = fs.readFileSync(evalPath, 'utf8');
-        fs.rmSync(evalPath, { force: true });
-        viewer.window.webContents
-          .executeJavaScript(source)
-          .catch((err) => console.log(`[viewer eval] failed: ${err.message}`));
-      }
-      viewer.window.webContents
-        .executeJavaScript(
-          `console.log('PANEL_PROBE ' + JSON.stringify({
-             badge: document.getElementById('unread-badge').hidden ? 0 : Number(document.getElementById('unread-badge').textContent),
-             rows: [...document.querySelectorAll('.intel-row')].map((r) => ({
-               who: r.querySelector('.intel-who').textContent,
-               meta: r.querySelector('.intel-meta').textContent,
-               unread: r.classList.contains('unread'),
-               current: r.classList.contains('current'),
-             })),
-             tiles: [...document.querySelectorAll('.share-tile')].map((t) => ({
-               filename: t.dataset.filename,
-               selected: t.classList.contains('selected'),
-               hasThumb: Boolean(t.querySelector('img')),
-             })),
-             shareBtn: document.getElementById('share-btn').textContent,
-             indicator: document.getElementById('index-indicator').textContent,
-           }))`,
-        )
-        .catch(() => {});
-    }, 400);
-  }
+  if (process.env.INTEL_BROADCAST_VIEWER_PANEL_PROBE) attachViewerProbe();
 
   registerHotkeys();
-
+  refreshGallery();
   if (isHost()) startHost();
   startClient();
-
-  // Startup: clear a port-matched leftover funnel from a crashed session,
-  // then bring the funnel up if config wants it.
   cleanupLeftoverFunnel().then(() => refreshTailscaleState({ reconcile: true }));
 
-  // Dev/test-only: lets a test harness trigger the same reveal action a real
-  // hotkey press would, without simulating an OS-level keypress. Any instance
-  // can share now, so any instance can carry this. Never started unless this
-  // env var is explicitly set.
   if (process.env.INTEL_BROADCAST_TEST_TRIGGER_PORT) {
     http
       .createServer((req, res) => {
@@ -668,19 +696,101 @@ app.whenReady().then(() => {
       .listen(Number(process.env.INTEL_BROADCAST_TEST_TRIGGER_PORT), '127.0.0.1');
   }
 
+  if (process.env.INTEL_BROADCAST_OPEN_SETTINGS) openSettings();
+
   viewer.window.on('closed', () => {
     stopClient();
     stopHost();
   });
 });
 
+/** Dev/test-only: same probe/eval channel as the viewer, for the settings window. */
+function attachSettingsProbe(win) {
+  if (win.__probeAttached) return;
+  win.__probeAttached = true;
+  win.webContents.on('console-message', (_e, level, message) => {
+    console.log(`[settings renderer] ${message}`);
+  });
+  const probe = setInterval(() => {
+    if (win.isDestroyed()) return clearInterval(probe);
+    const evalPath = process.env.INTEL_BROADCAST_SETTINGS_EVAL_PATH;
+    if (evalPath && fs.existsSync(evalPath)) {
+      const source = fs.readFileSync(evalPath, 'utf8');
+      fs.rmSync(evalPath, { force: true });
+      win.webContents.executeJavaScript(source).catch((err) => console.log(`[settings eval] ${err.message}`));
+    }
+    win.webContents
+      .executeJavaScript(
+        `console.log('SETTINGS_PROBE ' + JSON.stringify({
+           page: document.body.dataset.page,
+           mode: document.body.dataset.mode,
+           hostVisible: Boolean(document.querySelector('.page[data-page="net"] [data-mode="host"]').offsetParent),
+           joinVisible: Boolean(document.querySelector('.page[data-page="net"] [data-mode="join"]').offsetParent),
+           connectDisabled: document.getElementById('btn-connect').disabled,
+           joinHost: document.getElementById('join-host').textContent,
+           // Shape only — the code is a password, and this probe's output goes
+           // to stdout and therefore to the log file.
+           squadCodePrefix: document.getElementById('squad-code').textContent.slice(0, 4),
+           squadCodeLength: document.getElementById('squad-code').textContent.length,
+           tokenMasked: document.getElementById('net-token').textContent,
+           recording: Boolean(document.querySelector('.field--recording')),
+           steps: ['install', 'auth', 'funnel'].reduce((acc, name) => {
+             const node = document.getElementById('step-' + name);
+             acc[name] = {
+               state: node.classList.contains('is-done') ? 'done' : node.classList.contains('is-running') ? 'running' : 'off',
+               text: node.querySelector('.step__state').textContent,
+             };
+             return acc;
+           }, {}),
+         }))`,
+      )
+      .catch(() => {});
+  }, 400);
+}
+
+/** Dev/test-only: pipes the viewer renderer's console and dumps its DOM. */
+function attachViewerProbe() {
+  viewer.window.webContents.on('console-message', (_e, level, message) => {
+    console.log(`[viewer renderer] ${message}`);
+  });
+  const probe = setInterval(() => {
+    if (viewer.window.isDestroyed()) return clearInterval(probe);
+    const evalPath = process.env.INTEL_BROADCAST_VIEWER_EVAL_PATH;
+    if (evalPath && fs.existsSync(evalPath)) {
+      const source = fs.readFileSync(evalPath, 'utf8');
+      fs.rmSync(evalPath, { force: true });
+      viewer.window.webContents.executeJavaScript(source).catch((err) => console.log(`[viewer eval] ${err.message}`));
+    }
+    viewer.window.webContents
+      .executeJavaScript(
+        `console.log('PANEL_PROBE ' + JSON.stringify({
+           page: document.body.dataset.page,
+           chromeHidden: document.body.classList.contains('is-chrome-hidden'),
+           badge: document.getElementById('tab-badge').classList.contains('is-hidden') ? 0 : Number(document.getElementById('tab-badge').textContent),
+           rows: [...document.querySelectorAll('.row[data-batch-id]')].map((r) => ({
+             who: r.querySelector('.row__who').textContent,
+             meta: r.querySelector('.row__meta').textContent,
+             unread: r.classList.contains('is-new'),
+             open: r.classList.contains('is-open'),
+           })),
+           tiles: [...document.querySelectorAll('.tile[data-filename]')].map((t) => ({
+             filename: t.dataset.filename,
+             selected: !t.classList.contains('is-off'),
+             hasThumb: Boolean(t.querySelector('img') && t.querySelector('img').src.startsWith('intel://')),
+           })),
+           stageSrc: document.getElementById('stage-img').getAttribute('src') || '',
+           stageFile: document.getElementById('stage-file').textContent,
+           banner: document.getElementById('banner').classList.contains('is-hidden') ? null : document.getElementById('banner-who').textContent,
+           revealBtn: document.getElementById('share-reveal').textContent,
+         }))`,
+      )
+      .catch(() => {});
+  }, 400);
+}
+
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
-  // Session-only funnel lifetime: the public endpoint goes away with the
-  // host's app. Synchronous best-effort — will-quit can't await.
   if (wantFunnel()) tailscale.stopFunnelSync();
 });
 
-app.on('window-all-closed', () => {
-  app.quit();
-});
+app.on('window-all-closed', () => app.quit());

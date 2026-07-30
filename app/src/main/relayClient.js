@@ -65,6 +65,19 @@ class RelayClient extends EventEmitter {
     this.ws = ws;
 
     ws.on('open', () => {
+      // Optional pre-auth HELLO. v1 has no version field anywhere, so this is
+      // what makes any later protocol change safe: a server that doesn't know
+      // the frame ignores it, and one that does can negotiate. Costs one
+      // frame, unblocks phase 2.
+      ws.send(
+        JSON.stringify({
+          type: 'hello',
+          protocolVersion: 1,
+          minVersion: 1,
+          client: 'intel-broadcast-electron',
+          capabilities: [],
+        }),
+      );
       ws.send(JSON.stringify({ type: 'auth', token: this.token, role: this.role, callsign: this.callsign }));
       this.reconnectAttempt = 0;
       this.emit('connected');
@@ -95,6 +108,9 @@ class RelayClient extends EventEmitter {
   _scheduleReconnect() {
     const delay = RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)];
     this.reconnectAttempt += 1;
+    // The FAULT page shows the attempt count and the countdown, so a pilot can
+    // tell "reconnecting" from "hung".
+    this.emit('reconnecting', { attempt: this.reconnectAttempt, nextInMs: delay });
     setTimeout(() => {
       if (!this.closedByUser) this._openSocket();
     }, delay);

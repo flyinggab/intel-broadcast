@@ -2,3 +2,8 @@ node_modules/
 dist/
 *.log
 app/resources/config.local.json
+
+# UI handoff package — its contents are installed into app/src/renderer/ and
+# app/src/main/imagePrep.js; keeping the original around would be a second
+# copy that silently drifts from the one the app actually loads.
+intel-broadcast-ui/

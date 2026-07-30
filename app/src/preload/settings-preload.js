@@ -1,20 +1,24 @@
 'use strict';
 
-const { contextBridge, ipcRenderer, webFrame } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
-// Main computes a per-display zoom (see scaling.js) and passes it via the
-// load URL's query string. Applied with webFrame — NOT webContents zoom,
-// which Chromium scopes per-origin: both windows load from file://, so a
-// webContents zoom set for one would silently retarget the other too.
-const uiZoom = Number(new URLSearchParams(location.search).get('uiZoom'));
-if (uiZoom > 0) webFrame.setZoomFactor(uiZoom);
+// Main computes a per-display scale (scaling.js) and passes it on the load
+// URL. Written to --ui-scale, NOT webFrame zoom: every dimension in the UI is
+// rem off this one custom property, so the whole interface follows it and a
+// second surface (the VR quad in phase 4) can scale independently.
+const uiScale = Number(new URLSearchParams(location.search).get('uiScale'));
+if (uiScale > 0) {
+  const apply = () => document.documentElement.style.setProperty('--ui-scale', String(uiScale));
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+  else apply();
+}
+
 
 contextBridge.exposeInMainWorld('settingsAPI', {
-  onInit: (callback) => ipcRenderer.on('init', (_event, payload) => callback(payload)),
-  onConnectedClients: (callback) => ipcRenderer.on('connected-clients', (_event, clients) => callback(clients)),
-  onTailscaleState: (callback) => ipcRenderer.on('tailscale-state', (_event, state) => callback(state)),
-  browseFolder: () => ipcRenderer.invoke('settings:browse-folder'),
-  tailscaleAction: (action) => ipcRenderer.invoke('settings:tailscale-action', action),
-  openLog: () => ipcRenderer.invoke('settings:open-log'),
-  save: (values) => ipcRenderer.invoke('settings:save', values),
+  onState: (callback) => ipcRenderer.on('state', (_event, snapshot) => callback(snapshot)),
+  send: (intent, payload) => ipcRenderer.send('settings:intent', intent, payload),
+  // Decoding runs in main so the squad-code parser has exactly one
+  // implementation, and so a pasted code is validated before any socket opens.
+  decodeCode: (raw) => ipcRenderer.invoke('settings:decode-code', raw),
+  readClipboard: () => ipcRenderer.invoke('settings:read-clipboard'),
 });

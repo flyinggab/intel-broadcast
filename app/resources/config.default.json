@@ -5,10 +5,14 @@
   "callsign": "",
   "windowTitle": "Intel Broadcast Viewer",
   "uiScale": null,
+  "autoShow": true,
+  "watchFolder": false,
+  "sendProfile": "kneeboard",
   "hotkeys": {
     "reveal": "Ctrl+Shift+I",
     "next": "Ctrl+Shift+Right",
     "prev": "Ctrl+Shift+Left",
+    "hide": "Ctrl+Shift+H",
     "settings": "Ctrl+Shift+O"
   },
   "missionName": "roman-sead-joker1",
