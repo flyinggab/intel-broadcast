@@ -1,6 +1,28 @@
 # Intel Photo Broadcast System (keybind-triggered, cross-client)
 
-## Session status / how to resume (2026-07-30, second session)
+> ## ⚠️ HISTORICAL — do not resume from this file
+>
+> **This document is no longer the handoff doc. Read `HANDOFF.md` in the repo
+> root instead.**
+>
+> It stopped being current when phase 1 landed (`v0.3.0`, 2026-07-30). Two
+> concrete ways it will mislead you:
+>
+> - It reports the current release as **`v0.2.1`**. It is `v0.3.0`.
+> - It documents the **viewer side panel**, which phase 1 deleted and replaced
+>   with the tab bar. Anything below describing that panel, or the tests that
+>   covered it (`dev-e2e-panel-test`, `dev-e2e-live-apply-test`,
+>   `dev-e2e-clients-list-test` — all removed), describes software that no
+>   longer exists.
+>
+> **What it is still good for**, and why it is kept rather than deleted: the
+> original architecture writeup (transport, unified mode, relay topology) and
+> the `v0.2.0` packaging post-mortem below — the single most expensive lesson
+> in the project. Both remain accurate.
+>
+> Trust `git log` and `HANDOFF.md` over anything in here.
+
+## Session status / how to resume (2026-07-30, second session) — SUPERSEDED
 
 **Read this section first in a fresh session.** Everything below it is the original design
 writeup — still accurate on transport/architecture, but several implementation details it

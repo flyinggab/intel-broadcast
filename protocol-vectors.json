@@ -1,0 +1,49 @@
+{
+  "note": "Conformance vectors for wire protocol v2. Both implementations must produce these bytes.",
+  "frameHeader": {
+    "size": 8,
+    "fields": [
+      "version:u8",
+      "channel:u8",
+      "type:u8",
+      "flags:u8",
+      "length:u32be"
+    ]
+  },
+  "blobChunkHeader": {
+    "size": 36,
+    "fields": [
+      "hash:32 raw bytes",
+      "offset:u32be"
+    ]
+  },
+  "items": [
+    {
+      "hash": "dc58bbb2978c826212300339cec11adb58369f228a59b936f6ba912c926d5b9c",
+      "filename": "01-target-area.jpg",
+      "mimeType": "image/jpeg",
+      "byteLength": 318076
+    },
+    {
+      "hash": "8095053313031f9554e60652b78189f62091f95ea2e8c53eb58cf24ee2e025ed",
+      "filename": "02-secondary.jpg",
+      "mimeType": "image/jpeg",
+      "byteLength": 473102
+    }
+  ],
+  "vectors": [
+    {
+      "name": "control/HELLO",
+      "hex": "02000101000000847b2270726f746f636f6c56657273696f6e223a322c226d696e56657273696f6e223a322c22636c69656e74223a22696e74656c2d62726f6164636173742d656c656374726f6e2f302e352e30222c226361706162696c6974696573223a5b22636f6e74656e742d61646472657373696e67222c226368756e6b65642d626c6f6273225d7d"
+    },
+    {
+      "name": "bulk/BATCH_ANNOUNCE",
+      "hex": "02010101000001857b2262617463684964223a2237663361e280a6222c227368…",
+      "fullLength": 397
+    },
+    {
+      "name": "bulk/BLOB_CHUNK",
+      "hex": "020103000000002edc58bbb2978c826212300339cec11adb58369f228a59b936f6ba912c926d5b9c0000000042494e41525944415441"
+    }
+  ]
+}

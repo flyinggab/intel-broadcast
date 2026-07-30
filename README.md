@@ -91,11 +91,20 @@ first responds to them — use the menu bar for the second one. Not an issue on 
 ```
 intel-broadcast/
 ├── README.md
+├── HANDOFF.md           # current state + next task — start here
+├── ROADMAP.md           # the four phases
 ├── PROTOCOL.md          # wire protocol spec — source of truth
+├── PROTOCOL-V2.md       # v2 design, lands in phase 2
+├── protocol-vectors.json# v2 conformance vectors
+├── BRIEF.md             # phase 1 spec (historical; §4 has the CSS class contract)
 └── app/                 # the Electron app (one unified mode, single codebase)
+    └── PLAN.md          # historical — original architecture + packaging post-mortem
 ```
 
 ## Status
 
-Working end to end locally; see `app/PLAN.md`'s status section for what's verified, what's
-outstanding, and how to resume.
+**Current release: `v0.3.0`** — phase 1 (new EFB UI, content-addressed blobs, squad codes,
+transport hardening) shipped 2026-07-30. Working end to end locally.
+
+See [HANDOFF.md](./HANDOFF.md) for what's verified, what the known gaps are, and what's next.
+`app/PLAN.md` is **historical** and reports a release two versions old — don't resume from it.
