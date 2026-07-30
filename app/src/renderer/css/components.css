@@ -61,16 +61,26 @@
 .cell__val--mono { font-family: var(--font-mono); }
 .cell--fault .cell__val { color: var(--fault); }
 
-/* --- settings sub-tabs --------------------------------------------------- */
-.subtabs {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  height: var(--h-sub);
+/* --- settings navigation rail --------------------------------------------
+   Vertical, because it scales: a horizontal tab row divides the window
+   width by the number of sections and B612 clips at five; a rail row is
+   always full-width and a new section is one more 44px row. Phase 3 adds
+   voice and DCS-integration sections — the growth is already known.       */
+.frame { flex: 1; display: flex; min-height: 0; }
+.rail {
+  flex: none;
+  width: 7.5rem;
   background: var(--bg);
-  border-bottom: var(--rule);
+  border-right: var(--rule);
+  box-shadow: 1px 0 0 var(--hi);
+  display: flex;
+  flex-direction: column;
 }
-.subtab {
+.rail__item {
+  min-height: var(--touch-min);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-4);
   font-size: var(--fs-meta);
   font-weight: 700;
   letter-spacing: var(--ls-tab);
@@ -78,14 +88,106 @@
   color: var(--ink);
   text-shadow: var(--engrave);
   cursor: pointer;
-  position: relative;
+  border-bottom: var(--rule);
 }
-.subtab + .subtab { border-left: var(--rule); }
-.subtab.is-active {
+.rail__item.is-active {
   background: var(--dn);
   color: var(--lit);
   text-shadow: none;
-  box-shadow: inset 0 2px 0 var(--lit);
+  box-shadow: inset 3px 0 0 var(--lit);
+}
+.rail__spacer { flex: 1; }
+.rail__version {
+  padding: var(--sp-3) var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-cap);
+  color: var(--ink);
+  text-shadow: var(--engrave);
+  letter-spacing: .08em;
+}
+.content { flex: 1; min-width: 0; overflow-y: auto; }
+
+/* --- network status line --------------------------------------------------
+   What you ARE right now — hosting, joined, or nothing — always visible,
+   independent of which relay choice is selected below it.                  */
+.netstate {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--h-field);
+  padding: 0 var(--sp-4);
+  background: var(--dn);
+  box-shadow: var(--bevel-dn);
+}
+.netstate__dot { flex: none; width: .5rem; height: .5rem; background: var(--lit); }
+.netstate__dot--off { background: transparent; box-shadow: inset 0 0 0 1.4px var(--fault); }
+.netstate__what { font-size: var(--fs-key); font-weight: 700; color: var(--lit); }
+.netstate__meta {
+  flex: 1;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  color: var(--hi);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- the relay choice: two radio cards ------------------------------------
+   WHERE IS THE RELAY? is an either/or, so it looks like one: radio marks,
+   and the selected card carries the same lit left bar as the active rail
+   row — unmistakable against the raised grey of the unselected card.       */
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--up);
+  box-shadow: var(--bevel-up);
+  cursor: pointer;
+}
+.choice + .choice { margin-top: var(--sp-2); }
+.choice__radio {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.4px var(--ink);
+  position: relative;
+  margin-top: 1px;
+}
+.choice__text { min-width: 0; }
+.choice__label {
+  display: block;
+  font-size: var(--fs-row);
+  font-weight: 700;
+  color: var(--ink);
+  text-shadow: var(--engrave);
+  letter-spacing: .05em;
+}
+.choice__hint {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-cap);
+  color: var(--muted);
+  letter-spacing: .04em;
+}
+.choice.is-on {
+  background: var(--dn);
+  box-shadow: inset 3px 0 0 var(--lit), inset 1px 1px 0 var(--edge), inset -1px -1px 0 var(--hi);
+}
+.choice.is-on .choice__label { color: var(--lit); text-shadow: none; }
+.choice.is-on .choice__hint { color: var(--hi); }
+.choice.is-on .choice__radio { box-shadow: inset 0 0 0 1.4px var(--lit); }
+.choice.is-on .choice__radio::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: var(--lit);
 }
 
 /* --- tab bar -------------------------------------------------------------
@@ -214,6 +316,8 @@
 }
 .toggle__label { font-size: var(--fs-row); font-weight: 700; color: var(--lit); }
 .toggle__hint  { display: block; margin-top: 2px; }
+/* toggle as a flush list row (the viewer's RECEIVED page) */
+.toggle--flush { box-shadow: none; border-bottom: var(--rule); }
 .switch {
   flex: none;
   width: 3.5rem; height: 1.875rem;
@@ -324,7 +428,7 @@
   transform: rotate(42deg);
 }
 
-/* --- tailscale steps ----------------------------------------------------- */
+/* --- numbered steps (tailscale setup, the JOIN flow) --------------------- */
 .step {
   display: flex; align-items: center; gap: var(--sp-3);
   min-height: var(--h-step);
@@ -332,6 +436,11 @@
   background: var(--dn); box-shadow: var(--bevel-dn);
 }
 .step + .step { margin-top: var(--sp-2); }
+/* a step that carries a live control inside it */
+.step--tall { min-height: auto; padding: var(--sp-3) var(--sp-4); align-items: flex-start; }
+.step__body { flex: 1; min-width: 0; }
+.step__row { display: grid; grid-template-columns: 1fr 6rem; gap: var(--sp-2); margin-top: var(--sp-2); }
+.step__row--full { grid-template-columns: 1fr; }
 .step__mark {
   flex: none; width: 1.125rem; height: 1.125rem; border-radius: 50%;
   background: var(--lit); position: relative;
@@ -349,15 +458,11 @@
 .step__title { flex: 1; font-size: var(--fs-val); font-weight: 700; color: var(--lit); }
 .step__state { font-family: var(--font-mono); font-size: 0.5938rem; color: var(--hi); }
 
-/* --- hotkey binding row --------------------------------------------------- */
-.bind {
-  display: grid;
-  grid-template-columns: 1fr 9.375rem 7.5rem;
-  gap: var(--sp-2);
-  align-items: center;
-  margin-bottom: var(--sp-2);
-}
-.bind__name { font-size: var(--fs-row); font-weight: 700; color: var(--lit); }
+/* --- keybind row ----------------------------------------------------------
+   Label above, field + record key below — the cap-over-field idiom the
+   rest of the window uses, and nothing clips at the rail's content width. */
+.bind2 + .bind2 { margin-top: var(--sp-3); }
+.bind2__row { display: grid; grid-template-columns: 1fr 6.5rem; gap: var(--sp-2); margin-top: .3rem; }
 
 /* --- arrival banner -------------------------------------------------------
    Shown when a reveal lands and the app switches the page for you. It says

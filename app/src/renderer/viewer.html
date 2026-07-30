@@ -84,6 +84,14 @@
          Same tile idiom as SHARE — selection decides what you SEE here,
          what you SEND there. -->
     <section class="page page--flush" data-page="received">
+      <!-- The auto-switch rule, above the batches it governs. Moved here from
+           settings: one tap, ground use. OFF still shows the QUEUED banner,
+           so an arrival is never silent. -->
+      <div class="toggle toggle--flush" id="tg-autoshow" role="switch" aria-checked="true">
+        <span class="toggle__label">SHOW NEW INTEL ON ARRIVAL
+          <span class="meta toggle__hint">SWITCHES THE BRIEF FOR YOU · OFF = BANNER ONLY</span></span>
+        <i class="switch"></i>
+      </div>
       <div id="batches"></div>
     </section>
 

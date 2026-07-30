@@ -111,8 +111,8 @@ async function main() {
   await waitFor('the settings window to render', () => probe !== null);
 
   // --- §6.3 host and join are mutually exclusive, in every state ------------
-  await click('.subtab[data-tab="net"]');
-  await waitFor('NET page', () => probe.page === 'net');
+  // NETWORK is the first rail page, so it is already showing.
+  await waitFor('NETWORK page', () => probe.page === 'net');
   if (probe.mode !== 'host') throw new Error(`should start in host mode, got ${probe.mode}`);
   if (probe.hostVisible && probe.joinVisible) throw new Error('host and join blocks must never both show');
   if (!probe.hostVisible) throw new Error('host block should be visible in host mode');
@@ -121,7 +121,11 @@ async function main() {
   await waitFor('join mode', () => probe.mode === 'join');
   if (probe.hostVisible && probe.joinVisible) throw new Error('host and join blocks must never both show');
   if (!probe.joinVisible) throw new Error('join block should be visible in join mode');
-  console.log('[e2e] §6.3 NET is exclusive — no contradictory state reachable');
+  // Choosing a mode is a deferred change: the save bar must say so.
+  if (probe.saveDisabled !== false || !/UNSAVED/.test(probe.dirty)) {
+    throw new Error(`an unsaved mode choice must light the save bar, got "${probe.dirty}"`);
+  }
+  console.log('[e2e] §6.3 NETWORK is exclusive — no contradictory state reachable, save bar lit');
 
   // --- §6.4 a truncated code disables CONNECT, and does not throw ----------
   await runInSettings(
@@ -130,7 +134,9 @@ async function main() {
      i.dispatchEvent(new Event('input'));`,
   );
   await waitFor('CONNECT disabled for a bad code', () => probe.connectDisabled === true);
-  if (probe.joinHost !== '—') throw new Error(`a bad code must populate nothing, got "${probe.joinHost}"`);
+  if (!/CODE NOT RECOGNISED/.test(probe.joinResolved)) {
+    throw new Error(`a bad code must say so in step 02, got "${probe.joinResolved}"`);
+  }
   if (/Uncaught|TypeError/.test(output)) throw new Error('a bad code must not throw into the console');
   console.log('[e2e] §6.4 truncated code: nothing populated, CONNECT disabled, nothing thrown');
 
@@ -142,7 +148,7 @@ async function main() {
      i.dispatchEvent(new Event('input'));`,
   );
   await waitFor('CONNECT enabled for a good code', () => probe.connectDisabled === false);
-  if (!probe.joinHost.includes('GAB-PC')) throw new Error(`resolved host cell: "${probe.joinHost}"`);
+  if (!probe.joinResolved.includes('GAB-PC')) throw new Error(`resolved line: "${probe.joinResolved}"`);
   console.log('[e2e] a valid code resolves and enables CONNECT');
 
   // --- the host's own code round-trips back to this relay ------------------
@@ -175,8 +181,8 @@ async function main() {
   console.log('[e2e] §6.9 neither the squad code nor the token appears in stdout or the log file');
 
   // --- hotkey recording writes through to config ---------------------------
-  await click('.subtab[data-tab="keys"]');
-  await waitFor('KEYS page', () => probe.page === 'keys');
+  await click('.rail__item[data-page="keys"]');
+  await waitFor('KEYBINDS page', () => probe.page === 'keys');
   await click('[data-record="hide"]');
   await waitFor('recording state shown', () => probe.recording === true);
   await runInSettings(

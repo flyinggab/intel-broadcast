@@ -4,20 +4,14 @@
 //
 // Like the viewer, this owns no state: it renders a pushed snapshot and sends
 // intents. The one exception is in-progress form input (what you have typed
-// but not saved), which is local by definition until you press save.
+// but not saved), which is local by definition until you press save. Exactly
+// two things are deferred form state: the callsign text and the relay mode —
+// everything else applies the moment you touch it.
 
 const body = document.body;
 const el = (id) => document.getElementById(id);
 
-const bar = { section: el('bar-section'), callsign: el('bar-callsign') };
-
-const pilot = {
-  callsign: el('in-callsign'),
-  watch: el('tg-watch'),
-  autoshow: el('tg-autoshow'),
-  profileKeys: el('profile-keys'),
-  profileNote: el('profile-note'),
-};
+const pilot = { callsign: el('in-callsign') };
 
 const net = {
   code: el('squad-code'),
@@ -27,19 +21,18 @@ const net = {
   stepAuth: el('step-auth'),
   stepFunnel: el('step-funnel'),
   codeInput: el('in-code'),
-  joinHost: el('join-host'),
-  joinToken: el('join-token'),
   connect: el('btn-connect'),
-  probe: document.querySelector('[data-mode="join"] .pilot .pilot__name'),
+  joinStep2: el('join-step2'),
+  joinResolved: el('join-resolved'),
   pilots: el('net-pilots'),
   count: el('net-count'),
+  stateDot: el('netstate-dot'),
+  stateWhat: el('netstate-what'),
+  stateMeta: el('netstate-meta'),
 };
-
-const savebar = { state: el('save-state'), save: el('btn-save') };
 
 const log = {
   version: el('log-version'),
-  build: el('log-build'),
   sent: el('log-sent'),
   recv: el('log-recv'),
   drops: el('log-drops'),
@@ -47,13 +40,16 @@ const log = {
   tail: el('log-tail'),
 };
 
-// Zulu times for the pilots list; loaded by the <script> tag above this one.
+const savebar = { state: el('save-state'), save: el('btn-save') };
+const railVersion = el('rail-version');
+
+// Zulu times for the status line and pilots list; loaded by the <script>
+// tag above this one.
 const { zulu } = self.Format;
 
 // Local, pre-save form state only.
 let mode = 'host';
 let modeDirty = false; // the user picked a mode that isn't saved yet
-let profile = 'kneeboard';
 let hotkeys = {};
 let recordingKey = null;
 let lastSnapshot = null;
@@ -63,11 +59,13 @@ const setText = (node, text) => {
   if (node) node.textContent = text;
 };
 
+function setStep(node, state, text) {
+  node.classList.toggle('is-done', state === 'done');
+  node.classList.toggle('is-running', state === 'running');
+  setText(node.querySelector('.step__state'), text);
+}
+
 // --- dirty tracking ---------------------------------------------------------
-// Most controls apply the moment you touch them (toggles, quality, hotkeys,
-// CONNECT). Exactly two things are deferred form state: the callsign text and
-// the HOST/JOIN mode. The save bar reflects those two, and only those two —
-// "ALL CHANGES APPLIED" is then always literally true.
 function isDirty() {
   if (modeDirty) return true;
   if (!lastSnapshot) return false;
@@ -80,43 +78,46 @@ function renderSavebar() {
   setText(savebar.state, dirty ? 'UNSAVED CHANGES' : 'ALL CHANGES APPLIED');
 }
 
-function setStep(node, state, text) {
-  node.classList.toggle('is-done', state === 'done');
-  node.classList.toggle('is-running', state === 'running');
-  setText(node.querySelector('.step__state'), text);
-}
-
 // --- render -----------------------------------------------------------------
 
 function render(s) {
   lastSnapshot = s;
-  setText(bar.callsign, (s.callsign || 'UNNAMED').toUpperCase());
 
-  // PILOT --------------------------------------------------------------
+  setText(railVersion, s.version ? `V${s.version}` : '');
+
+  // NETWORK -------------------------------------------------------------
   if (document.activeElement !== pilot.callsign) pilot.callsign.value = s.callsign || '';
-  setToggle(pilot.autoshow, s.autoShow);
-  setToggle(pilot.watch, s.watchFolder);
 
-  profile = s.profile || 'kneeboard';
-  for (const key of pilot.profileKeys.querySelectorAll('[data-profile]')) {
-    key.classList.toggle('key--primary', key.dataset.profile === profile);
+  // Status line: what you ARE, regardless of the unsaved choice below it.
+  const f = s.funnel || {};
+  if (s.isHost) {
+    setText(net.stateWhat, 'HOSTING');
+    const funnelPart = f.funnelOn ? `FUNNEL UP · ${zulu(f.since)}` : 'FUNNEL DOWN';
+    setText(net.stateMeta, `${s.peers.length} ON NET · ${funnelPart}`);
+    net.stateDot.classList.remove('netstate__dot--off');
+  } else if (s.connected) {
+    setText(net.stateWhat, 'JOINED');
+    setText(net.stateMeta, `${(s.relayLabel || '').toUpperCase()} · ${zulu(s.lastContactAt)}`);
+    net.stateDot.classList.remove('netstate__dot--off');
+  } else {
+    setText(net.stateWhat, 'NOT CONNECTED');
+    setText(net.stateMeta, mode === 'join' ? 'PASTE A CODE TO JOIN' : 'RELAY DOWN');
+    net.stateDot.classList.add('netstate__dot--off');
   }
-  setText(pilot.profileNote, s.profileNote || '');
 
-  // NET ----------------------------------------------------------------
   // Mode is an unsaved form choice until you press save, so a state push must
   // not overwrite it — otherwise picking JOIN gets silently reverted to HOST
   // by the next push, exactly like a text field being retyped under you.
   if (!modeDirty) mode = s.isHost ? 'host' : 'join';
   body.dataset.mode = mode;
-  for (const key of document.querySelectorAll('[data-set-mode]')) {
-    key.classList.toggle('key--primary', key.dataset.setMode === mode);
+  for (const card of document.querySelectorAll('[data-set-mode]')) {
+    card.classList.toggle('is-on', card.dataset.setMode === mode);
   }
+
   setText(net.code, s.squadCode || 'NOT AVAILABLE');
   setText(net.port, String(s.relayPort || ''));
   setText(net.token, s.tokenMasked || '••••');
 
-  const f = s.funnel || {};
   if (!f.installed) setStep(net.stepInstall, 'running', 'NOT FOUND · CLICK TO INSTALL');
   else setStep(net.stepInstall, 'done', 'INSTALLED');
   if (!f.installed) setStep(net.stepAuth, '', 'WAITING');
@@ -127,8 +128,7 @@ function render(s) {
   else if (f.funnelError || f.funnelStatusError) setStep(net.stepFunnel, 'running', 'FAILED · SEE LOG');
   else setStep(net.stepFunnel, '', 'OFF');
 
-  // Pilots on net — moved here from the viewer's BRIEF page. Callsigns are
-  // remote-supplied strings: textContent only, never innerHTML.
+  // Pilots on net. Callsigns are remote-supplied strings: textContent only.
   setText(net.count, String(s.peers.length));
   net.pilots.textContent = '';
   if (s.peers.length === 0) {
@@ -155,7 +155,7 @@ function render(s) {
     net.pilots.appendChild(row);
   }
 
-  // KEYS ---------------------------------------------------------------
+  // KEYBINDS ------------------------------------------------------------
   hotkeys = { ...s.hotkeys };
   for (const bind of document.querySelectorAll('[data-record]')) {
     const key = bind.dataset.record;
@@ -173,9 +173,8 @@ function render(s) {
     }
   }
 
-  // LOG ----------------------------------------------------------------
+  // LOG -----------------------------------------------------------------
   setText(log.version, s.version || '');
-  setText(log.build, s.isHost ? 'HOST' : 'JOIN');
   setText(log.sent, String(s.counters.sent));
   setText(log.recv, String(s.counters.received));
   setText(log.drops, String(s.counters.drops));
@@ -186,52 +185,47 @@ function render(s) {
   renderSavebar();
 }
 
-function setToggle(node, on) {
-  node.classList.toggle('is-on', Boolean(on));
-  node.setAttribute('aria-checked', on ? 'true' : 'false');
-}
-
 // --- JOIN decode ------------------------------------------------------------
-// Decode as the user types. A bad code populates nothing and disables CONNECT
-// — it must not throw into the console and leave the UI looking fine.
+// Decode as the user types. A bad code populates nothing, keeps CONNECT dead
+// and says so in step 02 — it must not throw into the console and leave the
+// UI looking fine.
 async function refreshJoinPreview() {
   if (!window.settingsAPI) return; // dev harness: no main to decode against
   const decoded = await window.settingsAPI.decodeCode(net.codeInput.value);
+  const typed = net.codeInput.value.trim().length > 0;
   if (decoded.ok) {
-    setText(net.joinHost, decoded.host.toUpperCase());
-    setText(net.joinToken, 'VALID');
     net.connect.disabled = false;
-    setText(net.probe, `RESOLVES TO PORT ${decoded.port}`);
+    setText(net.joinResolved, `${decoded.host.toUpperCase()} · PORT ${decoded.port} · TOKEN VALID`);
   } else {
-    setText(net.joinHost, '—');
-    setText(net.joinToken, net.codeInput.value.trim() ? 'INVALID' : '—');
     net.connect.disabled = true;
-    setText(net.probe, net.codeInput.value.trim() ? 'CODE NOT RECOGNISED' : 'PASTE A CODE TO CONNECT');
+    setText(net.joinResolved, typed ? 'CODE NOT RECOGNISED' : 'PASTE A CODE TO CONNECT');
   }
+  net.joinStep2.classList.toggle('is-running', decoded.ok);
 }
 
 // --- intents ----------------------------------------------------------------
 
-for (const tab of document.querySelectorAll('.subtab')) {
-  tab.addEventListener('click', () => {
-    for (const other of document.querySelectorAll('.subtab')) {
-      other.classList.toggle('is-active', other === tab);
+for (const item of document.querySelectorAll('.rail__item')) {
+  item.addEventListener('click', () => {
+    for (const other of document.querySelectorAll('.rail__item')) {
+      other.classList.toggle('is-active', other === item);
     }
-    body.dataset.page = tab.dataset.tab;
-    setText(bar.section, tab.dataset.tab.toUpperCase());
+    body.dataset.page = item.dataset.page;
   });
 }
 
-// Mode is exclusive by construction: body[data-mode] hides the other block, so
-// there is no state where a host toggle and a relay field are both live.
-for (const key of document.querySelectorAll('[data-set-mode]')) {
-  key.addEventListener('click', () => {
-    mode = key.dataset.setMode;
+// The relay choice is exclusive by construction: body[data-mode] hides the
+// other path, so there is no state where a host control and a join control
+// are both live.
+for (const card of document.querySelectorAll('[data-set-mode]')) {
+  card.addEventListener('click', () => {
+    mode = card.dataset.setMode;
     modeDirty = true;
     body.dataset.mode = mode;
     for (const other of document.querySelectorAll('[data-set-mode]')) {
-      other.classList.toggle('key--primary', other.dataset.setMode === mode);
+      other.classList.toggle('is-on', other.dataset.setMode === mode);
     }
+    if (lastSnapshot) render(lastSnapshot); // status line hint follows the mode
     renderSavebar();
   });
 }
@@ -240,8 +234,7 @@ pilot.callsign.addEventListener('input', renderSavebar);
 
 el('btn-copy-code').addEventListener('click', () => send('copy-code'));
 el('btn-new-token').addEventListener('click', () => {
-  // Rotating invalidates every code ever issued — say so at the point of the
-  // button, not in a doc nobody reads.
+  // Rotating invalidates every code ever issued — the key's own label says so.
   send('new-token');
 });
 el('btn-paste').addEventListener('click', async () => {
@@ -255,27 +248,11 @@ net.connect.addEventListener('click', () => {
   renderSavebar();
 });
 
-pilot.autoshow.addEventListener('click', () => {
-  const on = !pilot.autoshow.classList.contains('is-on');
-  setToggle(pilot.autoshow, on);
-  send('set-auto-show', on);
-});
-pilot.watch.addEventListener('click', () => {
-  const on = !pilot.watch.classList.contains('is-on');
-  setToggle(pilot.watch, on);
-  send('set-watch-folder', on);
-});
-
-for (const key of pilot.profileKeys.querySelectorAll('[data-profile]')) {
-  key.addEventListener('click', () => send('set-profile', key.dataset.profile));
-}
-
 el('btn-save').addEventListener('click', () => {
   modeDirty = false; // saving adopts the chosen mode; pushes may drive it again
   send('save', {
     callsign: pilot.callsign.value.trim(),
     relayHostEnabled: mode === 'host',
-    profile,
     hotkeys,
   });
   // Optimistic: the confirming push arrives in a beat, but the bar must not

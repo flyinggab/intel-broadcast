@@ -21,15 +21,15 @@ node: that person ticks "Host the relay on this machine" in Settings (tray icon,
 else connects to. Settings apply immediately on save — no restart; only the pieces a changed
 value affects (hotkeys, relay server, relay connection) restart in-process.
 
-1. Each pilot points Settings' folder picker at their own mission photos and sets a
-   callsign/username.
+1. Each pilot points SHARE's folder picker at their own mission photos and sets a callsign in
+   Settings.
 2. Pressing the reveal hotkey (default `Ctrl+Shift+I`) sends the selected photos from *that
    pilot's* folder up to the relay, which fans them out to everyone — the sharer included. The
    receiving window shows who shared it ("2 / 5 — from Ghostrider-1").
 3. Each pilot browses the received set with their own local hotkeys (`Ctrl+Shift+Right` /
    `Ctrl+Shift+Left`) without touching the network or affecting anyone else.
 
-The viewer's BRIEF page shows a live list of everyone currently on the net, by callsign.
+Settings → NETWORK shows a live list of everyone currently on the net, by callsign.
 
 ### The interface
 
@@ -43,19 +43,19 @@ has focus.
   the photo. Every received photo forms **one queue, newest batch first** — a new reveal goes to
   the front — and the browse hotkeys page through all of it, across batches. STANDBY when
   nothing has arrived. No hotkey is printed anywhere in the window: bindings live in
-  SETUP → KEYS, the one place they are always current.
+  SETUP → KEYBINDS, the one place they are always current.
 - **RECEIVED** curates that queue: every photo of every batch as a tile, ticked = in the brief.
   Untick what you're done with; HIDE drops a whole batch, RESTORE brings it back. Dropping the
   photo you are looking at advances to the next one; dropping any other never moves your page.
 - **SHARE** — a thumbnail grid of your folder (picked right here). Tick what you want; your
   reveal hotkey sends exactly that selection.
 - **SETUP** opens the *separate* settings window rather than switching a page — putting a
-  settings form on the pilot's knee mid-flight is not a feature. Who is on the net lives there
-  too, on NET next to the squad code.
+  settings form on the pilot's knee mid-flight is not a feature. Three sections on a rail:
+  NETWORK (callsign, hosting vs joining, who is on the net), KEYBINDS, LOG.
 
 Every arrival is announced in a banner that dismisses itself: "SWITCHED AUTOMATICALLY" when the
 viewer jumped to the new intel, "QUEUED" when you were mid-something and it held still (it joins
-the front of the queue either way). You can turn the auto-switching off entirely in Setup.
+the front of the queue either way). The auto-switching has an off switch at the top of RECEIVED.
 
 ### Joining a squad
 
@@ -65,7 +65,7 @@ One string carries everything:
 IB1-Z2FiLXBjLnRhaWw5ZjJiLnRzLm5ldDo4MTQwOmtkOTM
 ```
 
-The host copies it from Setup → NET; everyone else pastes it into the same page and hits CONNECT.
+The host copies it from Setup → NETWORK; everyone else pastes it into the same page and hits CONNECT.
 It encodes the host, port and token, so there is nothing else to type. **Treat it as a password** —
 anyone holding it can join. Rotating the token in Setup invalidates every code previously issued.
 

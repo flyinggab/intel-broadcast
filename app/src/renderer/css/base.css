@@ -84,10 +84,10 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
    rows without giving each child an explicit grid-row. */
 .shell > .topbar,
 .shell > .strip,
-.shell > .subtabs,
 .shell > .banner,
 .shell > .tabbar,
 .shell > .savebar { flex: none; }
+.shell > .frame { flex: 1 1 auto; min-height: 0; }
 
 .body {
   flex: 1 1 auto;

@@ -119,12 +119,10 @@
       }),
     },
     settings: scenario({
-      watchFolder: true,
       relayPort: 8140,
       tokenMasked: '•••• KD93',
       squadCode: 'IB1-UFJFVklFVy1PTkxZLU5PVC1BLVJFQUwtQ09ERQ',
       hotkeys: { reveal: 'Ctrl+Shift+I', next: 'Ctrl+Shift+Right', prev: 'Ctrl+Shift+Left', hide: 'Ctrl+Shift+H', settings: 'Ctrl+Shift+O' },
-      profileNote: '1600 PX · Q82 · STAGED 1.4 MB',
       logTail: [
         '1432:07  RECV  GHOSTRIDER 1-1  5',
         '1429:44  SCAN  FOLDER  6 FILES',

@@ -62,7 +62,7 @@ function measureInPage(touchMin) {
     if (doc.scrollWidth > doc.clientWidth + 1) {
       report.overflow.push({ page: name, what: 'document', by: doc.scrollWidth - doc.clientWidth });
     }
-    for (const node of document.querySelectorAll('.shell, .topbar, .tabbar, .subtabs, .keyrow, .bind, .cellrow')) {
+    for (const node of document.querySelectorAll('.shell, .strip, .tabbar, .rail, .netstate, .choice, .savebar, .keyrow, .bind2__row, .step__row, .cellrow')) {
       if (node.scrollWidth > node.clientWidth + 1 && getComputedStyle(node).overflowX === 'visible') {
         report.overflow.push({
           page: name,

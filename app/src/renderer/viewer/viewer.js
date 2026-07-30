@@ -36,6 +36,7 @@ const stage = {
   standbyLine2: el('standby-line2'),
 };
 const batches = el('batches');
+const autoshow = el('tg-autoshow');
 const share = {
   folder: el('share-folder'),
   count: el('share-count'),
@@ -117,6 +118,9 @@ function renderStage(s) {
 }
 
 function renderReceived(s) {
+  autoshow.classList.toggle('is-on', Boolean(s.autoShow));
+  autoshow.setAttribute('aria-checked', s.autoShow ? 'true' : 'false');
+
   batches.textContent = '';
   if (s.batches.length === 0) {
     const empty = document.createElement('div');
@@ -264,6 +268,12 @@ banner.close.addEventListener('click', () => send('banner-dismiss'));
 
 stage.prev.addEventListener('click', () => send('step', -1));
 stage.next.addEventListener('click', () => send('step', 1));
+
+// The auto-switch rule. The desired value derives from the rendered state
+// (aria-checked mirrors the snapshot), not from renderer-owned state.
+autoshow.addEventListener('click', () => {
+  send('set-auto-show', autoshow.getAttribute('aria-checked') !== 'true');
+});
 
 // RECEIVED curation: a tile drops/restores one photo; the head key a batch.
 batches.addEventListener('click', (event) => {

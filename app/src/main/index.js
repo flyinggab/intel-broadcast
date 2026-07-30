@@ -12,7 +12,7 @@ const { revealPhotosFolder } = require('./reveal');
 const { listPhotoFilenames, makeThumbnail } = require('./photoLibrary');
 const { createBlobStore } = require('./blobStore');
 const { createViewState } = require('./viewState');
-const { createImagePrep, PROFILES } = require('./imagePrep');
+const { createImagePrep } = require('./imagePrep');
 const squad = require('./squadCode');
 const { createTray } = require('./tray');
 const { initFileLogging, getLogFilePath, recentLines } = require('./logger');
@@ -73,24 +73,15 @@ function pushState() {
 
 /** The viewer snapshot plus the fields only the settings window renders. */
 function settingsSnapshot(base) {
-  const profile = PROFILES[config.sendProfile] || PROFILES.kneeboard;
   return {
     ...base,
-    watchFolder: config.watchFolder === true,
     relayPort: config.gm.relayPort,
     tokenMasked: squad.maskToken(config.token),
     squadCode: hostSquadCode(),
     hotkeys: config.hotkeys,
-    profileNote: profile.longEdge
-      ? `${profile.longEdge} PX · Q${profile.quality} · STAGED ${megabytesOf(base.stagedBytes)}`
-      : 'SENT UNCHANGED · NO RESIZE',
     // The squad code is a password and must never appear here.
     logTail: recentLines(12),
   };
-}
-
-function megabytesOf(bytes) {
-  return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /** The code this host hands out, or null when we aren't hosting/reachable. */
@@ -147,6 +138,34 @@ function refreshGallery() {
   });
   view.setGallery({ folder, photos });
   restage();
+}
+
+/**
+ * Watches the photos folder and rescans on change — always on. This used to
+ * be a settings toggle (`watchFolder`), but the toggle only ever wrote config:
+ * nothing consumed it, so it silently did nothing. Now the behaviour exists
+ * and is unconditional; the config key is ignored. fs.watch fires in bursts
+ * while DCS writes a screenshot, hence the debounce.
+ */
+let folderWatcher = null;
+let folderWatchTimer = null;
+function watchPhotosFolder() {
+  if (folderWatcher) {
+    folderWatcher.close();
+    folderWatcher = null;
+  }
+  const folder = currentPhotosFolder();
+  try {
+    folderWatcher = fs.watch(folder, { persistent: false }, () => {
+      clearTimeout(folderWatchTimer);
+      folderWatchTimer = setTimeout(() => {
+        console.log('[gallery] folder changed — rescanning');
+        refreshGallery();
+      }, 600);
+    });
+  } catch (err) {
+    console.log(`[gallery] cannot watch ${folder}: ${err.message}`);
+  }
 }
 
 /**
@@ -419,6 +438,7 @@ function applyNewConfig(newConfig) {
 
   if (old.photosFolder !== config.photosFolder || old.missionName !== config.missionName) {
     refreshGallery();
+    watchPhotosFolder();
   } else if (old.sendProfile !== config.sendProfile) {
     restage();
   }
@@ -524,6 +544,10 @@ function handleViewerIntent(intent, payload) {
       return void openSettingsWindow.browseFolder().then((folder) => {
         if (folder) applyNewConfig(saveSettingsValues({ photosFolder: folder }));
       });
+    case 'set-auto-show':
+      // The toggle lives on the viewer's RECEIVED page now; applies live.
+      applyNewConfig(saveSettingsValues({ autoShow: Boolean(payload) }));
+      return;
     case 'reveal':
       return void doReveal();
     case 'reconnect':
@@ -571,15 +595,6 @@ async function handleSettingsIntent(intent, payload) {
       );
       return;
     }
-    case 'set-auto-show':
-      applyNewConfig(saveSettingsValues({ autoShow: Boolean(payload) }));
-      return;
-    case 'set-watch-folder':
-      applyNewConfig(saveSettingsValues({ watchFolder: Boolean(payload) }));
-      return;
-    case 'set-profile':
-      applyNewConfig(saveSettingsValues({ sendProfile: String(payload) }));
-      return;
     case 'set-hotkey':
       if (payload && payload.key && payload.accelerator) {
         applyNewConfig(saveSettingsValues({ hotkeys: { [payload.key]: payload.accelerator } }));
@@ -690,6 +705,7 @@ app.whenReady().then(() => {
 
   registerHotkeys();
   refreshGallery();
+  watchPhotosFolder();
   if (isHost()) startHost();
   startClient();
   cleanupLeftoverFunnel().then(() => refreshTailscaleState({ reconcile: true }));
@@ -734,7 +750,10 @@ function attachSettingsProbe(win) {
            hostVisible: Boolean(document.querySelector('.page[data-page="net"] [data-mode="host"]').offsetParent),
            joinVisible: Boolean(document.querySelector('.page[data-page="net"] [data-mode="join"]').offsetParent),
            connectDisabled: document.getElementById('btn-connect').disabled,
-           joinHost: document.getElementById('join-host').textContent,
+           joinResolved: document.getElementById('join-resolved').textContent,
+           netstate: document.getElementById('netstate-what').textContent,
+           dirty: document.getElementById('save-state').textContent,
+           saveDisabled: document.getElementById('btn-save').disabled,
            // Shape only — the code is a password, and this probe's output goes
            // to stdout and therefore to the log file.
            squadCodePrefix: document.getElementById('squad-code').textContent.slice(0, 4),
