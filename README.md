@@ -29,8 +29,7 @@ value affects (hotkeys, relay server, relay connection) restart in-process.
 3. Each pilot browses the received set with their own local hotkeys (`Ctrl+Shift+Right` /
    `Ctrl+Shift+Left`) without touching the network or affecting anyone else.
 
-The host's Settings window shows a live "Connected clients" list of everyone currently on the
-relay, by callsign.
+The viewer's BRIEF page shows a live list of everyone currently on the net, by callsign.
 
 ### The interface
 
