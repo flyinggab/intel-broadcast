@@ -157,6 +157,19 @@ functions via the `window.__preview` hook each renderer exposes when it loads
 without Electron. Never re-add demo content to the shipped markup: the harness
 would then be exercising markup instead of renderer code, and the two drift.
 
+**Language follows the OS, and matches on the language subtag only.**
+`i18n.pickLocale(preferred, configured)` walks the user's *ordered* OS
+language list and takes the first one we ship; an explicit choice in settings
+overrides it; anything unrecognised falls back to English. It matches the
+subtag before the `-`, never a substring — the dev Mac reports `en-IT`
+(English language, Italian *region*), and `includes('it')` would flip it to
+Italian. Source is `app.getPreferredSystemLanguages()`, which is the right
+list on Windows, macOS and Linux alike; `app.getLocale()` is only the
+fallback, because it is Chromium's own UI locale and disagrees (`en-GB` here).
+Set `INTEL_BROADCAST_SYSTEM_LANGUAGES=it-IT,en-US` to test a translation
+without changing your machine. Boot logs one `[i18n]` line saying what the OS
+asked for and what was chosen.
+
 **Every user-facing string goes through `i18n.js`, in BOTH locales.**
 `dev-i18n-test` fails on a key present in one and missing in the other. A
 missing key renders *as the key* — a visible canary, not a silent fallback.

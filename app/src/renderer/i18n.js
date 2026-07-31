@@ -303,10 +303,40 @@
   };
 
   const DICTS = { en, it };
-  let current = 'en';
+  const DEFAULT_LOCALE = 'en';
+  let current = DEFAULT_LOCALE;
 
   function setLocale(l) {
-    current = DICTS[l] ? l : 'en';
+    current = DICTS[l] ? l : DEFAULT_LOCALE;
+  }
+
+  /**
+   * Decides which language to show.
+   *
+   * `configured` wins when it names a locale we ship — that is the pilot
+   * choosing explicitly in settings. Otherwise follow the OS: walk the
+   * user's ORDERED preference list and take the first language we support.
+   *
+   * Two things this gets right that a one-liner does not:
+   *
+   *   1. It matches on the LANGUAGE SUBTAG only, never a substring. A Mac
+   *      set to English in Italy reports "en-IT" — the "IT" is the region.
+   *      `String(tag).includes('it')` would flip that machine to Italian.
+   *   2. It respects preference ORDER. ["en-IT", "it-IT"] means "English
+   *      first, Italian if you must" and must render English, even though
+   *      Italian also appears.
+   *
+   * Anything unrecognised falls back to English.
+   */
+  function pickLocale(preferred, configured) {
+    if (DICTS[configured]) return configured;
+    for (const tag of Array.isArray(preferred) ? preferred : []) {
+      const language = String(tag || '')
+        .toLowerCase()
+        .split(/[-_]/)[0];
+      if (DICTS[language]) return language;
+    }
+    return DEFAULT_LOCALE;
   }
   function locale() {
     return current;
@@ -330,5 +360,5 @@
     }
   }
 
-  return { t, photos, setLocale, locale, applyStatic, DICTS };
+  return { t, photos, setLocale, locale, applyStatic, pickLocale, DICTS, DEFAULT_LOCALE };
 });

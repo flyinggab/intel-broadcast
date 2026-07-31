@@ -31,8 +31,10 @@ value affects (hotkeys, relay server, relay connection) restart in-process.
 
 Settings → NETWORK shows a live list of everyone currently on the net, by callsign.
 
-The interface is available in **English and Italian**; it follows your OS language by default and
-can be switched at the foot of the settings rail.
+The interface is available in **English and Italian**. It follows your computer's language
+automatically — on Windows the preferred UI language list, on macOS Preferred Languages — and
+falls back to English for anything else. Only the *language* matters, not the region: a machine
+set to English in Italy stays English. Override it any time at the foot of the settings rail.
 
 ### The interface
 

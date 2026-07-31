@@ -13,7 +13,7 @@
 const assert = require('assert');
 const I18n = require('../src/renderer/i18n');
 
-const { DICTS, t, photos, setLocale, locale } = I18n;
+const { DICTS, t, photos, setLocale, locale, pickLocale } = I18n;
 const locales = Object.keys(DICTS);
 assert.deepStrictEqual(locales.sort(), ['en', 'it'], 'exactly the two shipped locales');
 
@@ -65,6 +65,45 @@ assert.strictEqual(t('banner.newFrom', { who: 'JOKER 2-1' }), 'NUOVO DA JOKER 2-
 setLocale('xx');
 assert.strictEqual(locale(), 'en', 'unknown locale falls back to en');
 console.log('[test] t(), photos(), fallback');
+
+// --- pickLocale: following the computer's language ---------------------------
+// The OS hands us an ORDERED list of BCP-47 tags. Two ways to get this wrong,
+// both covered below: matching a substring instead of the language subtag, and
+// ignoring the order.
+{
+  // An explicit choice in settings always wins.
+  assert.strictEqual(pickLocale(['it-IT'], 'en'), 'en', 'configured locale beats the OS');
+  assert.strictEqual(pickLocale(['en-US'], 'it'), 'it');
+  // …but only if we actually ship it.
+  assert.strictEqual(pickLocale(['it-IT'], 'de'), 'it', 'unknown config falls through to the OS');
+  assert.strictEqual(pickLocale(['it-IT'], null), 'it');
+  assert.strictEqual(pickLocale(['it-IT'], undefined), 'it');
+
+  // Plain cases.
+  assert.strictEqual(pickLocale(['it-IT', 'en-US'], null), 'it');
+  assert.strictEqual(pickLocale(['en-GB'], null), 'en');
+  assert.strictEqual(pickLocale(['it'], null), 'it', 'bare language tag');
+  assert.strictEqual(pickLocale(['IT-it'], null), 'it', 'case-insensitive');
+  assert.strictEqual(pickLocale(['it_IT'], null), 'it', 'underscore separator');
+
+  // THE TRAP: English language, Italian REGION. This is the dev Mac's real
+  // setting. A substring test on "en-IT" matches "it" and wrongly ships
+  // Italian to someone who asked for English.
+  assert.strictEqual(pickLocale(['en-IT'], null), 'en', 'en-IT is ENGLISH in Italy, not Italian');
+  assert.strictEqual(pickLocale(['en-IT', 'it-IT'], null), 'en', 'order decides: English first');
+  assert.strictEqual(pickLocale(['it-IT', 'en-IT'], null), 'it', '…and the other way round');
+
+  // Unsupported languages are skipped, not treated as a dead end.
+  assert.strictEqual(pickLocale(['fr-FR', 'it-IT'], null), 'it', 'skip unsupported, keep looking');
+  assert.strictEqual(pickLocale(['de-DE', 'fr-FR'], null), 'en', 'nothing supported -> English');
+
+  // Nothing to go on.
+  assert.strictEqual(pickLocale([], null), 'en');
+  assert.strictEqual(pickLocale(undefined, null), 'en');
+  assert.strictEqual(pickLocale(null, null), 'en');
+  assert.strictEqual(pickLocale([null, '', 'it'], null), 'it', 'junk entries are skipped');
+  console.log('[test] pickLocale: OS language, order, region trap, fallback');
+}
 
 // --- every viewer/settings data-i18n key exists ------------------------------
 // Static markup references keys by name; a typo there renders as the key.

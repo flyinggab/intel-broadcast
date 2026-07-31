@@ -11,6 +11,29 @@ talk to each other.
 
 ---
 
+## Unreleased
+
+### Fixed
+- **Language detection now reads the OS preference list properly.** It used
+  `app.getLocale()`, which is Chromium's own UI locale and can disagree with
+  the system — the dev Mac reports `en-GB` while the OS list is
+  `["en-IT", "it-IT"]`. It now walks `app.getPreferredSystemLanguages()` in
+  order (the correct source on Windows, macOS and Linux) and takes the first
+  language it ships, matching on the **language subtag only**: `en-IT` is
+  English in Italy, and a substring test would have flipped that machine to
+  Italian. Falls back to English.
+- The rules moved into a pure `i18n.pickLocale()` and are covered by 18 cases
+  in `dev-i18n-test`, including the region trap and preference order.
+
+### Added
+- One `[i18n]` line at boot recording what the OS asked for and what was
+  chosen — "the app is in the wrong language" is otherwise undiagnosable from
+  a bug report.
+- `INTEL_BROADCAST_SYSTEM_LANGUAGES` to test a translation without changing
+  the machine's language.
+
+---
+
 ## v0.5.1 — 2026-07-31
 
 ### Added

@@ -56,14 +56,65 @@ const prep = createImagePrep({ onLog: (msg) => console.log(`[prep] ${msg}`) });
 function isHost() {
   return config.relayHostEnabled === true;
 }
-/** Explicit config wins; otherwise follow the OS, defaulting to English. */
-function effectiveLocale() {
-  if (config.locale === 'en' || config.locale === 'it') return config.locale;
-  return String(app.getLocale() || '').toLowerCase().startsWith('it') ? 'it' : 'en';
+/**
+ * The user's OS language preferences, most-preferred first.
+ *
+ * `getPreferredSystemLanguages()` is the right source on all three platforms
+ * (Electron 24+; this app is on 32): on Windows it is the preferred UI
+ * language list, on macOS the Preferred Languages list, on Linux the LANG /
+ * LANGUAGE environment. `getLocale()` is Chromium's OWN UI locale and can
+ * disagree — the dev Mac reports "en-GB" from getLocale while the OS list is
+ * ["en-IT", "it-IT"] — so it is only the fallback, for the case where the
+ * preferred list comes back empty.
+ *
+ * Both must be called after `ready`, which is why nothing here runs at module
+ * load.
+ */
+let localeLogged = false;
+
+function systemLanguages() {
+  // Dev/test override: lets a translation be checked without changing the
+  // machine's language, and is the only way to exercise the OS path in CI.
+  const forced = process.env.INTEL_BROADCAST_SYSTEM_LANGUAGES;
+  if (forced) return forced.split(',').map((s) => s.trim()).filter(Boolean);
+
+  let preferred = [];
+  try {
+    if (typeof app.getPreferredSystemLanguages === 'function') preferred = app.getPreferredSystemLanguages() || [];
+  } catch {
+    preferred = [];
+  }
+  if (preferred.length === 0) {
+    try {
+      preferred = [app.getLocale()];
+    } catch {
+      preferred = [];
+    }
+  }
+  return preferred;
 }
+
+/** Explicit config wins; otherwise follow the OS, defaulting to English.
+ *  The matching rules live in i18n.pickLocale so they are testable. */
+function effectiveLocale() {
+  return i18n.pickLocale(systemLanguages(), config.locale);
+}
+
 /** Applies the locale to view state and to main's own strings (tray, menu). */
 function applyLocale() {
-  const locale = effectiveLocale();
+  const languages = systemLanguages();
+  const locale = i18n.pickLocale(languages, config.locale);
+  // Logged because "the app is in the wrong language" is otherwise
+  // undiagnosable from a bug report: this one line says what the OS asked
+  // for and what we chose.
+  const source = config.locale === 'en' || config.locale === 'it' ? 'settings' : 'system';
+  // Log the first resolution and every change after it. Keying only on
+  // "changed" would stay silent for English, which is the initial value —
+  // and "why is it in English?" is precisely the report that needs this line.
+  if (!localeLogged || locale !== view.state.locale) {
+    localeLogged = true;
+    console.log(`[i18n] system languages: ${languages.join(', ') || '(none)'} -> ${locale} (${source})`);
+  }
   view.state.locale = locale;
   i18n.setLocale(locale);
   return locale;
