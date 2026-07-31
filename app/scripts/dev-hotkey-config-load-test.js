@@ -22,7 +22,6 @@ const CUSTOM_HOTKEYS = {
   reveal: 'Ctrl+Shift+U', // deliberately different from the default Ctrl+Shift+I
   next: 'Ctrl+Shift+K',
   prev: 'Ctrl+Shift+J',
-  settings: 'Ctrl+Shift+P',
 };
 
 fs.rmSync(LOCAL_CONFIG_PATH, { force: true });
@@ -54,9 +53,8 @@ setTimeout(() => {
     [`register reveal "${CUSTOM_HOTKEYS.reveal}": OK`, 'reveal'],
     [`register next "${CUSTOM_HOTKEYS.next}": OK`, 'next'],
     [`register prev "${CUSTOM_HOTKEYS.prev}": OK`, 'prev'],
-    [`register settings "${CUSTOM_HOTKEYS.settings}": OK`, 'settings'],
   ];
-  const usedDefaultInstead = /register (reveal|next|prev|settings) "Ctrl\+Shift\+[IOLR][a-z]*"/i.test(output) &&
+  const usedDefaultInstead = /register (reveal|next|prev) "Ctrl\+Shift\+[ILR][a-z]*"/i.test(output) &&
     !output.includes('Ctrl+Shift+U') && !output.includes('Ctrl+Shift+K');
 
   let allOk = true;

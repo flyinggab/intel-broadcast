@@ -50,6 +50,7 @@ const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
     INTEL_BROADCAST_LOCAL_CONFIG_PATH: CONFIG_PATH,
     INTEL_BROADCAST_VIEWER_PANEL_PROBE: '1',
     INTEL_BROADCAST_VIEWER_EVAL_PATH: EVAL_PATH,
+    INTEL_BROADCAST_CHROME_IDLE_MS: '1500',
   },
 });
 
@@ -150,8 +151,9 @@ async function main() {
 
   // --- HIDE CHROME leaves the photo and nothing else ------------------------
   // Hotkey-only in the UI now; the intent channel stands in for the hotkey.
-  await runInViewer(`window.viewerAPI.send('toggle-chrome')`);
-  await waitFor('chrome hidden', () => probe.chromeHidden === true);
+  // The chrome hides itself once you stop touching the app — no binding to
+  // remember, and it is the state the kneeboard capture wants.
+  await waitFor('chrome to auto-hide while idle on BRIEF', () => probe.chromeHidden === true, 15000);
   const chromeVisible = await new Promise((resolve) => {
     fs.writeFileSync(
       EVAL_PATH,
@@ -180,8 +182,10 @@ async function main() {
   }
   if (!chromeVisible.img) throw new Error('the photo must remain visible with chrome hidden');
   console.log('[e2e] HIDE CHROME shows the photo and nothing else');
-  await runInViewer(`window.viewerAPI.send('toggle-chrome')`);
-  await waitFor('chrome back', () => probe.chromeHidden === false);
+  // ...and comes back the moment someone is at the machine again.
+  await runInViewer(`window.dispatchEvent(new MouseEvent('mousemove'))`);
+  await waitFor('chrome back on activity', () => probe.chromeHidden === false, 10000);
+  console.log('[e2e] chrome auto-hides when idle and returns on activity');
 
   // --- tabs switch pages; SETUP does not ------------------------------------
   await click('.tab[data-tab="received"]');

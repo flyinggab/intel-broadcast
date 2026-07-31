@@ -12,9 +12,7 @@
   "hotkeys": {
     "reveal": "Ctrl+Shift+I",
     "next": "Ctrl+Shift+Right",
-    "prev": "Ctrl+Shift+Left",
-    "hide": "Ctrl+Shift+H",
-    "settings": "Ctrl+Shift+O"
+    "prev": "Ctrl+Shift+Left"
   },
   "missionName": "roman-sead-joker1",
   "photosFolder": null,

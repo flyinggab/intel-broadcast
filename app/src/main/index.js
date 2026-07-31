@@ -391,14 +391,9 @@ let keyHook = null;
 /** What each binding name does. One table, used by both binding backends. */
 function bindingActions() {
   return {
-    settings: openSettings,
     next: () => pageBoth(1),
     prev: () => pageBoth(-1),
     reveal: doReveal,
-    hide: () => {
-      view.toggleChrome();
-      pushState();
-    },
   };
 }
 
@@ -413,6 +408,36 @@ function writeHotkeyMarker() {
       }),
     );
   }
+}
+
+// The chrome auto-hides while you are looking at the photo, so the kneeboard
+// capture is just the photo without anyone having to remember a key. It only
+// applies on BRIEF: RECEIVED and SHARE are pages you interact with, and having
+// the tab bar vanish mid-curation would be hostile.
+//
+// The renderer reports activity (throttled) and main owns the timer — the same
+// split as everything else, and the reason a second surface in phase 4 can
+// have its own idle behaviour without the DOM disagreeing.
+const CHROME_IDLE_MS = Number(process.env.INTEL_BROADCAST_CHROME_IDLE_MS) || 6000;
+let chromeTimer = null;
+
+function setChromeHidden(hidden) {
+  if (view.state.chromeHidden === hidden) return; // nothing to push
+  view.state.chromeHidden = hidden;
+  pushState();
+}
+
+function scheduleChromeHide() {
+  clearTimeout(chromeTimer);
+  chromeTimer = null;
+  if (view.state.page !== 'brief') return setChromeHidden(false);
+  chromeTimer = setTimeout(() => setChromeHidden(true), CHROME_IDLE_MS);
+}
+
+/** Someone is using the app: show the chrome and restart the idle countdown. */
+function noteActivity() {
+  setChromeHidden(false);
+  scheduleChromeHide();
 }
 
 function stopKeyHook() {
@@ -451,13 +476,11 @@ function registerHotkeys() {
     console.log('[keys] falling back to exclusive keybinds');
   }
 
-  registerHotkey('settings', config.hotkeys.settings, actions.settings);
   registerHotkey('next', config.hotkeys.next, actions.next);
   registerHotkey('prev', config.hotkeys.prev, actions.prev);
   registerHotkey('reveal', config.hotkeys.reveal, actions.reveal);
   // New in this build: blanks all chrome so the kneeboard capture is just the
   // photo. This is the state that matters most in the air.
-  registerHotkey('hide', config.hotkeys.hide, actions.hide);
 
   writeHotkeyMarker();
 }
@@ -640,6 +663,7 @@ function handleViewerIntent(intent, payload) {
       break;
     case 'set-page':
       view.setPage(payload);
+      noteActivity();
       break;
     case 'step':
       view.step(payload);
@@ -650,11 +674,19 @@ function handleViewerIntent(intent, payload) {
     case 'set-batch':
       view.setBatchSelected(payload && payload.batchId, Boolean(payload && payload.on));
       break;
-    case 'toggle-chrome':
-      view.toggleChrome();
-      break;
+    case 'activity':
+      noteActivity();
+      return;
     case 'focus':
       view.setFocused(Boolean(payload));
+      // Losing focus means DCS just took over — that is exactly when the
+      // capture should be clean, so do not wait out the timer.
+      if (payload) noteActivity();
+      else {
+        clearTimeout(chromeTimer);
+        chromeTimer = null;
+        if (view.state.page === 'brief') setChromeHidden(true);
+      }
       break;
     case 'banner-dismiss':
       view.clearBanner();

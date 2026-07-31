@@ -200,20 +200,20 @@ async function main() {
   // --- hotkey recording writes through to config ---------------------------
   await click('.rail__item[data-page="keys"]');
   await waitFor('KEYBINDS page', () => probe.page === 'keys');
-  await click('[data-record="hide"]');
+  await click('[data-record="next"]');
   await waitFor('recording state shown', () => probe.recording === true);
   await runInSettings(
     `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', ctrlKey: true, altKey: true, bubbles: true }))`,
   );
   await sleep(1200);
   const saved = readConfig();
-  if (saved.hotkeys.hide !== 'Ctrl+Alt+J') {
-    throw new Error(`recorded hotkey not persisted, config has "${saved.hotkeys.hide}"`);
+  if (saved.hotkeys.next !== 'Ctrl+Alt+J') {
+    throw new Error(`recorded hotkey not persisted, config has "${saved.hotkeys.next}"`);
   }
-  if (!/register hide "Ctrl\+Alt\+J"/.test(output)) {
+  if (!/register next "Ctrl\+Alt\+J"/.test(output)) {
     throw new Error('a recorded hotkey must re-register live, without a restart');
   }
-  console.log('[e2e] recording HIDE CHROME persisted and re-registered live');
+  console.log('[e2e] recording a keybind persisted and re-registered live');
 
   // --- every settings control must actually reach main ---------------------
   // The pass-through toggle shipped once with its intent registered in the

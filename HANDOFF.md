@@ -306,6 +306,24 @@ switch both frames.
 
 ---
 
+## 5b. Releases
+
+Two paths, deliberately separate:
+
+- **Real release** — push a `v*` tag. `release.yml` builds Windows + both mac
+  arches and publishes. Bump `app/package.json` first and add a `CHANGELOG.md`
+  entry.
+- **Dev pre-release** — every commit on `main` triggers `dev-release.yml`,
+  which publishes `v<version>-dev.<short sha>` as a pre-release **and deletes
+  the previous one**, so exactly one dev build exists at a time. It sorts below
+  every real release in semver, so it can never present itself as newer, and
+  `releases/latest` keeps pointing at the real one. The deletion only ever
+  touches tags matching `-dev.`.
+
+Note `gh release list` prints "Latest" next to a pre-release; that is the CLI's
+own labelling. `gh api repos/OWNER/REPO/releases/latest` is the authority and
+excludes pre-releases.
+
 ## 6. Environment and traps
 
 ### Windows dev box (2026-07-31) — where Tailscale is actually real

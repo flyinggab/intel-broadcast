@@ -333,7 +333,22 @@ window.addEventListener('focus', () => send('focus', true));
 window.addEventListener('blur', () => send('focus', false));
 
 if (window.viewerAPI) {
-  window.viewerAPI.onState(render);
+  // Report that someone is at the machine, so main can show the chrome and
+// restart its idle countdown. Throttled hard: this fires on mouse movement and
+// it must not become an IPC storm. Main owns the timer and the state; this only
+// says "still here".
+let lastActivitySent = 0;
+function reportActivity() {
+  const now = Date.now();
+  if (now - lastActivitySent < 1000) return;
+  lastActivitySent = now;
+  send('activity');
+}
+for (const type of ['mousemove', 'mousedown', 'keydown', 'wheel']) {
+  window.addEventListener(type, reportActivity, { passive: true });
+}
+
+window.viewerAPI.onState(render);
   send('ready');
 } else {
   // preview.html / the geometry harness, loading this file without Electron:

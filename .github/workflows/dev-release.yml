@@ -1,0 +1,111 @@
+name: Dev pre-release
+
+# Every commit on main publishes a pre-release, and the previous one is
+# deleted — so there is exactly one "latest build" to grab at any moment,
+# and no drift about which commit it came from.
+#
+# Version is `<version>-dev.<short sha>`: it sorts BELOW any real release in
+# semver, so a dev build can never look newer than a shipped one, and the sha
+# says exactly which commit produced it.
+#
+# Real releases are unaffected: they come from pushing a `v*` tag, handled by
+# release.yml.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+# A newer commit makes an in-flight dev build pointless.
+concurrency:
+  group: dev-release
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            build-script: build:win
+          - os: macos-latest
+            build-script: build:mac
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - name: Stamp the dev version
+        shell: bash
+        # Strip any existing prerelease part first, so re-running on a commit
+        # that already carries one cannot compound into -dev.x-dev.y.
+        run: |
+          BASE=$(node -p "require('./package.json').version.split('-')[0]")
+          npm version "$BASE-dev.${GITHUB_SHA::7}" --no-git-tag-version
+
+      # Built, not published, by electron-builder: the release is assembled in
+      # one place below so both platforms land on a single pre-release.
+      - run: npm run ${{ matrix.build-script }} -- --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dev-${{ matrix.os }}
+          path: |
+            app/dist/*.exe
+            app/dist/*.zip
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Replace the previous dev pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BASE=$(node -p "require('./app/package.json').version.split('-')[0]")
+          TAG="v$BASE-dev.${GITHUB_SHA::7}"
+
+          # Delete every OTHER dev pre-release (and its tag) so exactly one
+          # exists. Only tags matching -dev. are touched; real releases and any
+          # hand-made pre-release are left alone.
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 \
+            --json tagName,isPrerelease \
+            --jq '.[] | select(.isPrerelease and (.tagName | test("-dev\\."))) | .tagName' \
+          | while read -r old; do
+              [ "$old" = "$TAG" ] && continue
+              echo "removing previous dev pre-release $old"
+              gh release delete "$old" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag
+            done
+
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG — build of ${GITHUB_SHA::7}" \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --notes "Automatic build of [\`${GITHUB_SHA::7}\`](https://github.com/$GITHUB_REPOSITORY/commit/$GITHUB_SHA) on \`main\`.
+
+          **Not a release.** It is replaced by the next commit, and it sorts below every real release. For a stable build use the [latest release](https://github.com/$GITHUB_REPOSITORY/releases/latest).
+
+          $(git log -1 --pretty=%s)" \
+            artifacts/*
