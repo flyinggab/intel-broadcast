@@ -11,6 +11,44 @@ talk to each other.
 
 ---
 
+## v0.6.0-testing — 2026-07-31
+
+**A testing build, not an official release.** Published as a GitHub
+pre-release so it does not present itself as the latest version. It carries the
+first native dependency in the project, which is the part that wants real-world
+use before it is blessed.
+
+### Added
+- **Pass-through keybinds (`passthroughKeys`, off by default).** Electron's
+  `globalShortcut` uses Windows' `RegisterHotKey`, which is exclusive *and*
+  consuming — bind plain `B` and the letter b stops working machine-wide. The
+  new backend is a low-level hook that observes keys and passes them on, so
+  bare letters and arrows are usable bindings and DCS/OpenKneeboard still see
+  the same press. Off by default because the hook sees every keystroke; the
+  hint under the toggle says which mode is live, including when it was asked
+  for but could not start. It never logs, buffers or transmits a keystroke, and
+  modifiers match exactly so a bare `B` never fires on Ctrl+B.
+- **Page turns relay to OpenKneeboard (`openKneeboardSync`).** One key turns
+  this app's queue and OpenKneeboard's page, via the remote-control
+  executables OKB documents. (OpenKneeboard binds joystick and tablet buttons
+  rather than keyboard keys, which is why it never conflicts — there was no
+  keyboard setting to copy.)
+
+### Changed
+- SHARE's SELECT ALL / NONE / RESCAN / FOLDER moved above the gallery. Below
+  it, a folder larger than a screen pushed them out of reach.
+- A completed setup step's mark is now `--go` green, on both the host and join
+  paths; JOIN's steps gained real done-state, with 02 ticking only once a
+  socket is actually up.
+
+### Packaging
+- `npmRebuild: false` and `asarUnpack` for the native module. electron-builder
+  otherwise tries to *compile* it, which needs a toolchain it does not have and
+  cannot produce both mac arches from one builder. The N-API prebuilds for
+  win32-x64, win32-arm64 and both darwin arches are used as shipped.
+
+---
+
 ## v0.5.3 — 2026-07-31
 
 ### Fixed
