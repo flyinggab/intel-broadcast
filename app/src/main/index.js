@@ -15,6 +15,7 @@ const { createViewState } = require('./viewState');
 const { createImagePrep } = require('./imagePrep');
 const squad = require('./squadCode');
 const { createTray } = require('./tray');
+const openKneeboard = require('./openKneeboard');
 const i18n = require('../renderer/i18n');
 const { initFileLogging, getLogFilePath, recentLines } = require('./logger');
 const tailscale = require('./tailscale');
@@ -141,6 +142,8 @@ function settingsSnapshot(base) {
   return {
     ...base,
     relayPort: config.gm.relayPort,
+    openKneeboardSync: config.openKneeboardSync !== false,
+    openKneeboardAvailable: openKneeboard.isAvailable(),
     tokenMasked: squad.maskToken(config.token),
     squadCode: hostSquadCode(),
     hotkeys: config.hotkeys,
@@ -370,17 +373,28 @@ function registerHotkey(name, accelerator, handler) {
   console.log(`[hotkeys] register ${name} "${accelerator}": ${ok ? 'OK' : 'FAILED (already taken by another app?)'}`);
 }
 
+/**
+ * Pages this app AND, when enabled, OpenKneeboard — so one key turns both
+ * kneeboards. Windows gives a global hotkey to exactly one process, so the
+ * two apps cannot each own the same combination; this app owns it and relays
+ * the intent through OpenKneeboard's remote-control interface.
+ *
+ * Our own paging happens first: the forward is fire-and-forget and must never
+ * delay what the pilot came here for.
+ */
+function pageBoth(delta) {
+  view.step(delta);
+  pushState();
+  if (config.openKneeboardSync !== false) {
+    openKneeboard.sendPage(delta > 0 ? 'next' : 'prev', { onLog: (m) => console.log(`[okb] ${m}`) });
+  }
+}
+
 function registerHotkeys() {
   globalShortcut.unregisterAll();
   registerHotkey('settings', config.hotkeys.settings, openSettings);
-  registerHotkey('next', config.hotkeys.next, () => {
-    view.step(1);
-    pushState();
-  });
-  registerHotkey('prev', config.hotkeys.prev, () => {
-    view.step(-1);
-    pushState();
-  });
+  registerHotkey('next', config.hotkeys.next, () => pageBoth(1));
+  registerHotkey('prev', config.hotkeys.prev, () => pageBoth(-1));
   registerHotkey('reveal', config.hotkeys.reveal, doReveal);
   // New in this build: blanks all chrome so the kneeboard capture is just the
   // photo. This is the state that matters most in the air.
@@ -613,6 +627,9 @@ function handleViewerIntent(intent, payload) {
       return void openSettingsWindow.browseFolder().then((folder) => {
         if (folder) applyNewConfig(saveSettingsValues({ photosFolder: folder }));
       });
+    case 'set-okb-sync':
+      applyNewConfig(saveSettingsValues({ openKneeboardSync: Boolean(payload) }));
+      return;
     case 'set-auto-show':
       // The toggle lives on the viewer's RECEIVED page now; applies live.
       applyNewConfig(saveSettingsValues({ autoShow: Boolean(payload) }));

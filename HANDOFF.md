@@ -152,6 +152,19 @@ displays. SIL OFL, files in `app/src/renderer/fonts/`. Never load from a CDN —
 the app must work offline. B612 is wide, ~0.64em per cap; **measure new strings
 against their containers**, it is the first thing that breaks.
 
+**A global hotkey belongs to exactly one process, so paging is RELAYED.**
+Windows' `RegisterHotKey` — what Electron's `globalShortcut` uses — fails if
+another app already owns the combination, deliberately, so apps cannot fight
+over keys. Two apps therefore cannot both bind the page keys. This app owns
+them and forwards the same intent to OpenKneeboard through its documented
+remote-control executables (`openKneeboard.js`), which is the integration OKB
+itself documents for StreamDeck and tablets. One key, both kneeboards.
+`openKneeboardSync` turns it off. The alternative — a `WH_KEYBOARD_LL` hook
+that observes keys without consuming them — would let every app see the press,
+but needs a native module, and this project has stayed free of those so CI
+remains a plain `npm ci`. If someone drives OKB with AutoHotkey (which *does*
+hook) on the same combination, expect double paging and turn the relay off.
+
 **The viewer prints no hotkey, anywhere.** Printed bindings went stale the
 moment a pilot recorded a new one. SETUP → KEYBINDS is the single source.
 

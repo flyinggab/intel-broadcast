@@ -43,6 +43,7 @@ const log = {
   tail: el('log-tail'),
 };
 
+const okb = { toggle: el('tg-okb'), hint: el('okb-hint') };
 const savebar = { state: el('save-state'), save: el('btn-save') };
 const railVersion = el('rail-version');
 const langKeys = el('lang-keys');
@@ -234,6 +235,12 @@ function render(s) {
     }
   }
 
+  // KEYBINDS: the OpenKneeboard relay. Shown regardless, so the toggle is
+  // discoverable, but the hint says plainly when there is nothing to relay to.
+  okb.toggle.classList.toggle('is-on', s.openKneeboardSync !== false);
+  okb.toggle.setAttribute('aria-checked', s.openKneeboardSync !== false ? 'true' : 'false');
+  setText(okb.hint, t(s.openKneeboardAvailable ? 'okb.found' : 'okb.missing'));
+
   // LOG -----------------------------------------------------------------
   setText(log.version, s.version || '');
   setText(log.sent, String(s.counters.sent));
@@ -339,6 +346,10 @@ el('btn-open-log').addEventListener('click', () => send('open-log'));
 el('btn-copy-path').addEventListener('click', () => send('copy-log-path'));
 
 // One visible control, whose action follows the step that needs doing.
+okb.toggle.addEventListener('click', () => {
+  send('set-okb-sync', !okb.toggle.classList.contains('is-on'));
+});
+
 net.funnelAction.addEventListener('click', () => {
   send('tailscale', net.funnelAction.dataset.action || 'refresh');
 });
