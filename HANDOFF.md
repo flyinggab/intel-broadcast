@@ -268,7 +268,49 @@ switch both frames.
 
 ## 6. Environment and traps
 
-Development is on **macOS (Apple Silicon)** since 2026-07-30. Everything before
+### Windows dev box (2026-07-31) — where Tailscale is actually real
+
+There is now a **second dev environment: the owner's Windows machine**, driven
+from a WSL2/Ubuntu-24.04 sandbox on the same box. This is the only environment
+where DCS, OpenKneeboard and a real Tailscale all exist, so it is where the
+funnel is verified.
+
+WSL reaches Windows both ways, which makes this fast:
+
+- `/mnt/c/...` is the Windows filesystem. The app's log a user actually
+  produced is at
+  `/mnt/c/Users/<user>/AppData/Roaming/intel-broadcast/intel-broadcast.log` —
+  read it before theorising.
+- **Windows binaries execute from WSL.** `"/mnt/c/Program Files/Tailscale/tailscale.exe" status --json`
+  works from a Linux shell, so `INTEL_BROADCAST_TAILSCALE_BIN` pointed there
+  runs the app's real Tailscale code against the real daemon without leaving
+  WSL. That is how the parser was finally confirmed.
+- `cmd.exe /c "..."` runs anything Windows-side. Windows has its own
+  `node` (v25) and `git`; the WSL `node_modules` are Linux binaries and cannot
+  be shared, so the Windows checkout needs its own `npm install`.
+
+**A native Windows checkout lives at `C:\Users\gabri\intel-broadcast-dev`**,
+cloned from GitHub (a `\\wsl.localhost\...` clone path does NOT work) with
+its own `node_modules` and Electron. Refresh and run it with:
+
+```bash
+cmd.exe /c "cd /d C:\Users\gabri\intel-broadcast-dev && git pull && cd app && npm start"
+```
+
+Confirmed there on 2026-07-31: `findBinaryDetailed()` resolves
+`C:\Program Files\Tailscale\tailscale.exe` via PATH, and `getState()`
+returns `Running / loggedIn / funnelOn` with target `http://127.0.0.1:8787`
+against Tailscale 1.98.10. **The funnel detection code is correct on the real
+platform** — the long-running doubt about it is closed.
+
+One WSL2 detail worth knowing if you ever run the relay in WSL while the
+funnel points at Windows: WSL2 forwards Windows `localhost` to listening
+sockets inside WSL, so `tailscale funnel --bg 8787` on Windows can reach a
+relay bound in the sandbox.
+
+### macOS
+
+Development was on **macOS (Apple Silicon)** from 2026-07-30. Everything before
 that was a WSL/Linux sandbox, so environment claims in `app/PLAN.md` — unreliable
 `capturePage()`, invisible tray icons, WSLg windows — were **WSL artifacts, not
 app bugs**. Don't carry them forward.
@@ -314,8 +356,11 @@ outputs.
   `dist/linux-unpacked/`, but electron-builder writes
   `dist/linux-arm64-unpacked/` here. A WSL-era hardcoding, one line to fix by
   deriving the arch suffix. Nothing else is wrong with the test.
-- **Nothing is verified on Windows** — the only platform where the capture path
-  exists. `imagePrep` has now run for real on macOS but not there.
+- **Windows is now partly verified.** Tailscale detection, login state and
+  funnel status all run correctly against the real daemon there (§6), and the
+  packaged app's own log shows `funnel --bg` succeeding. Still unverified on
+  Windows: the OpenKneeboard capture path itself, `imagePrep` (proven on
+  macOS), and a real two-machine reveal across the funnel.
 - **No LICENSE file.** The repo is public but legally all-rights-reserved: no
   one can fork or redistribute, and it disqualifies the project from free
   code-signing programmes (SignPath Foundation). One commit to fix; the choice
