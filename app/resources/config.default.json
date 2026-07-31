@@ -6,7 +6,6 @@
   "windowTitle": "Intel Broadcast Viewer",
   "uiScale": null,
   "autoShow": true,
-  "openKneeboardSync": true,
   "passthroughKeys": false,
   "locale": null,
   "sendProfile": "kneeboard",

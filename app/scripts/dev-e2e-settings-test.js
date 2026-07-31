@@ -215,6 +215,24 @@ async function main() {
   }
   console.log('[e2e] recording HIDE CHROME persisted and re-registered live');
 
+  // --- every settings control must actually reach main ---------------------
+  // The pass-through toggle shipped once with its intent registered in the
+  // VIEWER's switch instead of the settings one: the click fired, the IPC
+  // arrived, and main answered "unknown intent" while the UI looked fine.
+  // Asserting on config, not on the class, is what catches that.
+  await click('.rail__item[data-page="keys"]');
+  await waitFor('KEYBINDS page', () => probe.page === 'keys');
+  const before = readConfig().passthroughKeys === true;
+  await click('#tg-passthrough');
+  await sleep(1200);
+  if (readConfig().passthroughKeys === before) {
+    throw new Error('the pass-through toggle did not change config — did its intent reach main?');
+  }
+  if (/unknown intent/.test(output)) {
+    throw new Error(`main rejected an intent: ${/unknown intent: \S+/.exec(output)[0]}`);
+  }
+  console.log('[e2e] the pass-through toggle reaches main and persists');
+
   // --- the window stays open after all that (live apply, no relaunch) ------
   if (child.exitCode !== null) throw new Error('the app must not restart to apply settings');
   await sleep(600);

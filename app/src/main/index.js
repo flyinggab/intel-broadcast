@@ -15,7 +15,6 @@ const { createViewState } = require('./viewState');
 const { createImagePrep } = require('./imagePrep');
 const squad = require('./squadCode');
 const { createTray } = require('./tray');
-const openKneeboard = require('./openKneeboard');
 const { startKeyHook } = require('./keyHook');
 const i18n = require('../renderer/i18n');
 const { initFileLogging, getLogFilePath, recentLines } = require('./logger');
@@ -143,10 +142,8 @@ function settingsSnapshot(base) {
   return {
     ...base,
     relayPort: config.gm.relayPort,
-    openKneeboardSync: config.openKneeboardSync !== false,
     passthroughKeys: config.passthroughKeys === true,
     passthroughActive: Boolean(keyHook && keyHook.ok),
-    openKneeboardAvailable: openKneeboard.isAvailable(),
     tokenMasked: squad.maskToken(config.token),
     squadCode: hostSquadCode(),
     hotkeys: config.hotkeys,
@@ -207,6 +204,11 @@ function refreshGallery() {
       thumbUrl,
     };
   });
+  // Logged because a rebuild is the one thing that can legitimately change
+  // what is ticked, and "my selection came back on its own" is otherwise
+  // undiagnosable from a bug report.
+  const kept = photos.filter((ph) => ph.selected).length;
+  console.log(`[gallery] rebuilt: ${photos.length} photo(s), ${kept} selected`);
   view.setGallery({ folder, photos });
   restage();
 }
@@ -376,21 +378,10 @@ function registerHotkey(name, accelerator, handler) {
   console.log(`[hotkeys] register ${name} "${accelerator}": ${ok ? 'OK' : 'FAILED (already taken by another app?)'}`);
 }
 
-/**
- * Pages this app AND, when enabled, OpenKneeboard — so one key turns both
- * kneeboards. Windows gives a global hotkey to exactly one process, so the
- * two apps cannot each own the same combination; this app owns it and relays
- * the intent through OpenKneeboard's remote-control interface.
- *
- * Our own paging happens first: the forward is fire-and-forget and must never
- * delay what the pilot came here for.
- */
+/** Pages the photo queue. */
 function pageBoth(delta) {
   view.step(delta);
   pushState();
-  if (config.openKneeboardSync !== false) {
-    openKneeboard.sendPage(delta > 0 ? 'next' : 'prev', { onLog: (m) => console.log(`[okb] ${m}`) });
-  }
 }
 
 // The pass-through hook, when enabled. Held so a settings change can rebind
@@ -677,19 +668,11 @@ function handleViewerIntent(intent, payload) {
     case 'select-none':
       view.setAllSelected(false);
       return restage();
-    case 'rescan':
-      return refreshGallery();
     case 'browse-folder':
       // The picker lives on SHARE now, next to the gallery it feeds.
       return void openSettingsWindow.browseFolder().then((folder) => {
         if (folder) applyNewConfig(saveSettingsValues({ photosFolder: folder }));
       });
-    case 'set-passthrough-keys':
-      applyNewConfig(saveSettingsValues({ passthroughKeys: Boolean(payload) }));
-      return;
-    case 'set-okb-sync':
-      applyNewConfig(saveSettingsValues({ openKneeboardSync: Boolean(payload) }));
-      return;
     case 'set-auto-show':
       // The toggle lives on the viewer's RECEIVED page now; applies live.
       applyNewConfig(saveSettingsValues({ autoShow: Boolean(payload) }));
@@ -741,6 +724,9 @@ async function handleSettingsIntent(intent, payload) {
       );
       return;
     }
+    case 'set-passthrough-keys':
+      applyNewConfig(saveSettingsValues({ passthroughKeys: Boolean(payload) }));
+      return;
     case 'set-locale':
       // A display preference, applied immediately — not a form value.
       applyNewConfig(saveSettingsValues({ locale: payload === 'it' ? 'it' : 'en' }));

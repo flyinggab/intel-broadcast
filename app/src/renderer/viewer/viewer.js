@@ -321,7 +321,6 @@ share.grid.addEventListener('click', (event) => {
 
 el('share-all').addEventListener('click', () => send('select-all'));
 el('share-none').addEventListener('click', () => send('select-none'));
-el('share-rescan').addEventListener('click', () => send('rescan'));
 el('share-folder-btn').addEventListener('click', () => send('browse-folder'));
 share.reveal.addEventListener('click', () => send('reveal'));
 

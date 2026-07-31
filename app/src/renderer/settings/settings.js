@@ -44,7 +44,6 @@ const log = {
 };
 
 const passthrough = { toggle: el('tg-passthrough'), hint: el('passthrough-hint') };
-const okb = { toggle: el('tg-okb'), hint: el('okb-hint') };
 const savebar = { state: el('save-state'), save: el('btn-save') };
 const railVersion = el('rail-version');
 const langKeys = el('lang-keys');
@@ -248,9 +247,6 @@ function render(s) {
     t(wantPass ? (s.passthroughActive ? 'keys.passthroughOn' : 'keys.passthroughFailed') : 'keys.passthroughOff'),
   );
 
-  okb.toggle.classList.toggle('is-on', s.openKneeboardSync !== false);
-  okb.toggle.setAttribute('aria-checked', s.openKneeboardSync !== false ? 'true' : 'false');
-  setText(okb.hint, t(s.openKneeboardAvailable ? 'okb.found' : 'okb.missing'));
 
   // LOG -----------------------------------------------------------------
   setText(log.version, s.version || '');
@@ -361,9 +357,6 @@ passthrough.toggle.addEventListener('click', () => {
   send('set-passthrough-keys', !passthrough.toggle.classList.contains('is-on'));
 });
 
-okb.toggle.addEventListener('click', () => {
-  send('set-okb-sync', !okb.toggle.classList.contains('is-on'));
-});
 
 net.funnelAction.addEventListener('click', () => {
   send('tailscale', net.funnelAction.dataset.action || 'refresh');
