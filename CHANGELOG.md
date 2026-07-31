@@ -11,40 +11,55 @@ talk to each other.
 
 ---
 
-## v0.6.0-testing — 2026-07-31
-
-**A testing build, not an official release.** Published as a GitHub
-pre-release so it does not present itself as the latest version. It carries the
-first native dependency in the project, which is the part that wants real-world
-use before it is blessed.
+## v0.6.0 — 2026-07-31
 
 ### Added
 - **Pass-through keybinds (`passthroughKeys`, off by default).** Electron's
   `globalShortcut` uses Windows' `RegisterHotKey`, which is exclusive *and*
   consuming — bind plain `B` and the letter b stops working machine-wide. The
   new backend is a low-level hook that observes keys and passes them on, so
-  bare letters and arrows are usable bindings and DCS/OpenKneeboard still see
-  the same press. Off by default because the hook sees every keystroke; the
-  hint under the toggle says which mode is live, including when it was asked
-  for but could not start. It never logs, buffers or transmits a keystroke, and
-  modifiers match exactly so a bare `B` never fires on Ctrl+B.
+  bare letters and arrows are usable bindings and other apps still see the same
+  press. Off by default: the hook sees every keystroke, which deserves an
+  explicit opt-in on an unsigned build. It never logs, buffers or transmits a
+  keystroke, and modifiers match exactly, so a bare `B` never fires on Ctrl+B.
+- **The chrome hides itself.** After six idle seconds on BRIEF the status
+  strip, tab bar and on-photo controls disappear, leaving the photo alone —
+  which is what OpenKneeboard captures onto the pilot's knee. Any activity
+  brings it back; losing focus hides it at once. RECEIVED and SHARE keep their
+  chrome.
 
 ### Changed
-- SHARE's SELECT ALL / NONE / FOLDER moved above the gallery. Below it, a
+- SHARE's SELECT ALL / NONE / FOLDER moved above the gallery: below it, a
   folder larger than a screen pushed them out of reach.
+- A completed setup step's mark is `--go` green, on both the host and join
+  paths. JOIN's steps gained real done-state, with step 02 ticking only once a
+  socket is actually up.
 
 ### Removed
-- **RESCAN.** The photos folder has been watched unconditionally since v0.5, so
-  the button offered to do what already happens on its own.
-- A completed setup step's mark is now `--go` green, on both the host and join
-  paths; JOIN's steps gained real done-state, with 02 ticking only once a
-  socket is actually up.
+- **The HIDE CHROME and OPEN SETUP keybinds.** The first is now automatic; the
+  second was redundant (the SETUP tab, tray icon and menu all reach settings)
+  and failed whenever another app already owned the combination.
+- **RESCAN.** The photos folder has been watched unconditionally since v0.5.
+
+### Fixed
+- The pass-through toggle was inert in the testing builds: its intent was
+  registered in the viewer's IPC handler instead of the settings one, so the
+  click fired, the message arrived, and main answered `unknown intent` while
+  the switch appeared to move.
+- The toggle's `data-i18n` sat on the element wrapping its hint, and
+  `applyStatic` writes `textContent` — so the hint was erased on every render.
 
 ### Packaging
 - `npmRebuild: false` and `asarUnpack` for the native module. electron-builder
   otherwise tries to *compile* it, which needs a toolchain it does not have and
-  cannot produce both mac arches from one builder. The N-API prebuilds for
-  win32-x64, win32-arm64 and both darwin arches are used as shipped.
+  cannot produce both mac arches from one builder. The N-API prebuilds are used
+  as shipped.
+
+### Development
+- Every commit on `main` now publishes `v<version>-dev.<short sha>` as a
+  pre-release and deletes the previous one, so exactly one dev build exists at
+  a time. It sorts below every real release, so `releases/latest` keeps
+  pointing at the real one.
 
 ---
 
