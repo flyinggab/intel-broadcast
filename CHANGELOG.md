@@ -11,6 +11,36 @@ talk to each other.
 
 ---
 
+## v0.5.3 — 2026-07-31
+
+### Fixed
+- **The Tailscale panel had no control you could see.** The three steps
+  (TAILSCALE / ACCOUNT / FUNNEL) are recessed status rows, and they carried the
+  only click handlers on the panel — no cursor, no focus, nothing that reads as
+  interactive, because they were designed to *report* progress. A host could
+  see the funnel was off and had no way to discover how to turn it on. There is
+  now one visible key beneath them whose label and action follow whichever step
+  needs doing: INSTALL TAILSCALE, SIGN IN TO TAILSCALE, ENABLE FUNNEL IN ADMIN,
+  SHARE OVER THE INTERNET, STOP SHARING — with a line of hint text under it,
+  in both locales. The steps are pure status again and the hidden handlers are
+  gone, so there is exactly one path.
+- **A failed `tailscale status` reported itself as "SIGN IN REQUIRED".** The
+  error path returns no `loggedIn` field, and the renderer's `!f.loggedIn`
+  branch could not tell "the command failed" from "you are not signed in", so
+  it sent you to a login you had already done. The new control keys off the
+  same state and offers CHECK AGAIN instead.
+
+### Verified on the real platform
+- Funnel detection is **correct against real Tailscale (1.98.10) on Windows**.
+  `parseFunnelStatus` matches the live output shape exactly, and `getState()`
+  returns `Running / loggedIn / funnelOn` with the right proxy target. The
+  long-standing doubt about the parser — dating to the v0.2.x on/off flapping —
+  is closed; that flapping was the second-instance fight the single-instance
+  lock already prevents.
+- The Windows dev environment is documented in `HANDOFF.md` §6.
+
+---
+
 ## v0.5.2 — 2026-07-31
 
 ### Fixed
