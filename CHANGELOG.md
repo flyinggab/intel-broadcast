@@ -11,7 +11,7 @@ talk to each other.
 
 ---
 
-## Unreleased
+## v0.5.2 — 2026-07-31
 
 ### Fixed
 - **Language detection now reads the OS preference list properly.** It used

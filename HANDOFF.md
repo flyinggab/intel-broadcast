@@ -24,7 +24,7 @@ which are still accurate. Trust `git log` and this file.
 
 ## 1. Where the project is
 
-**Current release: `v0.5.1`.** Verify with `git log --oneline -5`; don't trust
+**Current release: `v0.5.2`.** Verify with `git log --oneline -5`; don't trust
 hashes written down anywhere.
 
 The app is an Electron companion for DCS. Any pilot hits a hotkey and their
@@ -44,6 +44,7 @@ the echo is the sharer's own render path, not redundancy.
 | `v0.4.0` | BRIEF became the kneeboard: one flat photo queue, RECEIVED curates it |
 | `v0.5.0` | Settings navigation rail; three settings removed; English + Italian |
 | `v0.5.1` | The app icon, everywhere it was missing |
+| `v0.5.2` | Language follows the OS preferred-language list, subtag-matched |
 
 `CHANGELOG.md` has the detail. The commit messages have the reasoning — they
 are long on purpose and are the best record of *why*.

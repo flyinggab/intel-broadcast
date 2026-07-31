@@ -116,10 +116,10 @@ intel-broadcast/
 
 ## Status
 
-**Current release: `v0.5.1`** — a real app icon, in the dock, taskbar, tray and title bar. On
-top of v0.5.0's English/Italian support and the settings navigation rail (NETWORK · KEYBINDS ·
-LOG), v0.4.0's queue-first viewer, and phase 1's EFB UI, content-addressed blobs, squad codes
-and transport hardening.
+**Current release: `v0.5.2`** — language now follows your computer's preferred-language list
+properly, on Windows and macOS alike. On top of v0.5.1's app icon, v0.5.0's English/Italian
+support and settings navigation rail (NETWORK · KEYBINDS · LOG), v0.4.0's queue-first viewer,
+and phase 1's EFB UI, content-addressed blobs, squad codes and transport hardening.
 
 See [CHANGELOG.md](./CHANGELOG.md) for what shipped when, and [HANDOFF.md](./HANDOFF.md) for
 what's verified, what the known gaps are, and what's next.
