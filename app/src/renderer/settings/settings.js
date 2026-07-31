@@ -24,6 +24,7 @@ const net = {
   funnelHint: el('funnel-hint'),
   codeInput: el('in-code'),
   connect: el('btn-connect'),
+  joinStep1: el('join-step1'),
   joinStep2: el('join-step2'),
   joinResolved: el('join-resolved'),
   pilots: el('net-pilots'),
@@ -58,6 +59,10 @@ let modeDirty = false; // the user picked a mode that isn't saved yet
 let hotkeys = {};
 let recordingKey = null;
 let lastSnapshot = null;
+// Whether this machine is currently on someone's relay, from the last
+// snapshot. Lives up here because render() reads it and refreshJoinPreview()
+// also runs on input events, outside render.
+let joinConnected = false;
 
 const send = (intent, payload) => window.settingsAPI && window.settingsAPI.send(intent, payload);
 const setText = (node, text) => {
@@ -163,6 +168,12 @@ function render(s) {
     card.classList.toggle('is-on', card.dataset.setMode === mode);
   }
 
+  // JOIN's step 02 ticks only when a socket is actually up, so keep the flag
+  // fresh and re-evaluate — connection state arrives by push, not by typing.
+  const wasConnected = joinConnected;
+  joinConnected = Boolean(s.connected) && !s.isHost;
+  if (wasConnected !== joinConnected) refreshJoinPreview();
+
   setText(net.code, s.squadCode || t('net.codeUnavailable'));
   setText(net.port, String(s.relayPort || ''));
   setText(net.token, s.tokenMasked || '••••');
@@ -250,7 +261,13 @@ async function refreshJoinPreview() {
     net.connect.disabled = true;
     setText(net.joinResolved, t(typed ? 'net.badCode' : 'net.pasteToConnect'));
   }
-  net.joinStep2.classList.toggle('is-running', decoded.ok);
+  // Same idiom as the host column: 01 is satisfied once the code parses, 02
+  // once we are actually on that relay. `connected` comes from the snapshot,
+  // so the tick reflects a live socket rather than a hopeful click.
+  net.joinStep1.classList.toggle('is-done', decoded.ok);
+  net.joinStep1.classList.toggle('is-running', !decoded.ok);
+  net.joinStep2.classList.toggle('is-done', joinConnected);
+  net.joinStep2.classList.toggle('is-running', decoded.ok && !joinConnected);
 }
 
 // --- intents ----------------------------------------------------------------

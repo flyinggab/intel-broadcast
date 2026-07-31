@@ -831,6 +831,17 @@ function attachSettingsProbe(win) {
              label: document.getElementById('btn-funnel-action').textContent,
              visible: Boolean(document.getElementById('btn-funnel-action').offsetParent),
            },
+           joinSteps: ['join-step1', 'join-step2'].map((id) => {
+             const node = document.getElementById(id);
+             return node.classList.contains('is-done') ? 'done' : node.classList.contains('is-running') ? 'running' : 'off';
+           }),
+           // The computed colour of a done mark — the point of the change is
+           // that a satisfied step is GREEN, which a class name alone would
+           // not prove.
+           doneMarkColour: (() => {
+             const done = document.querySelector('.step.is-done .step__mark');
+             return done ? getComputedStyle(done).backgroundColor : '';
+           })(),
            steps: ['install', 'auth', 'funnel'].reduce((acc, name) => {
              const node = document.getElementById('step-' + name);
              acc[name] = {

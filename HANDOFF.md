@@ -133,9 +133,13 @@ that is accepted, because everything at that contrast is short bold labels. If
 you add long-form copy, use `--lit` on `--dn`, don't lighten `--bg`.
 
 **Two hues, both rationed.** `--fault` red means the relay is broken. `--go`
-green means "there is something to commit" and today lights exactly one
-control, the settings SAVE & APPLY key while dirty. The moment either
-decorates something static, it stops meaning anything.
+green means **a requirement is satisfied** — the SAVE & APPLY key when there is
+something to commit, and the mark on a completed setup step (host *and* join).
+Both are dynamic state, never decoration: an unfinished step keeps the plain
+lit/hollow mark, so scanning the column for green answers "what still needs
+doing". The moment either hue decorates something static, it stops meaning
+anything. `dev-e2e-settings-test` asserts the done mark's *computed* colour
+rather than its class, because a class name would not prove it renders green.
 
 **44px minimum touch targets, viewer only.** Looks generous for a desktop app.
 From phase 4 you point at this with a controller ray in VR, where precision is

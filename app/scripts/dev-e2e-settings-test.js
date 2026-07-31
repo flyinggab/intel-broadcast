@@ -151,6 +151,23 @@ async function main() {
   if (!probe.joinResolved.includes('GAB-PC')) throw new Error(`resolved line: "${probe.joinResolved}"`);
   console.log('[e2e] a valid code resolves and enables CONNECT');
 
+  // --- required steps go GREEN once satisfied ------------------------------
+  // JOIN 01 is satisfied by a code that parses; 02 waits for a live socket.
+  if (probe.joinSteps[0] !== 'done') {
+    throw new Error(`a parsed code must tick JOIN step 01, got "${probe.joinSteps[0]}"`);
+  }
+  if (probe.joinSteps[1] !== 'running') {
+    throw new Error(`step 02 must stay pending until connected, got "${probe.joinSteps[1]}"`);
+  }
+  // --go is #98BB62. Assert the mark is actually green rather than the plain
+  // lit white it used to be — a class name alone would not prove that.
+  const rgb = (probe.doneMarkColour.match(/\d+/g) || []).map(Number);
+  if (rgb.length < 3) throw new Error(`no done mark rendered: "${probe.doneMarkColour}"`);
+  if (!(rgb[1] > rgb[0] + 20 && rgb[1] > rgb[2] + 20)) {
+    throw new Error(`a completed step must read green, got rgb(${rgb.join(',')})`);
+  }
+  console.log(`[e2e] completed steps are green — rgb(${rgb.join(',')}), JOIN 01 done / 02 pending`);
+
   // --- the host's own code round-trips back to this relay ------------------
   await click('[data-set-mode="host"]');
   await waitFor('back in host mode', () => probe.mode === 'host');
