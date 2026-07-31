@@ -13,6 +13,7 @@
     "build:mac": "electron-builder --mac"
   },
   "dependencies": {
+    "uiohook-napi": "^1.5.5",
     "ws": "^8.21.1"
   },
   "devDependencies": {
@@ -20,7 +21,8 @@
     "electron-builder": "^25.0.0"
   },
   "allowScripts": {
-    "electron@32.3.3": true
+    "electron@32.3.3": true,
+    "uiohook-napi@1.5.5": true
   },
   "build": {
     "appId": "com.flyinggab.intel-broadcast",
@@ -57,6 +59,10 @@
       "owner": "flyinggab",
       "repo": "intel-broadcast",
       "releaseType": "release"
-    }
+    },
+    "npmRebuild": false,
+    "asarUnpack": [
+      "**/node_modules/uiohook-napi/**"
+    ]
   }
 }

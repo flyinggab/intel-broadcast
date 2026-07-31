@@ -43,6 +43,7 @@ const log = {
   tail: el('log-tail'),
 };
 
+const passthrough = { toggle: el('tg-passthrough'), hint: el('passthrough-hint') };
 const okb = { toggle: el('tg-okb'), hint: el('okb-hint') };
 const savebar = { state: el('save-state'), save: el('btn-save') };
 const railVersion = el('rail-version');
@@ -237,6 +238,16 @@ function render(s) {
 
   // KEYBINDS: the OpenKneeboard relay. Shown regardless, so the toggle is
   // discoverable, but the hint says plainly when there is nothing to relay to.
+  const wantPass = s.passthroughKeys === true;
+  passthrough.toggle.classList.toggle('is-on', wantPass);
+  passthrough.toggle.setAttribute('aria-checked', wantPass ? 'true' : 'false');
+  // Say plainly when it was asked for but could not start, rather than
+  // showing "on" while keys are quietly still exclusive.
+  setText(
+    passthrough.hint,
+    t(wantPass ? (s.passthroughActive ? 'keys.passthroughOn' : 'keys.passthroughFailed') : 'keys.passthroughOff'),
+  );
+
   okb.toggle.classList.toggle('is-on', s.openKneeboardSync !== false);
   okb.toggle.setAttribute('aria-checked', s.openKneeboardSync !== false ? 'true' : 'false');
   setText(okb.hint, t(s.openKneeboardAvailable ? 'okb.found' : 'okb.missing'));
@@ -346,6 +357,10 @@ el('btn-open-log').addEventListener('click', () => send('open-log'));
 el('btn-copy-path').addEventListener('click', () => send('copy-log-path'));
 
 // One visible control, whose action follows the step that needs doing.
+passthrough.toggle.addEventListener('click', () => {
+  send('set-passthrough-keys', !passthrough.toggle.classList.contains('is-on'));
+});
+
 okb.toggle.addEventListener('click', () => {
   send('set-okb-sync', !okb.toggle.classList.contains('is-on'));
 });

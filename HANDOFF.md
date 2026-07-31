@@ -152,6 +152,33 @@ displays. SIL OFL, files in `app/src/renderer/fonts/`. Never load from a CDN —
 the app must work offline. B612 is wide, ~0.64em per cap; **measure new strings
 against their containers**, it is the first thing that breaks.
 
+**Keybinds have two backends, and the default one EATS the key.**
+`globalShortcut` uses Windows' `RegisterHotKey`, which is exclusive (a second
+app asking for the same combination just fails) *and* consuming (the key never
+reaches anything else). Bind plain `B` that way and the letter b stops working
+machine-wide. `passthroughKeys` switches to a low-level hook (`keyHook.js`,
+uiohook-napi) that observes keys and passes them on, so bare letters are usable
+bindings and DCS/OpenKneeboard still see the same press. It is **off by
+default**: the hook sees every keystroke, which is worth an explicit opt-in on
+an unsigned build that AV may flag.
+
+Two things that make the hook safe to have:
+- **It never records anything.** The handler matches against the configured
+  accelerators and discards the event in the same tick — nothing is logged,
+  buffered or sent. `dev-keyhook-test` asserts this against the source, because
+  "we intended not to" is not a guarantee.
+- **Modifiers match exactly.** `B` fires on B alone, never on Ctrl+B — so
+  binding a bare letter cannot hijack every combination built on it.
+
+**A native dependency changes packaging.** `uiohook-napi` ships N-API prebuilds
+for every target we build, but electron-builder runs `@electron/rebuild` by
+default and tries to *compile* it, which fails without a toolchain and cannot
+produce both mac arches from one builder anyway. `npmRebuild: false` plus
+`asarUnpack` for the module is what makes packaged builds work — do not remove
+them. Verify a pack after touching build config: `npx electron-builder --linux
+dir --publish never`, then check `dist/*/resources/app.asar.unpacked` actually
+contains the `.node`.
+
 **A global hotkey belongs to exactly one process, so paging is RELAYED.**
 Windows' `RegisterHotKey` — what Electron's `globalShortcut` uses — fails if
 another app already owns the combination, deliberately, so apps cannot fight

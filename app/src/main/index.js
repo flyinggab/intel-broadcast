@@ -16,6 +16,7 @@ const { createImagePrep } = require('./imagePrep');
 const squad = require('./squadCode');
 const { createTray } = require('./tray');
 const openKneeboard = require('./openKneeboard');
+const { startKeyHook } = require('./keyHook');
 const i18n = require('../renderer/i18n');
 const { initFileLogging, getLogFilePath, recentLines } = require('./logger');
 const tailscale = require('./tailscale');
@@ -143,6 +144,8 @@ function settingsSnapshot(base) {
     ...base,
     relayPort: config.gm.relayPort,
     openKneeboardSync: config.openKneeboardSync !== false,
+    passthroughKeys: config.passthroughKeys === true,
+    passthroughActive: Boolean(keyHook && keyHook.ok),
     openKneeboardAvailable: openKneeboard.isAvailable(),
     tokenMasked: squad.maskToken(config.token),
     squadCode: hostSquadCode(),
@@ -390,19 +393,26 @@ function pageBoth(delta) {
   }
 }
 
-function registerHotkeys() {
-  globalShortcut.unregisterAll();
-  registerHotkey('settings', config.hotkeys.settings, openSettings);
-  registerHotkey('next', config.hotkeys.next, () => pageBoth(1));
-  registerHotkey('prev', config.hotkeys.prev, () => pageBoth(-1));
-  registerHotkey('reveal', config.hotkeys.reveal, doReveal);
-  // New in this build: blanks all chrome so the kneeboard capture is just the
-  // photo. This is the state that matters most in the air.
-  registerHotkey('hide', config.hotkeys.hide, () => {
-    view.toggleChrome();
-    pushState();
-  });
+// The pass-through hook, when enabled. Held so a settings change can rebind
+// it without restarting, and so quit can stop it.
+let keyHook = null;
 
+/** What each binding name does. One table, used by both binding backends. */
+function bindingActions() {
+  return {
+    settings: openSettings,
+    next: () => pageBoth(1),
+    prev: () => pageBoth(-1),
+    reveal: doReveal,
+    hide: () => {
+      view.toggleChrome();
+      pushState();
+    },
+  };
+}
+
+/** Dev/test-only: reports what got bound, for either backend. */
+function writeHotkeyMarker() {
   if (process.env.INTEL_BROADCAST_HOTKEY_REGISTER_MARKER_PATH) {
     fs.writeFileSync(
       process.env.INTEL_BROADCAST_HOTKEY_REGISTER_MARKER_PATH,
@@ -412,6 +422,53 @@ function registerHotkeys() {
       }),
     );
   }
+}
+
+function stopKeyHook() {
+  if (!keyHook) return;
+  keyHook.stop();
+  keyHook = null;
+}
+
+function registerHotkeys() {
+  globalShortcut.unregisterAll();
+  stopKeyHook();
+
+  const actions = bindingActions();
+
+  // Pass-through mode: a low-level hook OBSERVES the keys and lets them
+  // continue to every other app, so a bare letter is a usable binding and
+  // OpenKneeboard/DCS still see the same press. globalShortcut cannot do
+  // this — RegisterHotKey both owns a combination exclusively and swallows it.
+  if (config.passthroughKeys === true) {
+    keyHook = startKeyHook({
+      bindings: config.hotkeys,
+      onFire: (name) => {
+        const action = actions[name];
+        if (action) action();
+      },
+      onLog: (msg) => console.log(`[keys] ${msg}`),
+    });
+    if (keyHook.ok) {
+      for (const [name, accelerator] of Object.entries(config.hotkeys)) {
+        if (accelerator) console.log(`[keys] pass-through ${name} "${accelerator}"`);
+      }
+      writeHotkeyMarker();
+      return;
+    }
+    // Falling back is better than no keybinds at all; the log says why.
+    console.log('[keys] falling back to exclusive keybinds');
+  }
+
+  registerHotkey('settings', config.hotkeys.settings, actions.settings);
+  registerHotkey('next', config.hotkeys.next, actions.next);
+  registerHotkey('prev', config.hotkeys.prev, actions.prev);
+  registerHotkey('reveal', config.hotkeys.reveal, actions.reveal);
+  // New in this build: blanks all chrome so the kneeboard capture is just the
+  // photo. This is the state that matters most in the air.
+  registerHotkey('hide', config.hotkeys.hide, actions.hide);
+
+  writeHotkeyMarker();
 }
 
 // ---------------------------------------------------------------------------
@@ -627,6 +684,9 @@ function handleViewerIntent(intent, payload) {
       return void openSettingsWindow.browseFolder().then((folder) => {
         if (folder) applyNewConfig(saveSettingsValues({ photosFolder: folder }));
       });
+    case 'set-passthrough-keys':
+      applyNewConfig(saveSettingsValues({ passthroughKeys: Boolean(payload) }));
+      return;
     case 'set-okb-sync':
       applyNewConfig(saveSettingsValues({ openKneeboardSync: Boolean(payload) }));
       return;
@@ -937,6 +997,7 @@ function buildAppMenu() {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  stopKeyHook();
   if (wantFunnel()) tailscale.stopFunnelSync();
 });
 
