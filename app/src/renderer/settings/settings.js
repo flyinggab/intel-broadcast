@@ -20,6 +20,8 @@ const net = {
   stepInstall: el('step-install'),
   stepAuth: el('step-auth'),
   stepFunnel: el('step-funnel'),
+  funnelAction: el('btn-funnel-action'),
+  funnelHint: el('funnel-hint'),
   codeInput: el('in-code'),
   connect: el('btn-connect'),
   joinStep2: el('join-step2'),
@@ -69,6 +71,37 @@ function setStep(node, state, text) {
 }
 
 // --- dirty tracking ---------------------------------------------------------
+/**
+ * The three steps are STATUS. This is the only CONTROL on the panel, and its
+ * label and action follow whichever step actually needs doing — so there is
+ * always one visible way to move the setup forward.
+ *
+ * The steps used to carry hidden click handlers and nothing else, which meant
+ * a host had no way to discover how to turn sharing on: they read as
+ * read-only status, because that is what they look like.
+ */
+function renderFunnelAction(f) {
+  let action;
+  let label;
+  let hint;
+
+  if (!f.installed) {
+    [action, label, hint] = ['open-download', 'ts.actInstall', 'ts.hintInstall'];
+  } else if (!f.loggedIn) {
+    [action, label, hint] = ['login', 'ts.actSignIn', 'ts.hintSignIn'];
+  } else if (f.enableUrl) {
+    [action, label, hint] = ['open-enable-url', 'ts.actEnable', 'ts.hintEnable'];
+  } else if (f.funnelOn) {
+    [action, label, hint] = ['toggle-funnel', 'ts.actStop', 'ts.hintOn'];
+  } else {
+    [action, label, hint] = ['toggle-funnel', 'ts.actShare', f.funnelError ? 'ts.hintEnable' : 'ts.hintShare'];
+  }
+
+  net.funnelAction.dataset.action = action;
+  setText(net.funnelAction, t(label));
+  setText(net.funnelHint, t(hint));
+}
+
 function isDirty() {
   if (modeDirty) return true;
   if (!lastSnapshot) return false;
@@ -139,6 +172,7 @@ function render(s) {
   if (!f.installed) setStep(net.stepAuth, '', t('ts.waiting'));
   else if (!f.loggedIn) setStep(net.stepAuth, 'running', t('ts.signInRequired'));
   else setStep(net.stepAuth, 'done', (f.dnsName || t('ts.signedIn')).toUpperCase());
+  renderFunnelAction(f);
   if (f.funnelOn) setStep(net.stepFunnel, 'done', t(s.squadCode ? 'ts.upCodeReady' : 'ts.up'));
   else if (f.enableUrl) setStep(net.stepFunnel, 'running', t('ts.needsEnabling'));
   else if (f.funnelError || f.funnelStatusError) setStep(net.stepFunnel, 'running', t('ts.failed'));
@@ -287,10 +321,10 @@ el('btn-save').addEventListener('click', () => {
 el('btn-open-log').addEventListener('click', () => send('open-log'));
 el('btn-copy-path').addEventListener('click', () => send('copy-log-path'));
 
-// Steps double as the action for their stage.
-net.stepInstall.addEventListener('click', () => send('tailscale', 'open-download'));
-net.stepAuth.addEventListener('click', () => send('tailscale', 'login'));
-net.stepFunnel.addEventListener('click', () => send('tailscale', 'toggle-funnel'));
+// One visible control, whose action follows the step that needs doing.
+net.funnelAction.addEventListener('click', () => {
+  send('tailscale', net.funnelAction.dataset.action || 'refresh');
+});
 
 // --- hotkey capture ---------------------------------------------------------
 const KEY_NAME_MAP = {

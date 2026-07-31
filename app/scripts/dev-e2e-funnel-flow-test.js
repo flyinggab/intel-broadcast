@@ -60,6 +60,19 @@ function offInvocations() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** Most recent SETTINGS_PROBE payload in a captured stdout buffer. */
+function lastSettingsProbe(output) {
+  const lines = output.split('\n').filter((l) => l.includes('SETTINGS_PROBE '));
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      return JSON.parse(lines[i].slice(lines[i].indexOf('SETTINGS_PROBE ') + 'SETTINGS_PROBE '.length));
+    } catch {
+      // truncated line, try the one before
+    }
+  }
+  return null;
+}
+
 async function waitFor(desc, predicate, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -105,6 +118,17 @@ async function scenario1() {
     );
     console.log('[e2e] blocked state surfaced in the DOM — "approving" funnel in the fake admin console');
 
+    // There must be a VISIBLE control offering the next step. The steps
+    // themselves are status; when they were the only clickable thing, a host
+    // could not discover how to turn sharing on at all.
+    const blockedProbe = lastSettingsProbe(output);
+    if (!blockedProbe) throw new Error('no settings probe seen');
+    if (!blockedProbe.funnelAction.visible) throw new Error('the funnel control must be visible');
+    if (blockedProbe.funnelAction.action !== 'open-enable-url') {
+      throw new Error(`blocked funnel should offer the admin link, got "${blockedProbe.funnelAction.action}"`);
+    }
+    console.log('[e2e] a visible control offers the admin-console link while blocked');
+
     const state = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
     state.funnelAllowed = true;
     fs.writeFileSync(STATE_PATH, JSON.stringify(state));
@@ -114,7 +138,12 @@ async function scenario1() {
       () => /"funnel":\{"state":"done"/.test(output),
       15000,
     );
-    console.log('[e2e] funnel live, wss URL rendered — terminating the app');
+    const liveProbe = lastSettingsProbe(output);
+    if (!liveProbe.funnelAction.visible) throw new Error('the funnel control must stay visible when up');
+    if (liveProbe.funnelAction.action !== 'toggle-funnel') {
+      throw new Error(`a live funnel should offer to stop, got "${liveProbe.funnelAction.action}"`);
+    }
+    console.log('[e2e] funnel live, and the control now offers to stop sharing');
 
     const offsBefore = offInvocations();
     // Graceful shutdown must go to the DIRECT child: the electron shim

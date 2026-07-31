@@ -823,6 +823,14 @@ function attachSettingsProbe(win) {
            squadCodeLength: document.getElementById('squad-code').textContent.length,
            tokenMasked: document.getElementById('net-token').textContent,
            recording: Boolean(document.querySelector('.field--recording')),
+           // The one control on the Tailscale panel: label plus the action it
+           // will fire. A host with no visible way to turn sharing on is the
+           // bug this reports against.
+           funnelAction: {
+             action: document.getElementById('btn-funnel-action').dataset.action || '',
+             label: document.getElementById('btn-funnel-action').textContent,
+             visible: Boolean(document.getElementById('btn-funnel-action').offsetParent),
+           },
            steps: ['install', 'auth', 'funnel'].reduce((acc, name) => {
              const node = document.getElementById('step-' + name);
              acc[name] = {
