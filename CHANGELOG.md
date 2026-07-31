@@ -28,15 +28,14 @@ use before it is blessed.
   hint under the toggle says which mode is live, including when it was asked
   for but could not start. It never logs, buffers or transmits a keystroke, and
   modifiers match exactly so a bare `B` never fires on Ctrl+B.
-- **Page turns relay to OpenKneeboard (`openKneeboardSync`).** One key turns
-  this app's queue and OpenKneeboard's page, via the remote-control
-  executables OKB documents. (OpenKneeboard binds joystick and tablet buttons
-  rather than keyboard keys, which is why it never conflicts — there was no
-  keyboard setting to copy.)
 
 ### Changed
-- SHARE's SELECT ALL / NONE / RESCAN / FOLDER moved above the gallery. Below
-  it, a folder larger than a screen pushed them out of reach.
+- SHARE's SELECT ALL / NONE / FOLDER moved above the gallery. Below it, a
+  folder larger than a screen pushed them out of reach.
+
+### Removed
+- **RESCAN.** The photos folder has been watched unconditionally since v0.5, so
+  the button offered to do what already happens on its own.
 - A completed setup step's mark is now `--go` green, on both the host and join
   paths; JOIN's steps gained real done-state, with 02 ticking only once a
   socket is actually up.
