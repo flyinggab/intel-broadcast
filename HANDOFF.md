@@ -1,47 +1,31 @@
 # HANDOFF — read this first
 
-You have the repo and nothing else. This file is the missing context.
+You have the repo and nothing else. This file is the missing context: enough to
+resume work without re-deriving it from the code.
 
 ---
 
 ## 0. Read order, and one trap
 
 1. **This file.**
-2. `ROADMAP.md` — four phases, and §5 "what phase 1 must not foreclose".
-3. `PROTOCOL.md` — current wire format, authoritative.
-4. `PROTOCOL-V2.md` — the v2 design, needed for phase 2.
-5. `BRIEF.md` — phase 1's spec. **Historical now**; phase 1 is done. Useful for
-   the class contract in §4 and the token/spacing rationale.
+2. `CHANGELOG.md` — what shipped in each release, and why.
+3. `ROADMAP.md` — four phases, and §5 "what phase 1 must not foreclose".
+4. `PROTOCOL.md` — current wire format, authoritative.
+5. `PROTOCOL-V2.md` — the v2 design, needed for phase 2.
+6. `BRIEF.md` — phase 1's spec. **Historical.** Its §4 class contract is
+   superseded by §4 of this file; its token and spacing rationale still holds.
 
 **The trap:** `app/PLAN.md` is stale. It says the current release is `v0.2.1`
-and documents a **viewer side panel that no longer exists** — phase 1 deleted
-it and replaced it with the tab bar. `CLAUDE.md` used to point at PLAN.md as
-the handoff doc. It is now history: good for the original architecture writeup
-and the packaging bug post-mortem, wrong about current state. Trust
-`git log` and this file.
+and documents a **viewer side panel that no longer exists**. It is kept for the
+original architecture writeup and the `v0.2.0` packaging post-mortem, both of
+which are still accurate. Trust `git log` and this file.
 
 ---
 
 ## 1. Where the project is
 
-**Current release: `v0.5.1`.** Phase 1 shipped 2026-07-30 as `v0.3.0`. The
-2026-07-31 refinement pass shipped as two releases: `v0.4.0` (queue-first
-BRIEF, RECEIVED as curation, settings save bar), `v0.5.0` (settings
-navigation rail, three settings removed, EN/IT internationalisation) and
-`v0.5.1` (the app icon). The commit messages carry the full models. Verify with `git log --oneline -5`;
-don't trust hashes written down anywhere.
-
-**Adding a user-facing string?** It goes in `app/src/renderer/i18n.js`, in
-BOTH locales — `dev-i18n-test` fails on a key present in one and not the
-other. Console and log lines stay English on purpose.
-
-**Touching the icon?** Edit `app/branding/*.svg`, then run
-`node scripts/dev-make-icons.js` (macOS only — it needs `iconutil`) and
-commit what lands in `app/build/` and `app/src/renderer/img/`. The small
-sizes come from a SEPARATE master, `icon-small.svg`: downscaling the full
-artwork to 16px produces a featureless white rectangle. Never put a double
-hyphen in those SVG comments — it is illegal in XML and the file then fails
-to decode with no useful error.
+**Current release: `v0.5.1`.** Verify with `git log --oneline -5`; don't trust
+hashes written down anywhere.
 
 The app is an Electron companion for DCS. Any pilot hits a hotkey and their
 selected photos appear on every connected pilot's kneeboard, captured by
@@ -52,33 +36,85 @@ The only distinction is "host the relay" (`relayHostEnabled`). A client's batch
 goes *up* to the host, which fans it out to everyone including the sender —
 the echo is the sharer's own render path, not redundancy.
 
-### What phase 1 delivered — do not rebuild any of this
+### Release history in one line each
 
-- New UI in `app/src/renderer/`: `viewer.html`, `settings.html`, `css/`,
-  vendored B612 fonts. EFB layout, tab bar, four settings sub-pages.
-- `viewState.js` — all viewer state lives in main, pushed to the renderer.
-- `blobStore.js` — content-addressed, served over the `intel://` protocol.
-  The base64 data URL is gone.
-- `imagePrep.js` — sender-side downscale before upload.
-- `squadCode.js` — one pasteable string carrying host, port and token.
-- `HELLO`/`HELLO_ACK` version handshake.
-- Hardening: `maxPayload`, `bufferedAmount` ceiling, `timingSafeEqual`,
-  minimum token length.
-- Tests: `app/scripts/dev-*-test.js`, plain `node`, no framework.
+| | |
+|---|---|
+| `v0.3.0` | Phase 1: the EFB UI, state in main, `intel://` blobs, squad codes, hardening |
+| `v0.4.0` | BRIEF became the kneeboard: one flat photo queue, RECEIVED curates it |
+| `v0.5.0` | Settings navigation rail; three settings removed; English + Italian |
+| `v0.5.1` | The app icon, everywhere it was missing |
+
+`CHANGELOG.md` has the detail. The commit messages have the reasoning — they
+are long on purpose and are the best record of *why*.
 
 ---
 
-## 2. Invariants — deliberate decisions that look wrong
+## 2. Architecture in one page
+
+```
+   ┌── main process ────────────────────────────┐
+   │  viewState.js   THE state. Nothing else     │
+   │      │          holds any.                  │
+   │      │ snapshot()                           │
+   │      ▼                                      │
+   │  index.js ──pushState()──┐                  │
+   │      ▲                   │                  │
+   └──────│───────────────────│──────────────────┘
+          │ intents           │ snapshots
+   ┌──────┴───────────────────▼──────────────────┐
+   │  viewer.js          settings.js             │
+   │  (captured window)  (separate window)       │
+   │  pure functions of the snapshot they get    │
+   └─────────────────────────────────────────────┘
+```
+
+- **Renderers own nothing.** They render a pushed snapshot and send back
+  *intents* (`send('step', 1)`), never decisions. See §3.
+- `viewState.js` is pure Node with an injectable clock — that is why
+  `dev-viewstate-test` can test the auto-switch rules without Electron.
+- Photos never reach a renderer as bytes. `blobStore.js` keys them by SHA-256
+  and they are served over the custom `intel://` protocol.
+- The relay is `ws`. `protocol.js` owns all framing, in one module, so a
+  future native implementation can replace the file wholesale.
+
+### The viewer's model (v0.4 onward)
+
+Every received photo forms **one flat queue**, newest batch first. An arrival
+*prepends*. The stage tracks **photo identity**, not an index — so curating
+elsewhere in the queue renumbers the position but never moves what is on the
+pilot's knee. RECEIVED is where you curate: a tile toggled off leaves the
+queue; HIDE drops a whole batch.
+
+---
+
+## 3. Invariants — deliberate decisions that look wrong
 
 Each of these has cost someone something. Do not "simplify" them without
 reading the reason.
 
 **The renderer owns no state.** `viewer.js` holds no index, no selection, no
-batch list. Main owns it; the renderer is a pure function of what it is pushed.
-Its only mutable module binding is a timer handle. In phase 4 this same HTML is
-rendered offscreen into a VR layer *alongside* the desktop window, and state in
-the DOM cannot be shared between two surfaces. Adding `let currentIndex` for
-convenience breaks phase 4 silently.
+batch list. Its only mutable module bindings are two timer handles. In phase 4
+this same HTML is rendered offscreen into a VR layer *alongside* the desktop
+window, and state in the DOM cannot be shared between two surfaces. Adding
+`let currentIndex` for convenience breaks phase 4 silently.
+
+**The stage tracks identity, not index.** `state.current` is
+`{batchId, filename}`. If it were an index, hiding any earlier photo would
+silently slide a different image under the pilot. Dropping the *current* photo
+falls to the same position — the next photo — clamped.
+
+**`banner.at` exists so the dismiss timer can be keyed per arrival.** The
+renderer's 10s auto-dismiss must not restart on every state push; with the
+settings window open, pushes arrive every 3 s, which would make the banner
+immortal. The old render-keyed timer had exactly that bug.
+
+**The shell is flex, not `grid-template-rows`.** The arrival banner is
+`display:none` in the normal case, so a fixed four-row grid shifted every later
+child up a row — the tab bar floated off the bottom edge with dead space
+beneath it, and the layout was only correct while the banner happened to show.
+Flex skips hidden children. Do not go back to grid rows without giving each
+child an explicit `grid-row`.
 
 **Settings is a separate window, not a tab.** OpenKneeboard captures the
 *entire* viewer window. If settings were a page in it, opening settings would
@@ -87,7 +123,7 @@ launcher. Never merge them.
 
 **`data-surface="window"` is not redundant.** All chrome-hiding rules are scoped
 to it. Phase 4 sets `"vr"`, where we own the compositor and chrome lives outside
-the captured quad. Deleting the attribute means unpicking six CSS rules later.
+the captured quad. Deleting the attribute means unpicking the CSS later.
 
 **Mid-tone surface, ~4.2:1 both directions.** Dark engraved labels and light
 values share one surface. 4.2 is the mathematical ceiling for a mid tone —
@@ -95,18 +131,42 @@ raising one lowers the other. It is slightly under the 4.5 AA body-text bar and
 that is accepted, because everything at that contrast is short bold labels. If
 you add long-form copy, use `--lit` on `--dn`, don't lighten `--bg`.
 
-**44px minimum touch targets.** Looks generous for a desktop app. From phase 4
-you point at this with a controller ray in VR, where precision is far worse
-than a mouse. Do not tighten to desktop density.
+**Two hues, both rationed.** `--fault` red means the relay is broken. `--go`
+green means "there is something to commit" and today lights exactly one
+control, the settings SAVE & APPLY key while dirty. The moment either
+decorates something static, it stops meaning anything.
+
+**44px minimum touch targets, viewer only.** Looks generous for a desktop app.
+From phase 4 you point at this with a controller ray in VR, where precision is
+far worse than a mouse. The settings window is exempt — never captured, never
+in the headset — and `dev-ui-geometry-test` enforces the floor on the viewer
+while merely reporting it for settings.
 
 **B612 / B612 Mono, vendored.** Commissioned by Airbus with ENAC for cockpit
 displays. SIL OFL, files in `app/src/renderer/fonts/`. Never load from a CDN —
 the app must work offline. B612 is wide, ~0.64em per cap; **measure new strings
 against their containers**, it is the first thing that breaks.
 
-**Tab bar caps at six.** Measured: four comfortable, five fit, six is the
-ceiling, then labels clip. `TOOLS` is the launcher for new pages so the bar
-stops growing. Do not let each feature claim a tab.
+**The viewer prints no hotkey, anywhere.** Printed bindings went stale the
+moment a pilot recorded a new one. SETUP → KEYBINDS is the single source.
+
+**Shipped HTML boots empty.** No demo batches, no fake callsigns, no
+placeholder tiles — the first frame a pilot can see is truthful. All demo
+content lives in `preview-state.js` and is pushed through the *real* render
+functions via the `window.__preview` hook each renderer exposes when it loads
+without Electron. Never re-add demo content to the shipped markup: the harness
+would then be exercising markup instead of renderer code, and the two drift.
+
+**Every user-facing string goes through `i18n.js`, in BOTH locales.**
+`dev-i18n-test` fails on a key present in one and missing in the other. A
+missing key renders *as the key* — a visible canary, not a silent fallback.
+Console and log lines stay English on purpose: they are diagnostics, grepped by
+tests and pasted into bug reports.
+
+**The icon has two masters.** Downscaling the full artwork to 16px turns the
+kneeboard page into a featureless white rectangle, so `icon-small.svg` redraws
+it for ≤48px. `.icns` and `.ico` are containers of independent bitmaps, which
+is what makes this possible.
 
 **`imagePrep` passthrough needs both conditions** — under 400 KB *and* already
 within the target long edge. A 6000px image at 300 KB still costs every client
@@ -121,36 +181,157 @@ keep round-tripping. `MIN_TOKEN_LENGTH` is 12 — a public Funnel URL makes the
 token the entire security model.
 
 **Never log the squad code or the token.** Not in the log tail on the LOG page,
-not in crash output.
+not in crash output. `dev-e2e-settings-test` asserts this against both stdout
+and the log file.
 
 **No `perMessageDeflate`.** JPEGs do not compress; it would burn CPU per socket
 for nothing.
 
 ---
 
-## 3. Your task
+## 4. The class contract
 
-### Right now: refining phase 1 (current, 2026-07-31)
+JS toggles these. JS never writes inline styles. This supersedes `BRIEF.md` §4.
 
-**Phase 2 has not started.** Phase 1 shipped as `v0.3.0` without ever having
-been looked at — the UI was designed by measurement and never seen rendered.
-It has now been seen, and two rounds of corrections shipped as `v0.4.0` and
-`v0.5.0`. The work continues in that mode: small corrections driven by what
-the app actually looks like when it runs.
+| Element | Attribute / class | Values |
+|---|---|---|
+| `<body>` viewer | `data-page` | `brief` `received` `share` `fault` |
+| `<body>` viewer | `data-surface` | `window` today, `vr` in phase 4 |
+| `<body>` viewer | `.is-chrome-hidden` | blanks all chrome for the capture |
+| `<body>` viewer | `.is-unfocused` | DCS has focus; chrome dims |
+| `<body>` settings | `data-page` | `net` `keys` `log` |
+| `<body>` settings | `data-mode` | `host` `join` |
+| `.tab`, `.rail__item` | `.is-active` | one per bar |
+| `.choice` | `.is-on` | the selected relay mode |
+| `.tile` | `.is-off` | deselected (SHARE *and* RECEIVED) |
+| `.step` | `.is-done`, `.is-running` | |
+| `.toggle` | `.is-on` + `aria-checked` | keep both in sync |
+| `.key` | `.is-active`, `.key--cta`, `[disabled]` | |
+| `.field` | `.field--recording` | keybind capture in progress |
+| `.banner` | `.is-hidden` | |
+| `.stage__standby` | `.is-hidden` | shown when the queue is empty |
+| any element | `data-i18n="key"` | static string, rewritten by `applyStatic()` |
 
-That makes §4's two by-eye checks the starting point, not an afterthought, and
-it makes §2 the binding constraint: a refinement that reintroduces renderer
-state, merges settings into a tab, tightens touch targets below 44px or drops
-`data-surface` is not a refinement, it is phase 4 breakage bought with a small
-convenience today.
+Gone since BRIEF: `.row` / `.row__*` (RECEIVED is tiles now), `.subtab` (a
+rail), `.tab__badge` (no unread state), the `frame` page (BRIEF *is* the
+stage), the `pilot` settings page.
 
-Keep changes in this period **reversible and narrow**: spacing, wording, sizing,
-contrast, obvious bugs. Anything that changes a contract — the wire format, the
-squad code, the class names in `BRIEF.md` §4 — is phase 2 work, not a detail.
+---
 
-### Next: phase 2
+## 5. Verifying
 
-EFB features that earn their place in DCS. Full detail in `ROADMAP.md` §2.
+```bash
+cd app && npm install
+node scripts/dev-viewstate-test.js       # and the other dev-*-test.js
+npm start                                # runs the app
+```
+
+Plain `node`, no framework. 23 scripts. Most take no arguments; the exceptions:
+
+- `dev-e2e-test` and `dev-e2e-electron-test` need a photo folder:
+  `node scripts/dev-e2e-test.js photos/roman-sead-joker1`
+- `dev-packaged-config-test` **currently fails** — see §7.
+
+Fast loop while working on the UI:
+
+```bash
+cd app/src/renderer && python3 -m http.server 8080
+```
+
+then open `preview.html`. It loads the real `viewer.html` / `settings.html` in
+iframes and drives their **real render functions** with the fake snapshots in
+`preview-state.js`, so what you see is what `render()` produces. EN/IT buttons
+switch both frames.
+
+**By-eye checks that matter:**
+
+1. Chrome hidden on BRIEF — the photo and nothing else. That is what reaches
+   the cockpit. *(Verified 2026-07-31.)*
+2. Opening settings must not change what the viewer window displays.
+   *(Verified 2026-07-31.)*
+
+---
+
+## 6. Environment and traps
+
+Development is on **macOS (Apple Silicon)** since 2026-07-30. Everything before
+that was a WSL/Linux sandbox, so environment claims in `app/PLAN.md` — unreliable
+`capturePage()`, invisible tray icons, WSLg windows — were **WSL artifacts, not
+app bugs**. Don't carry them forward.
+
+**The trap that wastes the most time:** if the packaged `Intel Broadcast.app`
+is running, it holds `app.requestSingleInstanceLock()`, and *any* dev instance
+exits **code 0 with zero output**. It reads exactly like a broken build. The
+symptom is an Electron test failing with an empty `--- full output ---`. Check
+with `ps aux | grep -i "Intel Broadcast"`. To diagnose without quitting it,
+pass `--user-data-dir=/tmp/ib-scratch`.
+
+Other things that have bitten:
+
+- **No double hyphen inside SVG comments.** It is illegal in XML; the file then
+  fails to decode as an image with no useful error. It broke `branding/icon.svg`
+  once already.
+- **`timeout` does not exist on macOS** (it is GNU coreutils). Don't wrap test
+  commands in it.
+- **Homebrew can't install the current `node` formula here** — macOS 14 Sonoma
+  is outside the bottle window. `brew install node@22` works. `brew update`
+  does not help; only a macOS upgrade would.
+- The app's own log is the fastest way to see what a run did:
+  `~/Library/Application Support/intel-broadcast/intel-broadcast.log`
+- **Target platform is still Windows.** DCS and OpenKneeboard are Windows-only,
+  so the part that actually matters — a captured window on a pilot's knee —
+  cannot be verified on macOS at all.
+
+Regenerating the icon (macOS only, needs `iconutil`):
+
+```bash
+cd app && node scripts/dev-make-icons.js
+```
+
+Edit `branding/*.svg`, never the PNGs, and commit what lands in `app/build/`
+and `app/src/renderer/img/`. CI never runs this — it consumes the committed
+outputs.
+
+---
+
+## 7. Honest gaps
+
+- **`dev-packaged-config-test` fails on arm64.** It asserts a bundle at
+  `dist/linux-unpacked/`, but electron-builder writes
+  `dist/linux-arm64-unpacked/` here. A WSL-era hardcoding, one line to fix by
+  deriving the arch suffix. Nothing else is wrong with the test.
+- **Nothing is verified on Windows** — the only platform where the capture path
+  exists. `imagePrep` has now run for real on macOS but not there.
+- **No LICENSE file.** The repo is public but legally all-rights-reserved: no
+  one can fork or redistribute, and it disqualifies the project from free
+  code-signing programmes (SignPath Foundation). One commit to fix; the choice
+  is the owner's.
+- **Neither build is code-signed.** Windows shows SmartScreen, macOS shows
+  Gatekeeper. Apple needs $99/yr and issues to individuals; Windows now
+  requires a registered company for a commercial cert, so the free OSS route
+  is the realistic one — and it needs the LICENSE first.
+- **No telemetry seam yet.** `ROADMAP.md` §5.5 defines the `NullTelemetry`
+  interface to add before phase 3 so DCS integration can be optional.
+- **README claims** "No DCS scripting, mission file, or Hooks install is
+  involved anywhere." True today and for all of phase 2. It stops being true in
+  phase 3, when voice needs the DCS export. Keep the integration **opt-in** and
+  update the claim then — that promise is why people try this app.
+- **Phase 1 deleted several e2e tests** — `dev-e2e-panel-test`,
+  `dev-e2e-live-apply-test`, `dev-e2e-clients-list-test` — with the side panel
+  they covered. `dev-intel-history-test` was also removed in v0.4.0 after its
+  module was deleted; its coverage was re-homed into `dev-viewstate-test` and
+  `dev-format-test`.
+- **`app/PLAN.md` is stale.** See §0.
+
+---
+
+## 8. Your task
+
+### Phase 2 — EFB features that earn their place in DCS
+
+Phase 1 shipped, and then had two rounds of refinement driven by actually
+looking at it (`v0.4.0`, `v0.5.0`). The UI is in good shape. Full phase-2
+detail is in `ROADMAP.md` §2.
 
 ### The constraint that decides everything
 
@@ -182,61 +363,12 @@ interaction they need:
 
 Steps 1 and 2 need no protocol change and ship independently.
 
+Note that RECEIVED already renders per-photo tiles grouped by batch, so
+generalising it to "artifacts of several kinds" is a rendering change, not a
+restructure.
+
 ### Don't build
 
 A mission planner. The F10 map, the DCS briefing and the mission editor exist
 and you will not beat them. This app's job is what is **live**, **shared**, or
 **annoying to look up**.
-
----
-
-## 4. Verifying
-
-```bash
-cd app && npm install
-node scripts/dev-squad-code-test.js      # and the other dev-*-test.js
-npm start                                 # runs the app
-```
-
-Tests are plain `node`, no framework. `dev-auth-test` and `dev-hardening-test`
-need `ws` installed.
-
-Open `app/src/renderer/preview.html` over a local server (not `file://`) to see
-every UI state at true size without launching Electron.
-
-**Check these two by eye, because nobody has yet:**
-
-1. Frame page with chrome hidden — the photo and nothing else. That is what
-   reaches the cockpit.
-2. Opening settings must not change what the viewer window displays.
-
----
-
-## 5. Honest gaps
-
-- ~~The UI was designed without ever being seen rendered.~~ **Closed
-  2026-07-31.** It has been seen, at 430×604 and in Electron, in both locales.
-  `preview.html` drives the REAL render functions with fake snapshots
-  (`preview-state.js`), so the harness exercises renderer code rather than
-  parallel markup that drifts. Still: trust your eyes over the numbers.
-- ~~`imagePrep`'s `prepareOne` has never run in Electron.~~ **Closed
-  2026-07-31**, on macOS against real files: 311KB→140KB, a 6366KB PNG→263KB,
-  and the two-condition passthrough firing correctly. Not yet exercised on
-  Windows.
-- **Phase 1 deleted several e2e tests** — `dev-e2e-panel-test`,
-  `dev-e2e-live-apply-test`, `dev-e2e-clients-list-test` — because the side
-  panel they covered is gone. Check nothing still-relevant went with them.
-- **`app/PLAN.md` is stale.** See §0.
-- **README still claims** "No DCS scripting, mission file, or Hooks install is
-  involved anywhere." True today and true for all of phase 2. It stops being
-  true in phase 3, when voice needs the DCS export. Keep the integration
-  **opt-in** and update the claim then — that promise is why people try this
-  app.
-- **No telemetry seam yet.** `ROADMAP.md` §5.5 defines the `NullTelemetry`
-  interface to add before phase 3 so DCS integration can be optional.
-- **`dev-packaged-config-test` asserts a `dist/linux-unpacked/` path**, which
-  electron-builder only produces on x64 — on arm64 it writes
-  `dist/linux-arm64-unpacked/`. A WSL-era hardcoding; the test fails on this
-  Mac for that reason alone. One line to derive the suffix.
-- **Nothing is verified on Windows**, which is the only platform where the
-  capture path (DCS + OpenKneeboard) actually exists.

@@ -145,6 +145,13 @@ Rules:
 
 ## 4. Class contract
 
+> **SUPERSEDED — see `HANDOFF.md` §4 for the current contract.**
+> The table below is the phase 1 contract as specified. Releases v0.4.0 and
+> v0.5.0 changed it: `.row`/`.row__*` are gone (RECEIVED renders tiles now),
+> `.subtab` became `.rail__item`, `.tab__badge` was removed along with unread
+> state, the `frame` page was folded into `brief`, and the `pilot` settings
+> page was deleted. Kept here because the *rationale* below it still applies.
+
 JS toggles these. JS should never write inline styles.
 
 | Element | Attribute / class | Values |

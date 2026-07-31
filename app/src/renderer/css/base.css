@@ -106,7 +106,6 @@ body[data-page="brief"]    .page[data-page="brief"],
 body[data-page="received"] .page[data-page="received"],
 body[data-page="share"]    .page[data-page="share"],
 body[data-page="fault"]    .page[data-page="fault"],
-body[data-page="pilot"]    .page[data-page="pilot"],
 body[data-page="net"]      .page[data-page="net"],
 body[data-page="keys"]     .page[data-page="keys"],
 body[data-page="log"]      .page[data-page="log"] { display: block; }

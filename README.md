@@ -100,11 +100,12 @@ first responds to them — use the menu bar for the second one. Not an issue on 
 intel-broadcast/
 ├── README.md
 ├── HANDOFF.md           # current state + next task — start here
+├── CHANGELOG.md         # what shipped in each release
 ├── ROADMAP.md           # the four phases
 ├── PROTOCOL.md          # wire protocol spec — source of truth
 ├── PROTOCOL-V2.md       # v2 design, lands in phase 2
 ├── protocol-vectors.json# v2 conformance vectors
-├── BRIEF.md             # phase 1 spec (historical; §4 has the CSS class contract)
+├── BRIEF.md             # phase 1 spec (historical; §4 superseded by HANDOFF §4)
 └── app/                 # the Electron app (one unified mode, single codebase)
     ├── branding/        # icon SVG masters — edit these, never the PNGs
     ├── build/           # generated .icns/.ico/.png (committed; CI consumes them)
@@ -118,5 +119,6 @@ top of v0.5.0's English/Italian support and the settings navigation rail (NETWOR
 LOG), v0.4.0's queue-first viewer, and phase 1's EFB UI, content-addressed blobs, squad codes
 and transport hardening.
 
-See [HANDOFF.md](./HANDOFF.md) for what's verified, what the known gaps are, and what's next.
+See [CHANGELOG.md](./CHANGELOG.md) for what shipped when, and [HANDOFF.md](./HANDOFF.md) for
+what's verified, what the known gaps are, and what's next.
 `app/PLAN.md` is **historical** and reports a release two versions old — don't resume from it.

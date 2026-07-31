@@ -191,6 +191,13 @@ already provides for.
 
 Six decisions, all free now, all expensive to retrofit.
 
+> **Status, 2026-07-31.** 5.1, 5.2, 5.3, 5.4 and 5.6 shipped and are still
+> held — the invariants in `HANDOFF.md` §3 record what each one cost and why it
+> must not be "simplified". 5.2 in particular survived a full viewer rewrite in
+> v0.4.0: the photo queue lives in `viewState.js` and the renderer still owns
+> nothing but two timer handles. **5.5, the telemetry seam, is the one item not
+> yet built** — it is needed before phase 3.
+
 ### 5.1 Blob store keyed by content hash
 Serve `intel://blob/<sha256>`, not `intel://item/<uuid>`. Phase 2's content
 addressing then reuses the same store and the same renderer URLs — it becomes a
