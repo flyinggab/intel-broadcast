@@ -109,8 +109,9 @@
         </div>
       </div>
 
-      <div class="tiles" id="share-grid"></div>
-
+      <!-- Above the grid on purpose: below it, a full folder pushed these off
+           the bottom and you had to scroll the whole gallery to select all or
+           change folder. The controls that act on the grid come first. -->
       <div class="keyrow">
         <button class="key--sm key" id="share-all" data-i18n="share.all">SELECT ALL</button>
         <button class="key--sm key" id="share-none" data-i18n="share.none">NONE</button>
@@ -118,6 +119,8 @@
         <!-- The folder lives here, next to what it feeds — not in settings. -->
         <button class="key--sm key" id="share-folder-btn" data-i18n="share.folderBtn">FOLDER&hellip;</button>
       </div>
+
+      <div class="tiles" id="share-grid"></div>
 
       <!-- No printed hotkey here: bindings live in SETUP → KEYS. -->
       <button class="key key--lg key--primary" id="share-reveal" disabled></button>
