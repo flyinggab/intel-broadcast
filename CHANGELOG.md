@@ -11,9 +11,17 @@ talk to each other.
 
 ---
 
-## Unreleased
+## v0.7.0 — 2026-08-01
 
 ### Fixed
+- **`dev-e2e-funnel-flow-test` had stopped testing anything.** Merging settings
+  into the viewer replaced `SETTINGS_PROBE` with the viewer's `PANEL_PROBE`,
+  and this test still waited for the old name — so it timed out reporting that
+  the funnel UI never showed a blocked state, when in fact no probe was being
+  emitted to it at all. The whole Tailscale Funnel flow (blocked → admin
+  approves → automatic retry → quit tears the funnel down) went unverified for
+  four commits. The test now reads `PANEL_PROBE`, and `funnelAction` — dropped
+  in the same merge — is back in the payload.
 - **SHARE rendered on top of every other page.** Its layout rule set `display`
   from a class on the page element itself, which ties with `.page { display:
   none }` on specificity and sits in a later stylesheet — so it always won.
@@ -28,6 +36,16 @@ talk to each other.
   in both languages.
 
 ### Changed
+- **Host or join is an accordion now, not two cards.** Which one was selected
+  had been unreadable through three attempts to fix it, because the problem was
+  structural: the palette keeps every surface within a narrow band so both dark
+  and light text stay legible on it, and `--up` against `--dn` is about a 15%
+  step. Saying "selected" by being slightly darker asks that band to carry the
+  whole message. So the comparison is gone — only the chosen path opens, and
+  that path's content lives inside its own card. One is open with your squad
+  code in it; the other is a closed line. The strongest signal available, the
+  content you asked for appearing, is now attached to the control that causes
+  it instead of sitting in a detached block below both.
 - **JOIN has no CONNECT key.** A squad code that parses is an instruction, not
   a proposal — pasting one connects. Guarded so that typing does not reconnect
   on every keystroke.

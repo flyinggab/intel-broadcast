@@ -60,12 +60,13 @@ function offInvocations() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Most recent SETTINGS_PROBE payload in a captured stdout buffer. */
+/** Most recent PANEL_PROBE payload in a captured stdout buffer.
+    SETUP is a page of the viewer, so its fields ride the one viewer probe. */
 function lastSettingsProbe(output) {
-  const lines = output.split('\n').filter((l) => l.includes('SETTINGS_PROBE '));
+  const lines = output.split('\n').filter((l) => l.includes('PANEL_PROBE '));
   for (let i = lines.length - 1; i >= 0; i--) {
     try {
-      return JSON.parse(lines[i].slice(lines[i].indexOf('SETTINGS_PROBE ') + 'SETTINGS_PROBE '.length));
+      return JSON.parse(lines[i].slice(lines[i].indexOf('PANEL_PROBE ') + 'PANEL_PROBE '.length));
     } catch {
       // truncated line, try the one before
     }
@@ -102,7 +103,7 @@ async function scenario1() {
   const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
     cwd: APP_DIR,
     detached: true, // process GROUP, so killTree reaches the real binary
-    env: { ...baseEnv(), INTEL_BROADCAST_OPEN_SETTINGS: '1', INTEL_BROADCAST_SETTINGS_PROBE: '1' },
+    env: { ...baseEnv(), INTEL_BROADCAST_OPEN_SETTINGS: '1', INTEL_BROADCAST_VIEWER_PANEL_PROBE: '1' },
   });
   child.stdout.on('data', (d) => {
     output += d.toString();
@@ -113,7 +114,7 @@ async function scenario1() {
   try {
     await waitFor(
       'the funnel step to report it needs enabling',
-      () => output.includes('SETTINGS_PROBE') && output.includes('NEEDS ENABLING IN ADMIN'),
+      () => output.includes('PANEL_PROBE') && output.includes('NEEDS ENABLING IN ADMIN'),
       15000,
     );
     console.log('[e2e] blocked state surfaced in the DOM — "approving" funnel in the fake admin console');
@@ -250,7 +251,7 @@ async function scenario3() {
   const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
     cwd: APP_DIR,
     detached: true, // process GROUP, so killApp reaches the real binary
-    env: { ...baseEnv(), INTEL_BROADCAST_OPEN_SETTINGS: '1', INTEL_BROADCAST_SETTINGS_PROBE: '1' },
+    env: { ...baseEnv(), INTEL_BROADCAST_OPEN_SETTINGS: '1', INTEL_BROADCAST_VIEWER_PANEL_PROBE: '1' },
   });
   child.stdout.on('data', (d) => {
     output += d.toString();
@@ -283,7 +284,7 @@ async function scenario3() {
     await waitFor(
       'the panel to recover to Shared',
       () => {
-        const lines = output.split('\n').filter((l) => l.includes('SETTINGS_PROBE'));
+        const lines = output.split('\n').filter((l) => l.includes('PANEL_PROBE'));
         return lines.length > 0 && /"funnel":\{"state":"done"/.test(lines[lines.length - 1]);
       },
       15000,

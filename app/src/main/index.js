@@ -940,6 +940,11 @@ function attachViewerProbe() {
              const done = document.querySelector('.step.is-done .step__mark');
              return done ? getComputedStyle(done).backgroundColor : '';
            })(),
+           funnelAction: {
+             action: document.getElementById('btn-funnel-action').dataset.action || '',
+             label: document.getElementById('btn-funnel-action').textContent,
+             visible: Boolean(document.getElementById('btn-funnel-action').offsetParent),
+           },
            steps: ['install', 'auth', 'funnel'].reduce((acc, name) => {
              const node = document.getElementById('step-' + name);
              acc[name] = {

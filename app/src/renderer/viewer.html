@@ -203,24 +203,21 @@
 
             <div>
               <span class="cap" data-i18n="cap.whereRelay">Who hosts the squad?</span>
-              <button class="choice" data-set-mode="host" id="choice-host">
-                <i class="choice__radio"></i>
-                <span class="choice__text">
-                  <span class="choice__label" data-i18n="choice.host">I HOST THE SQUAD</span>
-                  <span class="choice__hint" data-i18n="choice.hostHint">THIS MACHINE HOSTS</span>
-                </span>
-              </button>
-              <button class="choice" data-set-mode="join" id="choice-join">
-                <i class="choice__radio"></i>
-                <span class="choice__text">
-                  <span class="choice__label" data-i18n="choice.join">I JOIN A SQUAD</span>
-                  <span class="choice__hint" data-i18n="choice.joinHint">SOMEONE ELSE HOSTS</span>
-                </span>
-              </button>
-            </div>
-
-            <!-- ---------------- HOST path ---------------- -->
-            <div data-mode="host" class="stack">
+              <!-- Only the chosen one opens, and its content lives INSIDE it.
+                   The two used to be side-by-side cards distinguished by a
+                   slightly darker face — on a palette built so both dark and
+                   light text work, "slightly darker" is the weakest signal
+                   there is. Now there is nothing to compare: one is open with
+                   your squad code in it, the other is a closed line. -->
+              <div class="mode" id="choice-host">
+                <button class="mode__head" data-set-mode="host">
+                  <i class="mode__radio"></i>
+                  <span class="mode__text">
+                    <span class="mode__label" data-i18n="choice.host">I HOST THE SQUAD</span>
+                    <span class="mode__hint" data-i18n="choice.hostHint">THIS MACHINE HOSTS</span>
+                  </span>
+                </button>
+                <div data-mode="host" class="mode__body stack">
               <div>
                 <span class="cap" data-i18n="cap.squadCode">Your squad code</span>
                 <div class="field selectable">
@@ -264,10 +261,18 @@
                 </div>
               </div>
               <button class="key key--sm" id="btn-new-token" data-i18n="net.newToken">NEW TOKEN</button>
-            </div>
+                </div>
+              </div>
 
-            <!-- ---------------- JOIN path: same step idiom ---------------- -->
-            <div data-mode="join" class="stack">
+              <div class="mode" id="choice-join">
+                <button class="mode__head" data-set-mode="join">
+                  <i class="mode__radio"></i>
+                  <span class="mode__text">
+                    <span class="mode__label" data-i18n="choice.join">I JOIN A SQUAD</span>
+                    <span class="mode__hint" data-i18n="choice.joinHint">SOMEONE ELSE HOSTS</span>
+                  </span>
+                </button>
+                <div data-mode="join" class="mode__body stack">
               <div class="step step--tall is-running" id="join-step1">
                 <i class="step__mark"></i><span class="step__n">01</span>
                 <div class="step__body">
@@ -290,6 +295,8 @@
                 </div>
               </div>
               <div class="meta"><span data-i18n="net.codeCarries">THE CODE CARRIES HOST, PORT AND TOKEN</span><br /><span data-i18n="net.nothingElse">NOTHING ELSE TO TYPE</span></div>
+                </div>
+              </div>
             </div>
 
             <div>

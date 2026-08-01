@@ -126,33 +126,44 @@ body[data-mode="join"] [data-mode="host"] { display: none; }
 }
 .content { flex: 1; min-width: 0; overflow-y: auto; }
 
-/* --- the relay choice: two radio cards ------------------------------------
-   WHERE IS THE RELAY? is an either/or, so it looks like one: radio marks,
-   and the selected card carries the same lit left bar as the active rail
-   row — unmistakable against the raised grey of the unselected card.       */
-.choice {
+/* --- host / join: an accordion, not two cards -----------------------------
+   This was two side-by-side radio cards, and it kept failing the only test
+   that matters: people could not tell which one was selected. The reason is
+   structural, not cosmetic. The palette is built so that both dark and light
+   text stay readable on it, which means every surface tone sits within a
+   narrow band — --up against --dn is about a 15% step. A design that says
+   "selected" by being slightly darker is asking that band to carry the whole
+   message, and it cannot. Making it shout louder (borders, a lit bar, an
+   accent fill) only fights the same fight harder.
+
+   So the comparison is gone. Only the chosen path opens, and that path's
+   content lives INSIDE its card: one is open with your squad code in it, the
+   other is a closed line. The strongest available signal — the content you
+   asked for appearing — is now attached to the control that causes it,
+   instead of being a detached block underneath both.                        */
+.mode + .mode { margin-top: var(--sp-2); }
+.mode__head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--sp-3);
   width: 100%;
+  min-height: var(--touch-min);
+  padding: var(--sp-2) var(--sp-4);
   text-align: left;
-  padding: var(--sp-3) var(--sp-4);
   background: var(--up);
   box-shadow: var(--bevel-up);
   cursor: pointer;
 }
-.choice + .choice { margin-top: var(--sp-2); }
-.choice__radio {
+.mode__radio {
   flex: none;
   width: 1.125rem;
   height: 1.125rem;
   border-radius: 50%;
   box-shadow: inset 0 0 0 1.4px var(--ink);
   position: relative;
-  margin-top: 1px;
 }
-.choice__text { min-width: 0; }
-.choice__label {
+.mode__text { flex: 1; min-width: 0; }
+.mode__label {
   display: block;
   font-size: var(--fs-row);
   font-weight: 700;
@@ -160,7 +171,7 @@ body[data-mode="join"] [data-mode="host"] { display: none; }
   text-shadow: var(--engrave);
   letter-spacing: .05em;
 }
-.choice__hint {
+.mode__hint {
   display: block;
   margin-top: 2px;
   font-family: var(--font-mono);
@@ -168,19 +179,25 @@ body[data-mode="join"] [data-mode="host"] { display: none; }
   color: var(--muted);
   letter-spacing: .04em;
 }
-.choice.is-on {
-  background: var(--dn);
-  box-shadow: inset 3px 0 0 var(--lit), inset 1px 1px 0 var(--edge), inset -1px -1px 0 var(--hi);
-}
-.choice.is-on .choice__label { color: var(--lit); text-shadow: none; }
-.choice.is-on .choice__hint { color: var(--hi); }
-.choice.is-on .choice__radio { box-shadow: inset 0 0 0 1.4px var(--lit); }
-.choice.is-on .choice__radio::after {
+/* .is-on is set by settings.js on the [data-set-mode] element, i.e. the head. */
+.mode__head.is-on { background: var(--lit); box-shadow: var(--bevel-up); }
+.mode__head.is-on .mode__label { color: var(--ink); text-shadow: none; }
+.mode__head.is-on .mode__hint { color: var(--edge); }
+.mode__head.is-on .mode__radio { box-shadow: inset 0 0 0 1.4px var(--ink); }
+.mode__head.is-on .mode__radio::after {
   content: "";
   position: absolute;
   inset: 4px;
   border-radius: 50%;
-  background: var(--lit);
+  background: var(--ink);
+}
+/* Recessed, and flush against its own head so the two read as one card.
+   Which body is shown is decided by body[data-mode] — see the exclusivity
+   rule further down, unchanged from when these blocks were siblings.        */
+.mode__body {
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  background: var(--dn);
+  box-shadow: var(--bevel-dn);
 }
 
 /* --- breadcrumb + menu key ------------------------------------------------

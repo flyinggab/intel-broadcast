@@ -277,13 +277,13 @@ JS toggles these. JS never writes inline styles. This supersedes `BRIEF.md` §4.
 | `<body>` viewer | `.is-chrome-hidden` | blanks all chrome for the capture |
 | `<body>` viewer | `.is-unfocused` | DCS has focus; chrome dims |
 | `<body>` | `data-setup` | `net` `keys` `log` — SETUP's own sub-navigation |
-| `<body>` | `data-mode` | `host` `join` — SETUP's NETWORK section |
+| `<body>` | `data-mode` | `host` `join` — SETUP's NETWORK section. Also decides which `.mode__body` shows, via the exclusivity rule in `components.css`; the two bodies still carry `[data-mode="host"|"join"]` even though they now sit inside their cards, because that rule and the `hostVisible`/`joinVisible` probe both key off it |
 | `.rail__item` (settings) | `.is-active` | one per rail |
 | `.dest` (launcher) | `.is-active` | the page you are on |
 | `.launcher` | `.is-hidden` | closed; it is chrome, so capture-clean hides it |
 | `.faultbar` | `.is-hidden` | connected; also chrome. CSS additionally hides it on SETUP → NETWORK, where it would be redundant |
 | `.menukey` | `.is-active` | launcher open |
-| `.choice` | `.is-on` | the selected relay mode |
+| `.mode__head` | `.is-on` | the selected host/join mode. The head, not the `.mode` wrapper — `settings.js` toggles `.is-on` on the `[data-set-mode]` element |
 | `.tile` | `.is-off` | deselected (SHARE *and* RECEIVED) |
 | `.step` | `.is-done`, `.is-running` | |
 | `.toggle` | `.is-on` + `aria-checked` | keep both in sync |
@@ -410,6 +410,17 @@ pass `--user-data-dir=/tmp/ib-scratch`.
 
 Other things that have bitten:
 
+- **There is exactly one DOM probe now: `PANEL_PROBE`**, emitted by
+  `attachViewerProbe()` in `main/index.js` under `INTEL_BROADCAST_VIEWER_PANEL_PROBE`.
+  SETUP is a page of the viewer, so its fields ride along in the same payload.
+  Two traps came out of that merge, both of which hid real breakage:
+  *(a)* a test still looking for the old `SETTINGS_PROBE` name times out on a
+  message that never arrives, and reads like a UI bug —
+  `dev-e2e-funnel-flow-test` did exactly this and silently verified nothing for
+  four commits; *(b)* fields get dropped in the merge and nothing complains
+  until a test needs them (`joinSteps`, `doneMarkColour` and `funnelAction` all
+  had to be recovered from git). If you touch the probe, grep `scripts/` for
+  every field name you removed.
 - **No double hyphen inside SVG comments.** It is illegal in XML; the file then
   fails to decode as an image with no useful error. It broke `branding/icon.svg`
   once already.
