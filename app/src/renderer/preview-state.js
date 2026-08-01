@@ -2,7 +2,7 @@
 
 // DEV HARNESS DATA — not loaded by the app, ever.
 //
-// The shipped viewer.html and settings.html contain no demo content: they
+// The shipped viewer.html contains no demo content (SETUP is a page of it): it
 // boot empty and truthful. Everything preview.html (and the geometry
 // harness) shows comes from HERE, pushed through the real render functions
 // via the window.__preview hook each renderer exposes when it loads without
@@ -129,6 +129,7 @@
       }),
     },
     settings: scenario({
+      page: 'setup',
       relayPort: 8140,
       tokenMasked: '•••• KD93',
       squadCode: 'IB1-UFJFVklFVy1PTkxZLU5PVC1BLVJFQUwtQ09ERQ',

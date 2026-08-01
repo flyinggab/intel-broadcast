@@ -21,14 +21,13 @@ const el = (id) => document.getElementById(id);
 // The launcher is generated from this. Adding a page is ONE entry here plus
 // its two i18n keys — which is the whole reason the tab bar went: a bar
 // divides a fixed width by N and stops working at six, a grouped grid does
-// not. `opens: 'settings'` marks the one destination that is not a page in
-// this window: settings is a separate BrowserWindow, because OpenKneeboard
-// captures this one and a config form must never reach the pilot's knee.
+// not. Every entry is a page of this window, SETUP included: the EFB carries
+// its own settings, like the tablet a pilot actually flies with.
 const DESTINATIONS = [
   { id: 'brief',    group: 'intel',  label: 'tab.brief',    icon: 'M3 2h14v16H3zM6 7h8M6 11h8M6 15h5' },
   { id: 'received', group: 'intel',  label: 'tab.received', icon: 'M10 2v9M6 8l4 4 4-4M3 14h14v4H3z' },
   { id: 'share',    group: 'intel',  label: 'tab.share',    icon: 'M10 13V4M6 7l4-4 4 4M3 14h14v4H3z' },
-  { id: 'setup',    group: 'system', label: 'tab.setup',    icon: 'M2 5h16M2 10h16M2 15h16', opens: 'settings' },
+  { id: 'setup',    group: 'system', label: 'tab.setup',    icon: 'M2 5h16M2 10h16M2 15h16' },
 ];
 // Group order is the order they appear; a group with no destinations is
 // simply not rendered, so this list can run ahead of the pages.
@@ -129,7 +128,7 @@ function renderLauncher(s) {
     tiles.className = 'launcher__tiles';
     for (const d of members) {
       const tile = document.createElement('button');
-      tile.className = 'dest' + (d.id === s.page && !d.opens ? ' is-active' : '');
+      tile.className = 'dest' + (d.id === s.page ? ' is-active' : '');
       tile.dataset.dest = d.id;
       tile.setAttribute('role', 'menuitem');
 
@@ -331,6 +330,9 @@ function render(s) {
 
   renderLauncher(s);
   renderStrip(s);
+  // SETUP is a page of this window; settings.js exposes its renderer rather
+  // than subscribing separately, so the two cannot show different snapshots.
+  if (window.__renderSetup) window.__renderSetup(s);
   renderBanner(s);
   renderStage(s);
   renderReceived(s);
@@ -355,11 +357,7 @@ launcher.addEventListener('click', (event) => {
   const tile = event.target.closest('.dest[data-dest]');
   if (!tile) return;
   const dest = DESTINATIONS.find((d) => d.id === tile.dataset.dest);
-  if (!dest) return;
-  // SETUP opens the separate settings window rather than switching a page
-  // here. Main closes the launcher either way.
-  if (dest.opens === 'settings') send('open-settings');
-  else send('set-page', dest.id);
+  if (dest) send('set-page', dest.id);
 });
 
 // Escape closes it — the launcher covers the whole window, so there has to be
@@ -403,7 +401,7 @@ el('share-folder-btn').addEventListener('click', () => send('browse-folder'));
 share.reveal.addEventListener('click', () => send('reveal'));
 
 el('fault-retry').addEventListener('click', () => send('reconnect'));
-el('fault-setup').addEventListener('click', () => send('open-settings'));
+el('fault-setup').addEventListener('click', () => send('set-page', 'setup'));
 
 // Focus drives the chrome dimming, and counts as the pilot being present —
 // main uses that for the auto-switch grace window.

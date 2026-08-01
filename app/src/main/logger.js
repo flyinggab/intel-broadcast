@@ -86,7 +86,7 @@ function getLogFilePath() {
 }
 
 // A small ring of recent lines for the LOG page's tail. Kept in memory rather
-// than re-read from disk so rendering the settings window never does file I/O.
+// than re-read from disk so rendering the LOG page never does file I/O.
 // NOTE: the squad code is a password and is never logged, so it cannot reach
 // this buffer either.
 const RING_SIZE = 40;

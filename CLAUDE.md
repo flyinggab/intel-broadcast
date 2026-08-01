@@ -25,15 +25,16 @@ Doc map:
 - Repo: this directory, pushed to `https://github.com/flyinggab/intel-broadcast` (public).
 - App code lives in `app/`. Tests are plain `node app/scripts/dev-*-test.js`, no framework —
   see `HANDOFF.md` §5 for the loop and the two scripts that need arguments.
-- `npm start` in `app/` runs the app. Everyone shares and receives; a "Where is the relay?"
-  choice in Settings → NETWORK (`relayHostEnabled`) picks the center node.
+- `npm start` in `app/` runs the app. Everyone shares and receives; the "Who hosts the squad?"
+  choice in SETUP → NETWORK (`relayHostEnabled`) picks the center node.
 - To test two instances on one machine: give each terminal its own
   `INTEL_BROADCAST_LOCAL_CONFIG_PATH` env var — see `README.md`.
 - Releases are built by `.github/workflows/release.yml` on GitHub Actions, triggered by pushing
   a `v*` tag. Bump `app/package.json` first.
-- UI lives in `app/src/renderer/` — `viewer.html`, `settings.html`, `css/`, `i18n.js`, vendored
-  B612 fonts. Serve that folder over HTTP and open `preview.html` to drive the **real** render
-  functions with fake snapshots, no Electron needed.
+- UI lives in `app/src/renderer/` — `viewer.html` (ONE window: BRIEF, RECEIVED, SHARE and
+  SETUP are all pages of it), `css/`, `i18n.js`, vendored B612 fonts. Serve that folder over
+  HTTP and open `preview.html` to drive the **real** render functions with fake snapshots, no
+  Electron needed.
 - **All viewer state lives in `app/src/main/viewState.js`.** The renderer holds none — read
   `HANDOFF.md` §3 before changing that.
 - **Every user-facing string goes in `app/src/renderer/i18n.js`, in both `en` and `it`.**

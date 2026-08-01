@@ -14,6 +14,15 @@ talk to each other.
 ## Unreleased
 
 ### Changed
+- **Settings is a page, not a window.** This reverses a founding invariant, on
+  purpose: the product is an EFB, and the tablet a pilot actually flies with
+  carries its own settings — reaching them should not conjure a second window
+  to manage. SETUP is now a destination in the launcher like any other.
+  `settings.js` runs inside the viewer document (scoped, since both files
+  declared `body`) and renders from the same snapshot; there is one window, one
+  state push and one intent channel. `settings.html`, its preload and
+  `settingsWindow.js` are gone — what survived is `settingsConfig.js`, the
+  config writer and the folder dialog.
 - **The tab bar is gone; navigation is a grouped launcher.** A bar divides a
   fixed width by the number of destinations and stopped working at six — the
   roadmap needs many more than six. The strip now carries a breadcrumb (where

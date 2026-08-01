@@ -16,9 +16,8 @@ voice, minus the standalone server — see [PROTOCOL.md](./PROTOCOL.md) for the 
 
 Everyone runs the exact same app, and **everyone can both share and receive** — there's no GM
 build, GM mode, or separate viewer role. One machine additionally acts as the squad's center
-node: that person ticks "Host the relay on this machine" in Settings (tray icon, the
-"Intel Broadcast" menu, or `Ctrl+Shift+O`), which starts an embedded WebSocket relay everyone
-else connects to. Settings apply immediately on save — no restart; only the pieces a changed
+node: that person picks "I host the squad" in SETUP → NETWORK, which starts an embedded
+WebSocket relay everyone else connects to. Settings apply immediately on save — no restart; only the pieces a changed
 value affects (hotkeys, relay server, relay connection) restart in-process.
 
 1. Each pilot points SHARE's folder picker at their own mission photos and sets a callsign in
@@ -54,9 +53,9 @@ has focus.
   photo you are looking at advances to the next one; dropping any other never moves your page.
 - **SHARE** — a thumbnail grid of your folder (picked right here). Tick what you want; your
   reveal hotkey sends exactly that selection.
-- **SETUP** opens the *separate* settings window rather than switching a page — putting a
-  settings form on the pilot's knee mid-flight is not a feature. Three sections on a rail:
-  NETWORK (callsign, hosting vs joining, who is on the net), KEYBINDS, LOG.
+- **SETUP** is a page like the others — an EFB carries its own settings, the way the tablet a
+  pilot actually flies with does. Three sections on a rail: NETWORK (callsign, hosting vs
+  joining, who is on the net), KEYBINDS, LOG.
 
 Every arrival is announced in a banner that dismisses itself: "SWITCHED AUTOMATICALLY" when the
 viewer jumped to the new intel, "QUEUED" when you were mid-something and it held still (it joins

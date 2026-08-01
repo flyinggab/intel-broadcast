@@ -64,8 +64,8 @@ are long on purpose and are the best record of *why*.
    └──────│───────────────────│──────────────────┘
           │ intents           │ snapshots
    ┌──────┴───────────────────▼──────────────────┐
-   │  viewer.js          settings.js             │
-   │  (captured window)  (separate window)       │
+   │  viewer.js  +  settings.js (SETUP page)     │
+   │  ONE window, one snapshot                   │
    │  pure functions of the snapshot they get    │
    └─────────────────────────────────────────────┘
 ```
@@ -117,10 +117,15 @@ beneath it, and the layout was only correct while the banner happened to show.
 Flex skips hidden children. Do not go back to grid rows without giving each
 child an explicit `grid-row`.
 
-**Settings is a separate window, not a tab.** OpenKneeboard captures the
-*entire* viewer window. If settings were a page in it, opening settings would
-put the config form on the pilot's knee mid-flight. The SETUP tab is a
-launcher. Never merge them.
+**Settings is a PAGE of the viewer — one window.** This reverses an earlier
+invariant, deliberately. The old rule said OpenKneeboard captures the whole
+window, so a settings page could land on the pilot's knee. True, but it was
+reasoning about a utility with a config dialog; the product is an EFB — the
+tablet a pilot actually flies with carries its own settings, and reaching them
+should not conjure a second window to manage. If SETUP is on screen it is
+because the pilot put it there. `settings.js` runs in the viewer document,
+scoped in an IIFE (both files would otherwise declare `body` and collide), and
+exposes `window.__renderSetup` so viewer.js drives it from the one snapshot.
 
 **`data-surface="window"` is not redundant.** All chrome-hiding rules are scoped
 to it. Phase 4 sets `"vr"`, where we own the compositor and chrome lives outside
@@ -141,11 +146,12 @@ doing". The moment either hue decorates something static, it stops meaning
 anything. `dev-e2e-settings-test` asserts the done mark's *computed* colour
 rather than its class, because a class name would not prove it renders green.
 
-**44px minimum touch targets, viewer only.** Looks generous for a desktop app.
-From phase 4 you point at this with a controller ray in VR, where precision is
-far worse than a mouse. The settings window is exempt — never captured, never
-in the headset — and `dev-ui-geometry-test` enforces the floor on the viewer
-while merely reporting it for settings.
+**44px minimum touch targets on the flight surfaces.** Looks generous for a
+desktop app. From phase 4 you point at this with a controller ray in VR, where
+precision is far worse than a mouse. SETUP is exempt — it is a form used on the
+ground — and `dev-ui-geometry-test` enforces the floor on every other page
+while merely reporting it for `setup/*`. The window moved; the reasoning did
+not.
 
 **B612 / B612 Mono, vendored.** Commissioned by Airbus with ENAC for cockpit
 displays. SIL OFL, files in `app/src/renderer/fonts/`. Never load from a CDN —
@@ -266,12 +272,12 @@ JS toggles these. JS never writes inline styles. This supersedes `BRIEF.md` §4.
 
 | Element | Attribute / class | Values |
 |---|---|---|
-| `<body>` viewer | `data-page` | `brief` `received` `share` |
+| `<body>` | `data-page` | `brief` `received` `share` `setup` |
 | `<body>` viewer | `data-surface` | `window` today, `vr` in phase 4 |
 | `<body>` viewer | `.is-chrome-hidden` | blanks all chrome for the capture |
 | `<body>` viewer | `.is-unfocused` | DCS has focus; chrome dims |
-| `<body>` settings | `data-page` | `net` `keys` `log` |
-| `<body>` settings | `data-mode` | `host` `join` |
+| `<body>` | `data-setup` | `net` `keys` `log` — SETUP's own sub-navigation |
+| `<body>` | `data-mode` | `host` `join` — SETUP's NETWORK section |
 | `.rail__item` (settings) | `.is-active` | one per rail |
 | `.dest` (launcher) | `.is-active` | the page you are on |
 | `.launcher` | `.is-hidden` | closed; it is chrome, so capture-clean hides it |
@@ -314,10 +320,10 @@ Fast loop while working on the UI:
 cd app/src/renderer && python3 -m http.server 8080
 ```
 
-then open `preview.html`. It loads the real `viewer.html` / `settings.html` in
-iframes and drives their **real render functions** with the fake snapshots in
-`preview-state.js`, so what you see is what `render()` produces. EN/IT buttons
-switch both frames.
+then open `preview.html`. Both frames load the same `viewer.html` — one showing
+a flight page, one showing `page: 'setup'` — and drive its **real render
+functions** with the fake snapshots in `preview-state.js`, so what you see is
+what `render()` produces. EN/IT buttons switch both frames.
 
 **By-eye checks that matter:**
 

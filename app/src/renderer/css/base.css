@@ -104,10 +104,15 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 body[data-page="brief"]    .page[data-page="brief"],
 body[data-page="received"] .page[data-page="received"],
 body[data-page="share"]    .page[data-page="share"],
-body[data-page="fault"]    .page[data-page="fault"],
-body[data-page="net"]      .page[data-page="net"],
-body[data-page="keys"]     .page[data-page="keys"],
-body[data-page="log"]      .page[data-page="log"] { display: block; }
+body[data-page="setup"]    .page[data-page="setup"] { display: block; }
+
+/* SETUP's own sub-navigation, on a SECOND attribute: settings is a page in
+   this window now, so both levels of navigation live on <body> and one
+   attribute cannot drive both. */
+.page[data-setup] { display: none; }
+body[data-setup="net"]  .page[data-setup="net"],
+body[data-setup="keys"] .page[data-setup="keys"],
+body[data-setup="log"]  .page[data-setup="log"] { display: block; }
 
 .page--flush { padding: 0; height: 100%; }
 .page--pad   { padding: var(--sp-3); }

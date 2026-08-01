@@ -109,7 +109,7 @@ console.log('[test] t(), photos(), fallback');
 // Static markup references keys by name; a typo there renders as the key.
 const fs = require('fs');
 const path = require('path');
-for (const file of ['viewer.html', 'settings.html']) {
+for (const file of ['viewer.html']) {
   const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', file), 'utf8');
   for (const m of html.matchAll(/data-i18n="([^"]+)"/g)) {
     if (!DICTS.en[m[1]]) fail(`${file} references unknown key "${m[1]}"`);

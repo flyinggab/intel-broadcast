@@ -161,6 +161,11 @@ async function main() {
   // Hotkey-only in the UI now; the intent channel stands in for the hotkey.
   // The chrome hides itself once you stop touching the app — no binding to
   // remember, and it is the state the kneeboard capture wants.
+  // Arm the idle timer explicitly. Main only schedules the hide in response to
+  // activity, and the first activity normally comes from the window gaining
+  // focus — which a window spawned by a test script does not reliably get.
+  // Relying on that made this assertion pass or fail by luck.
+  await runInViewer(`window.dispatchEvent(new MouseEvent('mousemove'))`);
   await waitFor('chrome to auto-hide while idle on BRIEF', () => probe.chromeHidden === true, 15000);
   const chromeVisible = await new Promise((resolve) => {
     fs.writeFileSync(
@@ -217,16 +222,12 @@ async function main() {
   await waitFor('Escape to close the launcher', () => probe.launcherOpen === false);
   console.log('[e2e] launcher lists every destination, grouped, and Escape closes it');
 
-  const pageBeforeSetup = probe.page;
-  if (!probe.launcherOpen) await click('#menukey');
-  await waitFor('launcher open', () => probe.launcherOpen === true);
-  await click('.dest[data-dest="setup"]');
-  await sleep(800);
-  if (probe.page !== pageBeforeSetup) {
-    throw new Error(`opening SETUP must not change what the viewer displays (went to ${probe.page})`);
-  }
-  if (!/\[settingsWindow\] window/.test(output)) throw new Error('SETUP should have opened the settings window');
-  console.log('[e2e] SETUP opens the settings window without changing the viewer page');
+  // SETUP is a page of this window now — the EFB carries its own settings.
+  await goTo('setup');
+  await waitFor('SETUP page', () => probe.page === 'setup');
+  if (probe.setup !== 'net') throw new Error(`SETUP should open on NETWORK, got ${probe.setup}`);
+  if (!probe.squadCodePrefix) throw new Error('SETUP should be rendering from the same snapshot');
+  console.log('[e2e] SETUP is a page of the viewer, rendered from the same snapshot');
 
   // --- rule C: an arrival during interaction queues, page holds still ------
   const bravo = await connectClient('UZI 1-1');

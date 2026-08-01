@@ -1,6 +1,6 @@
 'use strict';
 
-// Unit test for settingsWindow.js's saveSettingsValues() — pure file I/O, no
+// Unit test for settingsConfig.js's saveSettingsValues() — pure file I/O, no
 // Electron needed. Checks the deep-merge behavior for hotkeys/gm specifically,
 // since a naive shallow merge would let a save that only sets one hotkey wipe
 // out previously-saved ones.
@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
-const { saveSettingsValues } = require('../src/main/settingsWindow');
+const { saveSettingsValues } = require('../src/main/settingsConfig');
 const { LOCAL_CONFIG_PATH } = require('../src/main/config');
 
 function readLocal() {

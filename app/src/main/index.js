@@ -19,13 +19,9 @@ const { startKeyHook } = require('./keyHook');
 const i18n = require('../renderer/i18n');
 const { initFileLogging, getLogFilePath, recentLines } = require('./logger');
 const tailscale = require('./tailscale');
-const {
-  openSettingsWindow,
-  registerSettingsIpc,
-  saveSettingsValues,
-  pushSettingsState,
-  isSettingsOpen,
-} = require('./settingsWindow');
+// SETUP is a page of the viewer, so there is no settings window module any
+// more: what survived is the config writer and the folder dialog.
+const { saveSettingsValues, browseFolder } = require('./settingsConfig');
 
 const BUNDLED_PHOTOS_DIR = path.join(__dirname, '..', '..', 'photos');
 
@@ -132,12 +128,11 @@ function currentPhotosFolder() {
 // ---------------------------------------------------------------------------
 
 function pushState() {
-  const snapshot = view.snapshot();
-  if (viewer) viewer.pushState(snapshot);
-  if (isSettingsOpen()) pushSettingsState(settingsSnapshot(snapshot));
+  // SETUP is a page of the viewer, so there is one snapshot and one window.
+  if (viewer) viewer.pushState(settingsSnapshot(view.snapshot()));
 }
 
-/** The viewer snapshot plus the fields only the settings window renders. */
+/** The base snapshot plus the fields only the SETUP page renders. */
 function settingsSnapshot(base) {
   return {
     ...base,
@@ -634,25 +629,36 @@ function applyNewConfig(newConfig) {
   pushState();
 }
 
+/**
+ * Shows SETUP. It is a page of the viewer — the EFB carries its own settings —
+ * so this navigates rather than opening a window. Reached from the launcher,
+ * the tray and the app menu.
+ *
+ * The Tailscale panel polls only while SETUP is the page: it shells out to the
+ * CLI every few seconds, which is not something to run behind a photo.
+ */
 function openSettings() {
-  const win = openSettingsWindow({ config, uiScale: config.uiScale });
-  pushSettingsState(settingsSnapshot(view.snapshot()));
-  if (process.env.INTEL_BROADCAST_SETTINGS_PROBE) attachSettingsProbe(win);
+  view.setPage('setup');
+  noteActivity();
+  pushState();
   // Dev/test-only: hands the squad code to a harness through a FILE, never
   // through stdout — writing it to a log is exactly what must not happen.
   if (process.env.INTEL_BROADCAST_SQUAD_CODE_MARKER_PATH) {
     const code = hostSquadCode();
     if (code) fs.writeFileSync(process.env.INTEL_BROADCAST_SQUAD_CODE_MARKER_PATH, code);
   }
-  if (!tailscalePollTimer) {
-    refreshTailscaleState({ reconcile: true });
-    tailscalePollTimer = setInterval(() => refreshTailscaleState({ reconcile: true }), 3000);
-    win.on('closed', () => {
-      clearInterval(tailscalePollTimer);
-      tailscalePollTimer = null;
-    });
-  }
-  return win;
+  startTailscalePolling();
+}
+
+function startTailscalePolling() {
+  if (tailscalePollTimer) return;
+  refreshTailscaleState({ reconcile: true });
+  tailscalePollTimer = setInterval(() => refreshTailscaleState({ reconcile: true }), 3000);
+}
+
+function stopTailscalePolling() {
+  clearInterval(tailscalePollTimer);
+  tailscalePollTimer = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -665,6 +671,8 @@ function handleViewerIntent(intent, payload) {
       break;
     case 'set-page':
       view.setPage(payload);
+      if (payload === 'setup') startTailscalePolling();
+      else stopTailscalePolling();
       noteActivity();
       break;
     case 'toggle-launcher':
@@ -712,7 +720,7 @@ function handleViewerIntent(intent, payload) {
       return restage();
     case 'browse-folder':
       // The picker lives on SHARE now, next to the gallery it feeds.
-      return void openSettingsWindow.browseFolder().then((folder) => {
+      return void browseFolder(viewer && viewer.window).then((folder) => {
         if (folder) applyNewConfig(saveSettingsValues({ photosFolder: folder }));
       });
     case 'set-auto-show':
@@ -728,9 +736,9 @@ function handleViewerIntent(intent, payload) {
     case 'open-settings':
       openSettings();
       return;
+    // SETUP's intents arrive here too — one page, one channel.
     default:
-      console.log(`[viewer] unknown intent: ${intent}`);
-      return;
+      return void handleSettingsIntent(intent, payload);
   }
   pushState();
 }
@@ -740,7 +748,7 @@ async function handleSettingsIntent(intent, payload) {
     case 'ready':
       break;
     case 'browse-folder': {
-      const folder = await openSettingsWindow.browseFolder();
+      const folder = await browseFolder(viewer && viewer.window);
       if (folder) applyNewConfig(saveSettingsValues({ photosFolder: folder }));
       return;
     }
@@ -840,9 +848,7 @@ app.whenReady().then(() => {
     return new Response(entry.buffer, { headers: { 'content-type': entry.mimeType } });
   });
 
-  registerSettingsIpc();
   ipcMain.on('viewer:intent', (_event, intent, payload) => handleViewerIntent(intent, payload));
-  ipcMain.on('settings:intent', (_event, intent, payload) => handleSettingsIntent(intent, payload));
   ipcMain.handle('settings:decode-code', (_event, raw) => {
     const decoded = squad.tryDecodeSquadCode(raw);
     // Never return the token to the renderer: it only needs to know it parsed.
@@ -895,72 +901,6 @@ app.whenReady().then(() => {
   });
 });
 
-/** Dev/test-only: same probe/eval channel as the viewer, for the settings window. */
-function attachSettingsProbe(win) {
-  if (win.__probeAttached) return;
-  win.__probeAttached = true;
-  win.webContents.on('console-message', (_e, level, message) => {
-    console.log(`[settings renderer] ${message}`);
-  });
-  const probe = setInterval(() => {
-    if (win.isDestroyed()) return clearInterval(probe);
-    const evalPath = process.env.INTEL_BROADCAST_SETTINGS_EVAL_PATH;
-    if (evalPath && fs.existsSync(evalPath)) {
-      const source = fs.readFileSync(evalPath, 'utf8');
-      fs.rmSync(evalPath, { force: true });
-      win.webContents.executeJavaScript(source).catch((err) => console.log(`[settings eval] ${err.message}`));
-    }
-    win.webContents
-      .executeJavaScript(
-        `console.log('SETTINGS_PROBE ' + JSON.stringify({
-           page: document.body.dataset.page,
-           mode: document.body.dataset.mode,
-           hostVisible: Boolean(document.querySelector('.page[data-page="net"] [data-mode="host"]').offsetParent),
-           joinVisible: Boolean(document.querySelector('.page[data-page="net"] [data-mode="join"]').offsetParent),
-           connectDisabled: document.getElementById('btn-connect').disabled,
-           joinResolved: document.getElementById('join-resolved').textContent,
-           netstate: document.getElementById('netstate-what').textContent,
-           dirty: document.getElementById('save-state').textContent,
-           saveDisabled: document.getElementById('btn-save').disabled,
-           // Shape only — the code is a password, and this probe's output goes
-           // to stdout and therefore to the log file.
-           squadCodePrefix: document.getElementById('squad-code').textContent.slice(0, 4),
-           squadCodeLength: document.getElementById('squad-code').textContent.length,
-           tokenMasked: document.getElementById('net-token').textContent,
-           recording: Boolean(document.querySelector('.field--recording')),
-           // The one control on the Tailscale panel: label plus the action it
-           // will fire. A host with no visible way to turn sharing on is the
-           // bug this reports against.
-           funnelAction: {
-             action: document.getElementById('btn-funnel-action').dataset.action || '',
-             label: document.getElementById('btn-funnel-action').textContent,
-             visible: Boolean(document.getElementById('btn-funnel-action').offsetParent),
-           },
-           joinSteps: ['join-step1', 'join-step2'].map((id) => {
-             const node = document.getElementById(id);
-             return node.classList.contains('is-done') ? 'done' : node.classList.contains('is-running') ? 'running' : 'off';
-           }),
-           // The computed colour of a done mark — the point of the change is
-           // that a satisfied step is GREEN, which a class name alone would
-           // not prove.
-           doneMarkColour: (() => {
-             const done = document.querySelector('.step.is-done .step__mark');
-             return done ? getComputedStyle(done).backgroundColor : '';
-           })(),
-           steps: ['install', 'auth', 'funnel'].reduce((acc, name) => {
-             const node = document.getElementById('step-' + name);
-             acc[name] = {
-               state: node.classList.contains('is-done') ? 'done' : node.classList.contains('is-running') ? 'running' : 'off',
-               text: node.querySelector('.step__state').textContent,
-             };
-             return acc;
-           }, {}),
-         }))`,
-      )
-      .catch(() => {});
-  }, 400);
-}
-
 /** Dev/test-only: pipes the viewer renderer's console and dumps its DOM. */
 function attachViewerProbe() {
   viewer.window.webContents.on('console-message', (_e, level, message) => {
@@ -978,6 +918,36 @@ function attachViewerProbe() {
       .executeJavaScript(
         `console.log('PANEL_PROBE ' + JSON.stringify({
            page: document.body.dataset.page,
+           // SETUP is a page here now, so its probe fields ride along.
+           setup: document.body.dataset.setup,
+           mode: document.body.dataset.mode,
+           hostVisible: Boolean(document.querySelector('.page[data-setup="net"] [data-mode="host"]') && document.querySelector('.page[data-setup="net"] [data-mode="host"]').offsetParent),
+           joinVisible: Boolean(document.querySelector('.page[data-setup="net"] [data-mode="join"]') && document.querySelector('.page[data-setup="net"] [data-mode="join"]').offsetParent),
+           connectDisabled: document.getElementById('btn-connect').disabled,
+           joinResolved: document.getElementById('join-resolved').textContent,
+           netstate: document.getElementById('netstate-what').textContent,
+           dirty: document.getElementById('save-state').textContent,
+           saveDisabled: document.getElementById('btn-save').disabled,
+           squadCodePrefix: document.getElementById('squad-code').textContent.slice(0, 4),
+           squadCodeLength: document.getElementById('squad-code').textContent.length,
+           tokenMasked: document.getElementById('net-token').textContent,
+           recording: Boolean(document.querySelector('.field--recording')),
+           joinSteps: ['join-step1', 'join-step2'].map((id) => {
+             const node = document.getElementById(id);
+             return node.classList.contains('is-done') ? 'done' : node.classList.contains('is-running') ? 'running' : 'off';
+           }),
+           doneMarkColour: (() => {
+             const done = document.querySelector('.step.is-done .step__mark');
+             return done ? getComputedStyle(done).backgroundColor : '';
+           })(),
+           steps: ['install', 'auth', 'funnel'].reduce((acc, name) => {
+             const node = document.getElementById('step-' + name);
+             acc[name] = {
+               state: node.classList.contains('is-done') ? 'done' : node.classList.contains('is-running') ? 'running' : 'off',
+               text: node.querySelector('.step__state').textContent,
+             };
+             return acc;
+           }, {}),
            chromeHidden: document.body.classList.contains('is-chrome-hidden'),
            launcherOpen: !document.getElementById('launcher').classList.contains('is-hidden'),
            crumb: document.getElementById('crumb-page').textContent + ' ' + document.getElementById('crumb-pos').textContent,

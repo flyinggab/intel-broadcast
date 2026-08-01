@@ -40,8 +40,10 @@ function measureInPage(touchMin) {
       faces.some((f) => f.family === 'B612' && f.status === 'loaded'),
   };
 
-  const pages = [...document.querySelectorAll('.page')].map((p) => p.dataset.page);
+  const pages = [...document.querySelectorAll('.page[data-page]')].map((p) => p.dataset.page);
+  const setups = [...document.querySelectorAll('.page[data-setup]')].map((p) => p.dataset.setup);
   const originalPage = document.body.dataset.page;
+  const originalSetup = document.body.dataset.setup;
 
   for (const name of pages) {
     // Measure every page, including ones currently hidden: a target that only
@@ -75,6 +77,23 @@ function measureInPage(touchMin) {
     }
   }
 
+  // SETUP's sub-pages are pages too — measure each of them.
+  document.body.dataset.page = 'setup';
+  for (const name of setups) {
+    document.body.dataset.setup = name;
+    for (const target of document.querySelectorAll('button, input, .toggle, .tile, .step')) {
+      const rect = target.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) continue;
+      if (rect.height < touchMin - 0.5) {
+        report.small.push({ page: 'setup/' + name, cls: String(target.className || target.tagName).slice(0, 44), h: Math.round(rect.height * 10) / 10 });
+      }
+    }
+    const doc = document.documentElement;
+    if (doc.scrollWidth > doc.clientWidth + 1) {
+      report.overflow.push({ page: 'setup/' + name, what: 'document', by: doc.scrollWidth - doc.clientWidth });
+    }
+  }
+  document.body.dataset.setup = originalSetup;
   document.body.dataset.page = originalPage;
   return report;
 }
@@ -99,9 +118,9 @@ async function measure(file, scale, locale) {
   // banner shown too, so its close target is measured.
   await win.webContents.executeJavaScript(PREVIEW_STATE_SOURCE);
   await win.webContents.executeJavaScript(
-    file === 'viewer.html'
-      ? `window.__preview.render({ ...PreviewState.viewer['banner switched'], launcherOpen: true, locale: ${JSON.stringify(locale)} })`
-      : `window.__preview.render({ ...PreviewState.settings, locale: ${JSON.stringify(locale)} })`,
+    // One document: SETUP is a page of the viewer, so the settings fields ride
+    // on the same snapshot and every page is measured in one pass.
+    `window.__preview.render({ ...PreviewState.settings, ...PreviewState.viewer['banner switched'], launcherOpen: true, locale: ${JSON.stringify(locale)} })`,
   );
   await win.webContents.executeJavaScript(
     `document.documentElement.style.setProperty('--ui-scale', ${JSON.stringify(String(scale))})`,
@@ -124,7 +143,7 @@ app.on('window-all-closed', () => {});
 app.whenReady().then(async () => {
   const results = [];
   try {
-    for (const file of ['viewer.html', 'settings.html']) {
+    for (const file of ['viewer.html']) {
       for (const scale of SCALES) {
         for (const locale of LOCALES) results.push(await measure(file, scale, locale));
       }

@@ -1,6 +1,9 @@
 'use strict';
 
-// End-to-end against the NEW settings window, driven through its real DOM.
+// End-to-end against SETUP, driven through its real DOM.
+//
+// SETUP is a PAGE of the viewer now, not a window, so this drives the viewer
+// window and reads the same PANEL_PROBE the UI test does.
 // Replaces the old settings / hotkey-record / live-apply / clients-list tests,
 // which all drove markup this UI removed.
 //
@@ -47,8 +50,8 @@ const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox'], {
     ...process.env,
     INTEL_BROADCAST_LOCAL_CONFIG_PATH: CONFIG_PATH,
     INTEL_BROADCAST_OPEN_SETTINGS: '1',
-    INTEL_BROADCAST_SETTINGS_PROBE: '1',
-    INTEL_BROADCAST_SETTINGS_EVAL_PATH: EVAL_PATH,
+    INTEL_BROADCAST_VIEWER_PANEL_PROBE: '1',
+    INTEL_BROADCAST_VIEWER_EVAL_PATH: EVAL_PATH,
     INTEL_BROADCAST_SQUAD_CODE_MARKER_PATH: CODE_MARKER_PATH,
   },
 });
@@ -60,10 +63,10 @@ child.stdout.on('data', (d) => {
   output += text;
   process.stdout.write(`[app] ${text}`);
   for (const line of text.split('\n')) {
-    const at = line.indexOf('SETTINGS_PROBE ');
+    const at = line.indexOf('PANEL_PROBE ');
     if (at === -1) continue;
     try {
-      probe = JSON.parse(line.slice(at + 'SETTINGS_PROBE '.length));
+      probe = JSON.parse(line.slice(at + 'PANEL_PROBE '.length));
     } catch {
       // chunk boundary
     }
@@ -108,11 +111,13 @@ function readConfig() {
 }
 
 async function main() {
-  await waitFor('the settings window to render', () => probe !== null);
+  await waitFor('the viewer to render', () => probe !== null);
+  // SETUP opens on the page, not in a window.
+  await waitFor('SETUP to be the page', () => probe.page === 'setup', 20000);
 
   // --- §6.3 host and join are mutually exclusive, in every state ------------
   // NETWORK is the first rail page, so it is already showing.
-  await waitFor('NETWORK page', () => probe.page === 'net');
+  await waitFor('NETWORK section', () => probe.setup === 'net');
   if (probe.mode !== 'host') throw new Error(`should start in host mode, got ${probe.mode}`);
   if (probe.hostVisible && probe.joinVisible) throw new Error('host and join blocks must never both show');
   if (!probe.hostVisible) throw new Error('host block should be visible in host mode');
@@ -198,8 +203,8 @@ async function main() {
   console.log('[e2e] §6.9 neither the squad code nor the token appears in stdout or the log file');
 
   // --- hotkey recording writes through to config ---------------------------
-  await click('.rail__item[data-page="keys"]');
-  await waitFor('KEYBINDS page', () => probe.page === 'keys');
+  await click('.rail__item[data-setup="keys"]');
+  await waitFor('KEYBINDS section', () => probe.setup === 'keys');
   await click('[data-record="next"]');
   await waitFor('recording state shown', () => probe.recording === true);
   await runInSettings(
@@ -220,8 +225,8 @@ async function main() {
   // VIEWER's switch instead of the settings one: the click fired, the IPC
   // arrived, and main answered "unknown intent" while the UI looked fine.
   // Asserting on config, not on the class, is what catches that.
-  await click('.rail__item[data-page="keys"]');
-  await waitFor('KEYBINDS page', () => probe.page === 'keys');
+  await click('.rail__item[data-setup="keys"]');
+  await waitFor('KEYBINDS section', () => probe.setup === 'keys');
   const before = readConfig().passthroughKeys === true;
   await click('#tg-passthrough');
   await sleep(1200);
@@ -233,11 +238,11 @@ async function main() {
   }
   console.log('[e2e] the pass-through toggle reaches main and persists');
 
-  // --- the window stays open after all that (live apply, no relaunch) ------
+  // --- everything applied live (no relaunch) -------------------------------
   if (child.exitCode !== null) throw new Error('the app must not restart to apply settings');
   await sleep(600);
-  if (!probe) throw new Error('the settings window should still be rendering');
-  console.log('[e2e] settings applied live; window stayed open, app never restarted');
+  if (!probe) throw new Error('the viewer should still be rendering');
+  console.log('[e2e] settings applied live; app never restarted');
 
   console.log('[dev-e2e-settings-test] PASS');
   cleanup(0);

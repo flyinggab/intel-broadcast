@@ -1,15 +1,34 @@
 'use strict';
 
-// SETTINGS — a separate BrowserWindow, deliberately NOT the captured one.
+// SETUP — a PAGE of the viewer, not a window of its own.
 //
-// Like the viewer, this owns no state: it renders a pushed snapshot and sends
+// The EFB carries its own settings, the way the tablet a pilot actually flies
+// with does. This file runs in the viewer document alongside viewer.js and
+// talks over the same channel; only the pieces it owns are here.
+//
+// Like the viewer, it owns no state: it renders a pushed snapshot and sends
 // intents. The one exception is in-progress form input (what you have typed
 // but not saved), which is local by definition until you press save. Exactly
-// two things are deferred form state: the callsign text and the relay mode —
-// everything else applies the moment you touch it.
+// two things are deferred form state: the callsign text and the host/join
+// choice — everything else applies the moment you touch it.
+//
+// It must survive being loaded where its markup is absent (the preview
+// harness renders pages one at a time), so every lookup is guarded.
 
+// One document now, so this file gets its own scope: viewer.js already
+// declares `body`, `el`, `send` and `setText` at the top level, and a second
+// `const body` in the same document is a SyntaxError that takes both
+// renderers down. Only __renderSetup escapes.
+(function () {
 const body = document.body;
 const el = (id) => document.getElementById(id);
+// SETUP may not be in the document at all (a harness rendering one page); in
+// that case this file must load and do nothing rather than throw and take
+// viewer.js's listeners down with it.
+if (!el('in-callsign')) {
+  window.__renderSetup = () => {};
+  return;
+}
 
 const pilot = { callsign: el('in-callsign') };
 
@@ -65,7 +84,7 @@ let lastSnapshot = null;
 // also runs on input events, outside render.
 let joinConnected = false;
 
-const send = (intent, payload) => window.settingsAPI && window.settingsAPI.send(intent, payload);
+const send = (intent, payload) => window.viewerAPI && window.viewerAPI.send(intent, payload);
 const setText = (node, text) => {
   if (node) node.textContent = text;
 };
@@ -265,8 +284,8 @@ function render(s) {
 // and says so in step 02 — it must not throw into the console and leave the
 // UI looking fine.
 async function refreshJoinPreview() {
-  if (!window.settingsAPI) return; // dev harness: no main to decode against
-  const decoded = await window.settingsAPI.decodeCode(net.codeInput.value);
+  if (!window.viewerAPI) return; // dev harness: no main to decode against
+  const decoded = await window.viewerAPI.decodeCode(net.codeInput.value);
   const typed = net.codeInput.value.trim().length > 0;
   if (decoded.ok) {
     net.connect.disabled = false;
@@ -286,12 +305,12 @@ async function refreshJoinPreview() {
 
 // --- intents ----------------------------------------------------------------
 
-for (const item of document.querySelectorAll('.rail__item')) {
+for (const item of document.querySelectorAll('.rail__item[data-setup]')) {
   item.addEventListener('click', () => {
     for (const other of document.querySelectorAll('.rail__item')) {
       other.classList.toggle('is-active', other === item);
     }
-    body.dataset.page = item.dataset.page;
+    body.dataset.setup = item.dataset.setup;
   });
 }
 
@@ -326,7 +345,7 @@ el('btn-new-token').addEventListener('click', () => {
   send('new-token');
 });
 el('btn-paste').addEventListener('click', async () => {
-  net.codeInput.value = await window.settingsAPI.readClipboard();
+  net.codeInput.value = await window.viewerAPI.readClipboard();
   refreshJoinPreview();
 });
 net.codeInput.addEventListener('input', refreshJoinPreview);
@@ -413,11 +432,8 @@ document.addEventListener('keydown', (event) => {
   send('set-hotkey', { key, accelerator });
 });
 
-if (window.settingsAPI) {
-  window.settingsAPI.onState(render);
-  send('ready');
-  refreshJoinPreview();
-} else {
-  // Dev harnesses (preview.html, geometry): drive the real render directly.
-  window.__preview = { render };
-}
+// viewer.js owns onState and drives this through window.__renderSetup, so the
+// two renderers cannot disagree about which snapshot they are showing.
+window.__renderSetup = render;
+if (window.viewerAPI) refreshJoinPreview();
+})();

@@ -34,7 +34,7 @@ const MAX_BUFFERED_BYTES = 48 * 1024 * 1024;
 function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = () => {} }) {
   const wss = new WebSocketServer({ port, maxPayload: MAX_FRAME_BYTES });
   // ws -> { role, callsign, connectedAt } for every authenticated client —
-  // identity kept so the settings window can show who's connected and so
+  // identity kept so SETUP can show who's connected and so
   // rebroadcasts can be attributed to their sender.
   const clients = new Map();
 

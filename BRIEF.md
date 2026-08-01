@@ -44,6 +44,12 @@ add a token rather than hard-coding it in a rule.
 
 ### Why setup is not a page in the viewer window
 
+> **REVERSED in v0.7 — settings IS a page of the viewer now.** The reasoning
+> below is sound for a utility with a config dialog, but the product is an
+> EFB: the tablet a pilot actually flies with carries its own settings, and
+> reaching them should not conjure a second window to manage. If SETUP is on
+> screen it is because the pilot put it there. See `HANDOFF.md` §3.
+
 The viewer window is what OpenKneeboard captures and puts on the pilot's
 knee. If SETUP were a page inside it, opening setup would display the
 settings form on the kneeboard mid-flight.
@@ -146,6 +152,9 @@ Rules:
 ## 4. Class contract
 
 > **SUPERSEDED — see `HANDOFF.md` §4 for the current contract.**
+> Also superseded: this document treats the settings window as a separate
+> BrowserWindow. Since v0.7 settings is a PAGE of the viewer — the EFB carries
+> its own settings. See the invariant in `HANDOFF.md` §3.
 > The table below is the phase 1 contract as specified. Releases v0.4.0 and
 > v0.5.0 changed it: `.row`/`.row__*` are gone (RECEIVED renders tiles now),
 > `.subtab` became `.rail__item`, `.tab__badge` was removed along with unread

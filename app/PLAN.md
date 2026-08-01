@@ -119,7 +119,8 @@ now and expensive later.
    loads from the vendored woff2. **One finding for the designer**: the *settings* window has 20
    sub-44px targets at scale 1 — `.subtab` is 34px by design (`--h-sub`), plus the bare `<input>`
    inside `.field--lead` at 22px and `.step` at 36px. Left as designed rather than restyled: the
-   44px floor exists for VR controller-ray pointing, and settings is never captured, never in the
+   44px floor exists for VR controller-ray pointing, and SETUP is a ground-use form (since v0.7 it
+   is a page of the viewer, not a window), never in the
    headset. Raise `--h-sub` if you disagree — the test reports it either way.
 
 **Bugs found while testing phase 1** (both in code I'd just written, both caught by the tests):

@@ -61,6 +61,21 @@
 .cell__val--mono { font-family: var(--font-mono); }
 .cell--fault .cell__val { color: var(--fault); }
 
+/* SETUP's NETWORK section shows ONE relay path at a time. This rule used to
+   live in settings.html's inline <style>; it moved here with the page. Losing
+   it puts a host toggle and a join field on screen together, which is exactly
+   the contradictory state the design forbids. */
+body[data-mode="host"] [data-mode="join"],
+body[data-mode="join"] [data-mode="host"] { display: none; }
+
+/* --- setup page ----------------------------------------------------------
+   Settings are a page in the viewer now, so the layout the settings WINDOW
+   got from .shell has to come from here instead: rail beside content, save
+   bar pinned under both.                                                    */
+.setup { display: flex; flex-direction: column; height: 100%; }
+.setup > .frame { flex: 1 1 auto; min-height: 0; }
+.setup > .savebar { flex: none; }
+
 /* --- settings navigation rail --------------------------------------------
    Vertical, because it scales: a horizontal tab row divides the window
    width by the number of sections and B612 clips at five; a rail row is

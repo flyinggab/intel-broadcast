@@ -4,7 +4,7 @@ const { execFile, execFileSync, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-// Drives the Tailscale CLI on the HOST machine so the settings window can walk
+// Drives the Tailscale CLI on the HOST machine so SETUP can walk
 // the user from "not installed" all the way to a public wss:// Funnel URL.
 // Deliberately no Electron imports (browser-opening is a callback) so the
 // parsing/composition logic is unit-testable with plain node

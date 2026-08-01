@@ -7,7 +7,8 @@
   DEV HARNESS. Not shipped, not part of the app.
 
   The shipped HTML boots EMPTY — no demo content. This page loads the real
-  viewer.html / settings.html in iframes and drives their real render
+  viewer.html in two iframes — one on a flight page, one on SETUP — and
+  drives its real render
   functions with the fake snapshots in preview-state.js, through the
   window.__preview hook each renderer exposes when it loads without
   Electron. What you see is exactly what render() produces.
@@ -66,9 +67,9 @@
     </div>
 
     <div class="unit">
-      <div class="name">SETTINGS &mdash; separate window, never captured</div>
+      <div class="name">SETUP &mdash; a page of the same window</div>
       <div class="ctl" id="ctl-settings"></div>
-      <div class="device"><iframe id="fs" src="settings.html"></iframe></div>
+      <div class="device"><iframe id="fs" src="viewer.html"></iframe></div>
       <div class="note">Sub-tabs, HOST/JOIN and the save bar are live in the frame —
         type in the callsign and SAVE &amp; APPLY lights. PILOTS ON NET sits on NET.
         The save bar must be present on every sub-page.</div>
@@ -133,7 +134,7 @@
     let locale = 'en';
     const apply = () => {
       const win = frame.contentWindow;
-      if (win.__preview) win.__preview.render({ ...PreviewState.settings, locale });
+      if (win.__preview) win.__preview.render({ ...PreviewState.settings, page: 'setup', locale });
     };
     window.__renderSettings = (l) => {
       locale = l;
