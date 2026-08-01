@@ -17,6 +17,10 @@ Doc map:
 - `PROTOCOL-V2.md` + `protocol-vectors.json` — v2 design, needed for phase 2
 - `BRIEF.md`    — phase 1 spec, historical. Its §4 class contract is **superseded** by
   `HANDOFF.md` §4; its token and spacing rationale still holds
+- `design/`     — one folder per feature designed but not yet built (`kneeboard/`,
+  `brief-mode/`, `xr-layer/`), each with its own `HANDOFF.md` of settled decisions and
+  measurements. Read the relevant one before starting that feature. **These describe
+  what to build, not what the app does** — for shipped behaviour use `HANDOFF.md`
 - `app/PLAN.md` — historical: good on the original architecture and the v0.2.0 packaging
   post-mortem, wrong about current state (it reports v0.2.1)
 

@@ -1,0 +1,273 @@
+{
+  "schema": 1,
+  "layout": "strike-package",
+  "title": "FOXHUNT 2",
+  "subtitle": "ROMAN 1",
+  "flight": {
+    "callsign": "ROMAN 1",
+    "bullseye": "N29 09'58.8  E53 07'38.6",
+    "stations": [
+      {
+        "station": "9",
+        "load": "AIM-9X"
+      },
+      {
+        "station": "8",
+        "load": "AIM-120B"
+      },
+      {
+        "station": "7",
+        "load": "FUEL",
+        "kind": "fuel"
+      },
+      {
+        "station": "6",
+        "load": "AIM-7M"
+      },
+      {
+        "station": "5",
+        "load": "FUEL",
+        "kind": "fuel"
+      },
+      {
+        "station": "4",
+        "load": "ATFLIR"
+      },
+      {
+        "station": "3",
+        "load": "FUEL",
+        "kind": "fuel"
+      },
+      {
+        "station": "2",
+        "load": "AIM-120B"
+      },
+      {
+        "station": "1",
+        "load": "AIM-9X"
+      }
+    ],
+    "stationOrder": "9 TO 1"
+  },
+  "threats": {
+    "surface": "2 / 5 / 6 / SHORAD / MANPAD",
+    "air": "4E / 24 / 29A / 31"
+  },
+  "route": {
+    "steps": [
+      {
+        "name": "DEPART",
+        "ref": "CVN-71",
+        "alt": "0",
+        "speed": "0",
+        "note": "BRC333 / CATS 1&2 > 06:45L",
+        "state": "done"
+      },
+      {
+        "name": "REJOIN",
+        "ref": "WP1 'FORMA'",
+        "alt": "100",
+        "speed": "450G",
+        "note": "~13nm @ FL100 — lead check speed",
+        "state": "done"
+      },
+      {
+        "name": "AAR",
+        "ref": "WP2 — SHELL",
+        "alt": "220",
+        "speed": "400T",
+        "note": ">06:57 > 2min > 07:09",
+        "state": "done"
+      },
+      {
+        "name": "HOLD",
+        "ref": "WP3",
+        "alt": "016",
+        "speed": "250i",
+        "note": ">07:15L — TRAIL — PUSH >07:22L",
+        "state": "current"
+      },
+      {
+        "name": "VARAVI",
+        "ref": "FENCE > WP4 > FEET DRY",
+        "alt": "001",
+        "speed": "450G",
+        "note": "OFF-SET CARD .5x1.5 — NOE"
+      },
+      {
+        "name": "POP-UP",
+        "ref": "WP6 — TRAIL 0.5",
+        "alt": "210",
+        "speed": "MIL",
+        "note": "LEVEL BY WP7 — drop WTs"
+      },
+      {
+        "name": "IP",
+        "ref": "WP7 — CENTURION — FAO3",
+        "alt": "210",
+        "speed": "450G",
+        "note": "TOT 07:40L — \"CENTURION\""
+      },
+      {
+        "name": "LAZ",
+        "ref": "WP8 — AT THE LAKE @FAO3",
+        "alt": "210",
+        "speed": "250i",
+        "note": "\"LASING\" — FAO 2 for ref"
+      },
+      {
+        "name": "END LAZ",
+        "ref": "WP9 — LZX or before",
+        "alt": "210",
+        "speed": "250i",
+        "note": "CHECK SHACK"
+      },
+      {
+        "name": "ESCAPE",
+        "ref": "WP14",
+        "alt": "001",
+        "speed": "450G",
+        "note": "NOE \"HOME-TIME\""
+      },
+      {
+        "name": "RTB",
+        "ref": "WP5 > 4 > own nav",
+        "alt": "210",
+        "speed": "450G"
+      }
+    ],
+    "targets": [
+      {
+        "name": "ALPHA",
+        "wp": "WP10",
+        "desc": "MIG-31 / HANGARS",
+        "laser": "1735"
+      },
+      {
+        "name": "BRAVO",
+        "wp": "WP11",
+        "desc": "SU-24 PARKING",
+        "laser": "1673"
+      },
+      {
+        "name": "CHARLIE",
+        "wp": "WP12",
+        "desc": "RWY NORTH",
+        "laser": "1536"
+      },
+      {
+        "name": "DELTA",
+        "wp": "WP13",
+        "desc": "RWY SOUTH",
+        "laser": "1711"
+      }
+    ]
+  },
+  "comms": {
+    "primary": [
+      {
+        "ch": "1",
+        "name": "MOTHER (CVN-71)",
+        "freq": "127.500",
+        "tacan": "71X"
+      },
+      {
+        "ch": "2",
+        "name": "OVERLORD (AWACS)",
+        "freq": "251.000"
+      },
+      {
+        "ch": "3",
+        "name": "TEXACO (AAR)",
+        "freq": "251.200",
+        "tacan": "55X"
+      },
+      {
+        "ch": "4",
+        "name": "SHELL (AAR)",
+        "freq": "251.400",
+        "tacan": "56X"
+      },
+      {
+        "ch": "5",
+        "name": "JOKER 1 (DEAD)",
+        "freq": "127.600"
+      },
+      {
+        "ch": "6",
+        "name": "JOKER 2 / VIPER",
+        "freq": "127.700"
+      },
+      {
+        "ch": "7",
+        "name": "LAVAN (DIVERT)",
+        "freq": "250.750",
+        "tacan": "116Y"
+      },
+      {
+        "ch": "G",
+        "name": "GUARD",
+        "freq": "243.000"
+      }
+    ],
+    "mids": [
+      {
+        "name": "ALL FLIGHTS",
+        "channel": "70"
+      },
+      {
+        "name": "ROMAN 1",
+        "channel": "82"
+      },
+      {
+        "name": "JOKER 1",
+        "channel": "72"
+      },
+      {
+        "name": "JOKER 2",
+        "channel": "74"
+      }
+    ],
+    "fields": [
+      {
+        "name": "SHELL KC-135",
+        "tacan": "56X",
+        "alt": "FL220 / 400T",
+        "hdg": "090/270",
+        "time": "06:56L",
+        "next": true
+      },
+      {
+        "name": "TEXACO KC-135",
+        "tacan": "55X",
+        "alt": "FL240 / 400T",
+        "hdg": "090/270"
+      },
+      {
+        "name": "CVN-71 HOME",
+        "tacan": "71X",
+        "alt": "0 ft",
+        "hdg": "333/153"
+      },
+      {
+        "name": "LAVAN ALT",
+        "tacan": "116Y",
+        "hdg": "110/290"
+      }
+    ]
+  },
+  "plan": {
+    "bingo": "BINGO 7K / JOKER 9K",
+    "takeoff": "Depart at 75% fuel only. Roman rejoin at WP1.",
+    "flow": [
+      "Complete AAR then hold in TRAIL.",
+      "Push 07:22L through FENCE at WP4.",
+      "NOE, TAC card, pop-up gate WP6.",
+      "IP CENTURION (WP7) — laze at WP8 / FAO3, confirm shack, escape RTB."
+    ]
+  },
+  "map": {
+    "blob": "sha256:2f1c9e…",
+    "caption": "FOXHUNT2-ROUTE-MAP"
+  }
+}

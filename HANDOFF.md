@@ -14,6 +14,11 @@ resume work without re-deriving it from the code.
 5. `PROTOCOL-V2.md` — the v2 design, needed for phase 2.
 6. `BRIEF.md` — phase 1's spec. **Historical.** Its §4 class contract is
    superseded by §4 of this file; its token and spacing rationale still holds.
+7. `design/` — features designed ahead of implementation, one folder each, with
+   the decisions already settled and the measurements behind them. Read the
+   relevant one *before* starting that feature; they exist so the reasoning is
+   not repeated. They describe what to build, **not what the app does today** —
+   this file and `CHANGELOG.md` are the record of shipped behaviour.
 
 **The trap:** `app/PLAN.md` is stale. It says the current release is `v0.2.1`
 and documents a **viewer side panel that no longer exists**. It is kept for the
@@ -24,7 +29,7 @@ which are still accurate. Trust `git log` and this file.
 
 ## 1. Where the project is
 
-**Current release: `v0.5.2`.** Verify with `git log --oneline -5`; don't trust
+**Current release: `v0.7.0`.** Verify with `git log --oneline -5`; don't trust
 hashes written down anywhere.
 
 The app is an Electron companion for DCS. Any pilot hits a hotkey and their
@@ -45,6 +50,8 @@ the echo is the sharer's own render path, not redundancy.
 | `v0.5.0` | Settings navigation rail; three settings removed; English + Italian |
 | `v0.5.1` | The app icon, everywhere it was missing |
 | `v0.5.2` | Language follows the OS preferred-language list, subtag-matched |
+| `v0.6.0` | Pass-through keybinds; the chrome hides itself after six idle seconds |
+| `v0.7.0` | One window: SETUP is a page; grid launcher replaces the tab bar; ONLINE/OFFLINE in place of "relay" |
 
 `CHANGELOG.md` has the detail. The commit messages have the reasoning — they
 are long on purpose and are the best record of *why*.

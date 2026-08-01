@@ -1,0 +1,147 @@
+# =============================================================================
+# LAYOUT TEMPLATE — strike-package
+#
+# This file describes SHAPE ONLY. It contains no mission data, no colours, no
+# sizes and no fonts. Content comes from a card JSON; appearance comes from the
+# EFB. The same template renders Foxhunt 2, Dust and Steel, or any other
+# strike card whose JSON matches the same paths.
+#
+# BINDING
+#   "{path}"          value from the card JSON, relative to the block's `bind`
+#   "{path|dash}"     fallback filter — renders an em dash when missing
+#   repeat: a.b       render one row per element of that array
+#   when: a.b         omit the whole block if that path is missing or empty
+#   mark: field       per-row boolean; raises the go bar on rows where it is true
+#
+#   Paths are bare in `when`, `repeat`, `bind` and `mark` — they are tests and
+#   sources, not text. Braces appear only where a value is rendered.
+#
+# WHAT A TEMPLATE MAY NOT SAY
+#   colours, hex values, px, fonts, weights. `emphasis` and `width` are
+#   semantic: the EFB decides what each one looks like, and phase 4 will decide
+#   differently for a VR quad without this file changing.
+# =============================================================================
+
+schema: 1
+id: strike-package
+name: Strike package
+requires: [flight, threats, route, comms]     # import fails loudly if absent
+
+pages:
+  # ---------------------------------------------------------------- CARD
+  - id: card
+    label: CARD
+    layout: two-column
+    split: 0.6                     # left column's share of the body width
+
+    blocks:
+      # --- route ----------------------------------------------------------
+      - type: steps
+        column: left
+        title: "ROUTE — {flight.callsign}"
+        repeat: route.steps
+        row:
+          name:  "{name}"
+          ref:   "{ref}"
+          gate:  "{alt} / {speed}"
+          note:  "{note|blank}"
+          state: "{state|none}"     # done | current | none — drives the tick,
+                                    # the open row and the go bar
+
+      # --- targets --------------------------------------------------------
+      - type: table
+        column: left
+        title: TARGETS
+        when: route.targets
+        repeat: route.targets
+        columns:
+          - { value: "{name}",   width: sm,   emphasis: strong }
+          - { value: "{wp}",     width: xs,   style: mono }
+          - { value: "{desc}",   width: flex }
+          - { value: "{laser|dash}", width: xs, style: mono, emphasis: strong }
+
+      # --- primary radio --------------------------------------------------
+      - type: table
+        column: right
+        title: COMM 1
+        repeat: comms.primary
+        columns:
+          - { value: "{ch}",        width: badge, style: mono }
+          - { value: "{name}",      width: flex,  emphasis: strong }
+          - { value: "{freq}",      width: sm,    style: mono }
+          - { value: "{tacan|dash}", width: xs,   style: mono, emphasis: muted }
+
+      # --- datalink -------------------------------------------------------
+      - type: table
+        column: right
+        title: MIDS
+        when: comms.mids
+        repeat: comms.mids
+        columns:
+          - { value: "{name}",    width: flex, emphasis: strong }
+          - { value: "{channel}", width: xs,   style: mono }
+
+      # --- tankers and divert ---------------------------------------------
+      # One table, because in the air they answer the same question: where do
+      # I go and on what channel. `mark` raises the go bar on the row the
+      # content flags — the template does not know which row that is.
+      - type: table
+        column: right
+        title: TANKER · DIVERT
+        repeat: comms.fields
+        mark: next                 # per-row boolean path, like `when`
+        columns:
+          - { value: "{name}",   width: md,   emphasis: strong }
+          - { value: "{tacan|dash}", width: xs, style: mono }
+          - { value: "{alt|dash}",   width: flex, style: mono }
+          - { value: "{hdg|dash}",   width: sm,  style: mono }
+          - { value: "{time|blank}", width: sm,  style: mono, emphasis: strong }
+
+  # ---------------------------------------------------------------- PLAN
+  # Everything on this page comes from the card JSON. Nothing is hard-coded in
+  # the renderer — including the threat lines, which live here rather than on
+  # CARD because they are briefing material, not something you read mid-route.
+  - id: plan
+    label: PLAN
+    layout: single
+
+    blocks:
+      - type: fields
+        bind: threats
+        items:
+          - { label: S-A THREAT, value: "{surface}", emphasis: threat }
+          - { label: A-A THREAT, value: "{air}",     emphasis: threat }
+
+      - type: fields
+        bind: flight
+        items:
+          - { label: CALLSIGN, value: "{callsign}", style: mono }
+          - { label: BULLSEYE, value: "{bullseye}", style: mono }
+
+      - type: stations
+        title: "LOADOUT — STATION {flight.stationOrder}"
+        when: flight.stations
+        repeat: flight.stations
+        wrap: 5                    # rows of five; the EFB decides the cell size
+        cell:
+          label: "{station}"
+          value: "{load}"
+          state: "{kind|none}"     # fuel | none — recessed vs raised
+
+      - type: prose
+        title: GAME PLAN
+        bind: plan
+        badge: "{bingo}"           # the chip beside the title
+        lead:  "{takeoff}"         # one line, full weight
+        list:  flow                # bare path — an array of strings
+
+  # ---------------------------------------------------------------- MAP
+  - id: map
+    label: MAP
+    layout: full-bleed
+    when: map
+    blocks:
+      - type: image
+        bind: map
+        source: "{blob}"           # content-addressed hash, never a URL
+        caption: "{caption|blank}"
