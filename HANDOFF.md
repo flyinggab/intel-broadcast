@@ -281,7 +281,7 @@ JS toggles these. JS never writes inline styles. This supersedes `BRIEF.md` §4.
 | `.rail__item` (settings) | `.is-active` | one per rail |
 | `.dest` (launcher) | `.is-active` | the page you are on |
 | `.launcher` | `.is-hidden` | closed; it is chrome, so capture-clean hides it |
-| `.faultbar` | `.is-hidden` | connected; also chrome |
+| `.faultbar` | `.is-hidden` | connected; also chrome. CSS additionally hides it on SETUP → NETWORK, where it would be redundant |
 | `.menukey` | `.is-active` | launcher open |
 | `.choice` | `.is-on` | the selected relay mode |
 | `.tile` | `.is-off` | deselected (SHARE *and* RECEIVED) |

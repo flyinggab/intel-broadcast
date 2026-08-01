@@ -42,6 +42,10 @@ talk to each other.
   queue is local, browsing and sharing keep working. It is now reported in
   place by a bar under the strip, with RETRY and OPEN SETUP, and it is chrome,
   so it stays out of the capture and hides with the rest.
+- The OFFLINE bar hides itself on SETUP → NETWORK: that page states the
+  connection in its own status line, and the bar's OPEN SETUP key would point
+  at the page you are already reading. From anywhere else the key now lands on
+  NETWORK specifically, rather than wherever the rail was last left.
 - **"Relay" is gone from the interface.** It is how the app is built, not
   something a pilot should have to know. The EFB says ONLINE / OFFLINE, in both
   languages; settings asks WHO HOSTS THE SQUAD? instead of WHERE IS THE RELAY?.

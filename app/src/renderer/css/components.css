@@ -264,6 +264,10 @@ body[data-mode="join"] [data-mode="host"] { display: none; }
   position: relative;
 }
 .faultbar.is-hidden { display: none; }
+/* Not on SETUP -> NETWORK. That page already states the connection in its
+   status line, and the bar's OPEN SETUP key would be a no-op pointing at the
+   page you are already reading. */
+body[data-page="setup"][data-setup="net"] .faultbar { display: none; }
 .faultbar::before {
   content: "";
   position: absolute;

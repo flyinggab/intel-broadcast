@@ -438,7 +438,12 @@ el('share-folder-btn').addEventListener('click', () => send('browse-folder'));
 share.reveal.addEventListener('click', () => send('reveal'));
 
 el('fault-retry').addEventListener('click', () => send('reconnect'));
-el('fault-setup').addEventListener('click', () => send('set-page', 'setup'));
+el('fault-setup').addEventListener('click', () => {
+  // Land on NETWORK, not wherever the rail was left — that is the section
+  // that can actually do something about being offline.
+  if (window.__setupSection) window.__setupSection('net');
+  send('set-page', 'setup');
+});
 
 // Focus drives the chrome dimming, and counts as the pilot being present —
 // main uses that for the auto-switch grace window.

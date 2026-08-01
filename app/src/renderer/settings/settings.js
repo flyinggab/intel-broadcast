@@ -305,13 +305,18 @@ async function refreshJoinPreview() {
 
 // --- intents ----------------------------------------------------------------
 
+/** Shows one SETUP section. Exposed so the OFFLINE bar's OPEN SETUP key can
+ *  land on NETWORK rather than wherever the rail was left. */
+function showSection(name) {
+  for (const other of document.querySelectorAll('.rail__item[data-setup]')) {
+    other.classList.toggle('is-active', other.dataset.setup === name);
+  }
+  body.dataset.setup = name;
+}
+window.__setupSection = showSection;
+
 for (const item of document.querySelectorAll('.rail__item[data-setup]')) {
-  item.addEventListener('click', () => {
-    for (const other of document.querySelectorAll('.rail__item')) {
-      other.classList.toggle('is-active', other === item);
-    }
-    body.dataset.setup = item.dataset.setup;
-  });
+  item.addEventListener('click', () => showSection(item.dataset.setup));
 }
 
 // The relay choice is exclusive by construction: body[data-mode] hides the
