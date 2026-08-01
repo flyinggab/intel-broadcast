@@ -75,12 +75,8 @@
     'photo.many': '{n} PHOTOS',
 
     // fault
-    'fault.title': 'OFFLINE',
-    'fault.reconnecting': 'RECONNECTING',
-    'fault.attempt': 'ATTEMPT {n} · NEXT IN {s}S',
     'fault.unknown': 'UNKNOWN',
-    'fault.retry': 'RETRY NOW',
-    'fault.openSetup': 'OPEN SETUP',
+    'net.fix': 'OFFLINE — OPEN NETWORK SETUP',
 
     // settings rail
     'rail.network': 'NETWORK',
@@ -235,12 +231,8 @@
     'photo.one': '{n} FOTO',
     'photo.many': '{n} FOTO',
 
-    'fault.title': 'OFFLINE',
-    'fault.reconnecting': 'RICONNESSIONE',
-    'fault.attempt': 'TENTATIVO {n} · TRA {s}S',
     'fault.unknown': 'SCONOSCIUTO',
-    'fault.retry': 'RIPROVA ORA',
-    'fault.openSetup': 'APRI SETUP',
+    'net.fix': 'OFFLINE — APRI IMPOSTAZIONI RETE',
 
     'rail.network': 'RETE',
     'rail.keybinds': 'COMANDI',

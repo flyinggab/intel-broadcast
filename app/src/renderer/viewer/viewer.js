@@ -98,7 +98,7 @@ const share = {
   toggle: el('share-toggle'),
   reveal: el('share-reveal'),
 };
-const fault = { bar: el('faultbar'), attempt: el('fault-attempt') };
+const fixkey = el('fixkey');
 
 const PLACEHOLDER = 'img/frame-placeholder.svg';
 
@@ -139,6 +139,11 @@ function renderStrip(s) {
   );
   setText(strip.relay, s.connected ? t('strip.online', { t: zulu(s.lastContactAt) }) : t('strip.offline'));
   strip.relay.classList.toggle('strip__seg--fault', !s.connected);
+  // Offline needs somewhere to GO, not a paragraph about it. The key appears
+  // beside the word and leads to the one page that can do anything.
+  fixkey.classList.toggle('is-hidden', Boolean(s.connected));
+  fixkey.setAttribute('aria-label', t('net.fix'));
+  fixkey.title = t('net.fix');
 }
 
 function renderLauncher(s) {
@@ -343,21 +348,6 @@ function renderShare(s) {
   );
 }
 
-function renderFault(s) {
-  // Reported in place. The relay being down does not take the screen: the
-  // photos already received are still there to read, and replacing one the
-  // pilot is looking at with an error page told them less than this line does.
-  fault.bar.classList.toggle('is-hidden', s.connected);
-  if (s.connected) return;
-  const r = s.reconnect || {};
-  setText(
-    fault.attempt,
-    r.attempt
-      ? t('fault.attempt', { n: r.attempt, s: Math.ceil((r.nextInMs || 0) / 1000) })
-      : t('fault.reconnecting'),
-  );
-}
-
 let renderedLocale = null;
 
 function render(s) {
@@ -382,7 +372,6 @@ function render(s) {
   renderStage(s);
   renderReceived(s);
   renderShare(s);
-  renderFault(s);
 }
 
 // --- intents ----------------------------------------------------------------
@@ -448,8 +437,7 @@ share.toggle.addEventListener('click', () => {
 el('share-folder-btn').addEventListener('click', () => send('browse-folder'));
 share.reveal.addEventListener('click', () => send('reveal'));
 
-el('fault-retry').addEventListener('click', () => send('reconnect'));
-el('fault-setup').addEventListener('click', () => {
+fixkey.addEventListener('click', () => {
   // Land on NETWORK, not wherever the rail was left — that is the section
   // that can actually do something about being offline.
   if (window.__setupSection) window.__setupSection('net');

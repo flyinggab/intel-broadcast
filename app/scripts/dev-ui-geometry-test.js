@@ -85,6 +85,12 @@ child.on('exit', () => {
       console.log(`[geometry] note: ${label} has ${r.small.length} sub-44px targets (${kinds}) — desktop-only surface`);
     }
 
+    // Exactly one page visible, always.
+    if (r.multiPage && r.multiPage.length) {
+      console.error(`[geometry] FAIL: ${label} — more than one page visible: ${JSON.stringify(r.multiPage)}`);
+      failed = true;
+    }
+
     // §6.6 — nothing clips at any scale.
     if (r.overflow.length) {
       console.error(`[geometry] FAIL: ${label} — horizontal overflow: ${JSON.stringify(r.overflow)}`);

@@ -14,6 +14,12 @@ talk to each other.
 ## Unreleased
 
 ### Fixed
+- **SHARE rendered on top of every other page.** Its layout rule set `display`
+  from a class on the page element itself, which ties with `.page { display:
+  none }` on specificity and sits in a later stylesheet — so it always won.
+  Visible on any page long enough to scroll, which is how it showed up
+  underneath SETUP. `dev-ui-geometry-test` now asserts exactly one page is
+  visible, on every page at every scale.
 - **The squad code could not be pasted.** Neither Ctrl/Cmd+V nor right-click
   worked, in the one field the app explicitly tells you to paste into.
   Electron binds the standard editing shortcuts through menu items carrying
@@ -30,6 +36,10 @@ talk to each other.
   rather than stretched full width, since REVEAL is the page's primary action.
   The folder and staged-selection readout moved to a strip along the bottom,
   mirroring the connection strip at the top.
+- The OFFLINE bar is gone. Going offline costs one key in the strip beside the
+  word itself — the SETUP glyph, in the fault colour — because it never needed
+  a row of its own: the intel already received is still there. One glyph, one
+  destination.
 - SETUP → NETWORK no longer repeats the connection state: the strip at the top
   of the window already says it.
 - **Settings is a page, not a window.** This reverses a founding invariant, on

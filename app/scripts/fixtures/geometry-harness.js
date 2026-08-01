@@ -25,7 +25,7 @@ const PREVIEW_STATE_SOURCE = fs.readFileSync(
 
 // Runs inside the page. Returns everything the test needs to judge §6.5/§6.6/§6.8.
 function measureInPage(touchMin) {
-  const report = { small: [], overflow: [], font: null };
+  const report = { small: [], overflow: [], multiPage: [], font: null };
 
   // §6.8 — B612 must come from the vendored woff2, with no network. Ask the
   // font API directly rather than comparing rendered widths: a width heuristic
@@ -61,6 +61,14 @@ function measureInPage(touchMin) {
         });
       }
     }
+
+    // Exactly one page may be visible. A page whose own class sets `display`
+    // beats `.page { display: none }` on specificity and renders on top of
+    // every other page — which is precisely how SHARE once did.
+    const shown = [...document.querySelectorAll('.page[data-page]')]
+      .filter((p) => p.getClientRects().length > 0)
+      .map((p) => p.dataset.page);
+    if (shown.length !== 1) report.multiPage.push({ page: name, shown });
 
     const doc = document.documentElement;
     if (doc.scrollWidth > doc.clientWidth + 1) {
