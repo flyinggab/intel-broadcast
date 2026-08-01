@@ -1,4 +1,4 @@
-# Intel Broadcast
+# Tac Link
 
 A companion Electron app for DCS World: any pilot presses a keybind and every recon/intel photo
 in their mission folder pops up simultaneously on every connected pilot's screen — even across
@@ -98,7 +98,7 @@ first responds to them — use the menu bar for the second one. Not an issue on 
 ## Repo layout
 
 ```
-intel-broadcast/
+taclink/
 ├── README.md
 ├── HANDOFF.md           # current state + next task — start here
 ├── CHANGELOG.md         # what shipped in each release

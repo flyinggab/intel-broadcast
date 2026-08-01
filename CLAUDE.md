@@ -1,4 +1,4 @@
-# Intel Broadcast
+# Tac Link
 
 Electron companion app for DCS World: any pilot broadcasts recon/intel photos to every connected
 pilot's screen via a hotkey, captured by OpenKneeboard on each pilot's PC. One instance hosts the
@@ -26,7 +26,7 @@ Doc map:
 
 ## Quick facts
 
-- Repo: this directory, pushed to `https://github.com/flyinggab/intel-broadcast` (public).
+- Repo: this directory, pushed to `https://github.com/flyinggab/taclink` (public).
 - App code lives in `app/`. Tests are plain `node app/scripts/dev-*-test.js`, no framework —
   see `HANDOFF.md` §5 for the loop and the two scripts that need arguments.
 - `npm start` in `app/` runs the app. Everyone shares and receives; the "Who hosts the squad?"
@@ -56,10 +56,10 @@ Tray icons not showing, GUI windows landing on the real Windows desktop via WSLg
 artifacts, not app bugs**. Don't carry them forward as known limitations, and don't treat a
 workaround as load-bearing just because it exists — check whether it was only there for WSL.
 
-**The trap that wastes the most time:** if the packaged `Intel Broadcast.app` is running, it holds
+**The trap that wastes the most time:** if the packaged `Tac Link.app` is running, it holds
 the single-instance lock and every dev instance exits **code 0 with no output** — it reads exactly
 like a broken build. Symptom: an Electron test failing with an empty `--- full output ---`. Check
-`ps aux | grep -i "Intel Broadcast"`; to diagnose without quitting it, pass
+`ps aux | grep -i "Tac Link"`; to diagnose without quitting it, pass
 `--user-data-dir=/tmp/ib-scratch`. More traps in `HANDOFF.md` §6.
 
 **Target platform is still Windows.** DCS and OpenKneeboard are Windows-only, so the part that

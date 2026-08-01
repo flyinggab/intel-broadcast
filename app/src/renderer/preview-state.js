@@ -99,7 +99,7 @@
 
     funnel: { installed: true, loggedIn: true, funnelOn: true, dnsName: 'gab-pc.tail9f2b.ts.net', since: T0 - 17 * 60000 },
     counters: { sent: 12, received: 5, drops: 0 },
-    logPath: '/home/pilot/.config/intel-broadcast/intel-broadcast.log',
+    logPath: '/home/pilot/.config/taclink/taclink.log',
     version: '0.4.0-preview',
   };
 

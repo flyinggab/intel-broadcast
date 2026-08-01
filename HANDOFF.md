@@ -372,7 +372,7 @@ WSL reaches Windows both ways, which makes this fast:
 
 - `/mnt/c/...` is the Windows filesystem. The app's log a user actually
   produced is at
-  `/mnt/c/Users/<user>/AppData/Roaming/intel-broadcast/intel-broadcast.log` —
+  `/mnt/c/Users/<user>/AppData/Roaming/taclink/taclink.log` —
   read it before theorising.
 - **Windows binaries execute from WSL.** `"/mnt/c/Program Files/Tailscale/tailscale.exe" status --json`
   works from a Linux shell, so `INTEL_BROADCAST_TAILSCALE_BIN` pointed there
@@ -382,12 +382,12 @@ WSL reaches Windows both ways, which makes this fast:
   `node` (v25) and `git`; the WSL `node_modules` are Linux binaries and cannot
   be shared, so the Windows checkout needs its own `npm install`.
 
-**A native Windows checkout lives at `C:\Users\gabri\intel-broadcast-dev`**,
+**A native Windows checkout lives at `C:\Users\gabri\taclink-dev`**,
 cloned from GitHub (a `\\wsl.localhost\...` clone path does NOT work) with
 its own `node_modules` and Electron. Refresh and run it with:
 
 ```bash
-cmd.exe /c "cd /d C:\Users\gabri\intel-broadcast-dev && git pull && cd app && npm start"
+cmd.exe /c "cd /d C:\Users\gabri\taclink-dev && git pull && cd app && npm start"
 ```
 
 Confirmed there on 2026-07-31: `findBinaryDetailed()` resolves
@@ -408,11 +408,11 @@ that was a WSL/Linux sandbox, so environment claims in `app/PLAN.md` — unrelia
 `capturePage()`, invisible tray icons, WSLg windows — were **WSL artifacts, not
 app bugs**. Don't carry them forward.
 
-**The trap that wastes the most time:** if the packaged `Intel Broadcast.app`
+**The trap that wastes the most time:** if the packaged `Tac Link.app`
 is running, it holds `app.requestSingleInstanceLock()`, and *any* dev instance
 exits **code 0 with zero output**. It reads exactly like a broken build. The
 symptom is an Electron test failing with an empty `--- full output ---`. Check
-with `ps aux | grep -i "Intel Broadcast"`. To diagnose without quitting it,
+with `ps aux | grep -i "Tac Link"`. To diagnose without quitting it,
 pass `--user-data-dir=/tmp/ib-scratch`.
 
 Other things that have bitten:
@@ -437,7 +437,7 @@ Other things that have bitten:
   is outside the bottle window. `brew install node@22` works. `brew update`
   does not help; only a macOS upgrade would.
 - The app's own log is the fastest way to see what a run did:
-  `~/Library/Application Support/intel-broadcast/intel-broadcast.log`
+  `~/Library/Application Support/taclink/taclink.log`
 - **Target platform is still Windows.** DCS and OpenKneeboard are Windows-only,
   so the part that actually matters — a captured window on a pilot's knee —
   cannot be verified on macOS at all.

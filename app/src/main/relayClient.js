@@ -74,7 +74,7 @@ class RelayClient extends EventEmitter {
           type: 'hello',
           protocolVersion: 1,
           minVersion: 1,
-          client: 'intel-broadcast-electron',
+          client: 'taclink-electron',
           capabilities: [],
         }),
       );

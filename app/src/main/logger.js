@@ -13,9 +13,9 @@ const MAX_BYTES = 1024 * 1024;
 let stream = null;
 let filePath = null;
 
-/** Starts mirroring console.log/warn/error to <userDataDir>/intel-broadcast.log. */
+/** Starts mirroring console.log/warn/error to <userDataDir>/taclink.log. */
 function initFileLogging(userDataDir) {
-  filePath = path.join(userDataDir, 'intel-broadcast.log');
+  filePath = path.join(userDataDir, 'taclink.log');
   try {
     fs.mkdirSync(userDataDir, { recursive: true });
     // Truncate rather than rotate — this is a debugging aid, not an audit

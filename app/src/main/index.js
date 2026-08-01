@@ -836,7 +836,7 @@ app.whenReady().then(() => {
 
   initFileLogging(app.getPath('userData'));
   console.log(
-    `[index] Intel Broadcast ${app.getVersion()} on ${process.platform} — packaged=${app.isPackaged} hosting=${isHost()}`,
+    `[index] Tac Link ${app.getVersion()} on ${process.platform} — packaged=${app.isPackaged} hosting=${isHost()}`,
   );
   console.log(`[index] settings file: ${LOCAL_CONFIG_PATH}`);
 
@@ -991,7 +991,7 @@ function buildAppMenu() {
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
-        label: 'Intel Broadcast',
+        label: 'Tac Link',
         submenu: [
           { label: i18n.t('menu.settings'), click: openSettings },
           { type: 'separator' },

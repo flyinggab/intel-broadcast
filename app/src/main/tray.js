@@ -22,7 +22,7 @@ function createTray({ onOpenSettings, t = (key) => key }) {
     const image = nativeImage.createFromPath(TRAY_ICON);
     image.setTemplateImage(true);
     const tray = new Tray(image);
-    tray.setToolTip('Intel Broadcast');
+    tray.setToolTip('Tac Link');
     const buildMenu = (translate) =>
       tray.setContextMenu(
         Menu.buildFromTemplate([

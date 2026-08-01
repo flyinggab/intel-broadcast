@@ -1,6 +1,6 @@
-# Intel Broadcast — UI rebuild brief
+# Tac Link — UI rebuild brief
 
-For a Claude Code session working on `flyinggab/intel-broadcast`.
+For a Claude Code session working on `flyinggab/taclink`.
 The design is done and the markup and CSS are written. **You are writing the
 JavaScript that drives them, and the main-process changes underneath.**
 

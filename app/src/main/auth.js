@@ -102,7 +102,7 @@ function authenticateConnection(ws, expectedToken, { onLog = () => {} } = {}) {
             JSON.stringify({
               type: 'hello-ack',
               protocolVersion: 1,
-              server: `intel-broadcast-electron/${process.env.npm_package_version || '0'}`,
+              server: `taclink-electron/${process.env.npm_package_version || '0'}`,
               capabilities: [],
             }),
           );

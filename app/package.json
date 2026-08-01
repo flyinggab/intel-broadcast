@@ -1,8 +1,8 @@
 {
-  "name": "intel-broadcast",
+  "name": "taclink",
   "version": "0.7.0",
   "private": true,
-  "description": "DCS intel photo broadcast companion app (viewer + GM relay)",
+  "description": "Tac Link — EFB for DCS with shared tactical intel and live briefing",
   "main": "src/main/index.js",
   "author": "flyinggab",
   "repository": "https://github.com/flyinggab/intel-broadcast",
@@ -24,8 +24,8 @@
     "uiohook-napi@1.5.5": true
   },
   "build": {
-    "appId": "com.flyinggab.intel-broadcast",
-    "productName": "Intel Broadcast",
+    "appId": "com.flyinggab.taclink",
+    "productName": "Tac Link",
     "files": [
       "src/**/*",
       "resources/config.default.json",
