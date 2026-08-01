@@ -95,6 +95,7 @@ const share = {
   folder: el('share-folder'),
   count: el('share-count'),
   grid: el('share-grid'),
+  toggle: el('share-toggle'),
   reveal: el('share-reveal'),
 };
 const fault = { bar: el('faultbar'), attempt: el('fault-attempt') };
@@ -328,6 +329,13 @@ function renderShare(s) {
     share.grid.appendChild(tile);
   }
 
+  // "At least one selected" is the deselect state — the common case after
+  // picking a couple of photos is wanting to start over, not to add the rest.
+  const anySelected = s.selectedCount > 0;
+  share.toggle.dataset.on = anySelected ? '1' : '0';
+  share.toggle.disabled = s.photoCount === 0;
+  setText(share.toggle, t(anySelected ? 'share.none' : 'share.all'));
+
   share.reveal.disabled = s.selectedCount === 0;
   setText(
     share.reveal,
@@ -432,8 +440,11 @@ share.grid.addEventListener('click', (event) => {
   if (tile) send('toggle-photo', tile.dataset.filename);
 });
 
-el('share-all').addEventListener('click', () => send('select-all'));
-el('share-none').addEventListener('click', () => send('select-none'));
+// One key. The action follows the rendered state, so it never disagrees with
+// the label: with anything selected it clears, otherwise it selects all.
+share.toggle.addEventListener('click', () => {
+  send(share.toggle.dataset.on === '1' ? 'select-none' : 'select-all');
+});
 el('share-folder-btn').addEventListener('click', () => send('browse-folder'));
 share.reveal.addEventListener('click', () => send('reveal'));
 

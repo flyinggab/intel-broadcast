@@ -278,8 +278,12 @@ async function main() {
   // --- share selection decides what goes on the wire ------------------------
   await goTo('share');
   await waitFor('share page', () => probe.page === 'share');
-  await click('#share-none');
+  // One key now: with photos selected it reads DESELECT ALL and clears them.
+  await click('#share-toggle');
   await waitFor('nothing selected', () => probe.tiles.every((t) => !t.selected));
+  if (!/SELECT ALL/.test(probe.shareToggle || '')) {
+    throw new Error(`with nothing selected the key must offer SELECT ALL, got "${probe.shareToggle}"`);
+  }
   if (!/NOTHING SELECTED/.test(probe.revealBtn)) throw new Error(`button label: "${probe.revealBtn}"`);
   await click('#share-grid .tile[data-filename]:last-child');
   await waitFor('one selected', () => probe.tiles.filter((t) => t.selected).length === 1);

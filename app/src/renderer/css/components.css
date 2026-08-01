@@ -124,32 +124,6 @@ body[data-mode="join"] [data-mode="host"] { display: none; }
 }
 .content { flex: 1; min-width: 0; overflow-y: auto; }
 
-/* --- network status line --------------------------------------------------
-   What you ARE right now — hosting, joined, or nothing — always visible,
-   independent of which relay choice is selected below it.                  */
-.netstate {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  min-height: var(--h-field);
-  padding: 0 var(--sp-4);
-  background: var(--dn);
-  box-shadow: var(--bevel-dn);
-}
-.netstate__dot { flex: none; width: .5rem; height: .5rem; background: var(--lit); }
-.netstate__dot--off { background: transparent; box-shadow: inset 0 0 0 1.4px var(--fault); }
-.netstate__what { font-size: var(--fs-key); font-weight: 700; color: var(--lit); }
-.netstate__meta {
-  flex: 1;
-  text-align: right;
-  font-family: var(--font-mono);
-  font-size: var(--fs-meta);
-  color: var(--hi);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* --- the relay choice: two radio cards ------------------------------------
    WHERE IS THE RELAY? is an either/or, so it looks like one: radio marks,
    and the selected card carries the same lit left bar as the active rail
@@ -391,6 +365,11 @@ body[data-page="setup"][data-setup="net"] .faultbar { display: none; }
 .key--primary .key__sub, .key.is-active .key__sub { color: var(--hi); }
 
 .keyrow { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: var(--sp-2); }
+/* Secondary keys: sized to their label, pushed to the right. A row of equal
+   full-width keys reads as the page's primary action, and on SHARE that is
+   REVEAL, not the two controls that adjust what it will send. */
+.keyrow--end { display: flex; justify-content: flex-end; }
+.keyrow--end .key { width: auto; min-width: 6.5rem; padding-inline: var(--sp-4); }
 
 /* --- fields --------------------------------------------------------------
    Recessed wells. Read-only by default: most values here are set by a picker
@@ -517,6 +496,28 @@ body[data-page="setup"][data-setup="net"] .faultbar { display: none; }
 }
 .batch__all { flex: none; width: auto; min-width: 5.5rem; min-height: var(--touch-min); }
 .batch__tiles { padding: 0 var(--sp-4) var(--sp-3); }
+
+/* --- share page ----------------------------------------------------------
+   Column: the gallery scrolls, REVEAL and the strip stay put. A folder with
+   more photos than fit must never push the primary action off screen.       */
+.share { display: flex; flex-direction: column; height: 100%; }
+.share__scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--sp-3); }
+.share__foot { flex: none; padding: 0 var(--sp-3) var(--sp-3); }
+.sharebar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--bg);
+  border-top: var(--rule);
+  box-shadow: 0 -1px 0 var(--hi);
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+}
+.sharebar__folder { color: var(--lit); font-weight: 700; min-width: 0; }
+.sharebar__count { flex: none; color: var(--hi); white-space: nowrap; }
 
 /* --- share grid ---------------------------------------------------------- */
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }

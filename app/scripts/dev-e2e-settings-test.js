@@ -132,46 +132,10 @@ async function main() {
   }
   console.log('[e2e] §6.3 NETWORK is exclusive — no contradictory state reachable, save bar lit');
 
-  // --- §6.4 a truncated code disables CONNECT, and does not throw ----------
-  await runInSettings(
-    `const i = document.getElementById('in-code');
-     i.value = 'IB1-Z2FiLXBjLnRhaWw5';
-     i.dispatchEvent(new Event('input'));`,
-  );
-  await waitFor('CONNECT disabled for a bad code', () => probe.connectDisabled === true);
-  if (!/CODE NOT RECOGNISED/.test(probe.joinResolved)) {
-    throw new Error(`a bad code must say so in step 02, got "${probe.joinResolved}"`);
-  }
-  if (/Uncaught|TypeError/.test(output)) throw new Error('a bad code must not throw into the console');
-  console.log('[e2e] §6.4 truncated code: nothing populated, CONNECT disabled, nothing thrown');
-
-  // --- a valid code enables CONNECT and resolves --------------------------
-  const validCode = `IB1-${Buffer.from('gab-pc.tail9f2b.ts.net:8140:kd93').toString('base64url').replace(/=+$/, '')}`;
-  await runInSettings(
-    `const i = document.getElementById('in-code');
-     i.value = ${JSON.stringify(validCode)};
-     i.dispatchEvent(new Event('input'));`,
-  );
-  await waitFor('CONNECT enabled for a good code', () => probe.connectDisabled === false);
-  if (!probe.joinResolved.includes('GAB-PC')) throw new Error(`resolved line: "${probe.joinResolved}"`);
-  console.log('[e2e] a valid code resolves and enables CONNECT');
-
-  // --- required steps go GREEN once satisfied ------------------------------
-  // JOIN 01 is satisfied by a code that parses; 02 waits for a live socket.
-  if (probe.joinSteps[0] !== 'done') {
-    throw new Error(`a parsed code must tick JOIN step 01, got "${probe.joinSteps[0]}"`);
-  }
-  if (probe.joinSteps[1] !== 'running') {
-    throw new Error(`step 02 must stay pending until connected, got "${probe.joinSteps[1]}"`);
-  }
-  // --go is #98BB62. Assert the mark is actually green rather than the plain
-  // lit white it used to be — a class name alone would not prove that.
-  const rgb = (probe.doneMarkColour.match(/\d+/g) || []).map(Number);
-  if (rgb.length < 3) throw new Error(`no done mark rendered: "${probe.doneMarkColour}"`);
-  if (!(rgb[1] > rgb[0] + 20 && rgb[1] > rgb[2] + 20)) {
-    throw new Error(`a completed step must read green, got rgb(${rgb.join(',')})`);
-  }
-  console.log(`[e2e] completed steps are green — rgb(${rgb.join(',')}), JOIN 01 done / 02 pending`);
+  // NOTE ON ORDER: the JOIN block runs LAST because a pasted code now
+  // connects on its own — there is no CONNECT key to withhold. Connecting
+  // adopts JOIN and stops hosting, so anything asserting on the host's own
+  // squad code has to happen before it.
 
   // --- the host's own code round-trips back to this relay ------------------
   await click('[data-set-mode="host"]');
@@ -201,6 +165,46 @@ async function main() {
     throw new Error('the token must be masked in the UI');
   }
   console.log('[e2e] §6.9 neither the squad code nor the token appears in stdout or the log file');
+
+  // --- §6.4 a truncated code disables CONNECT, and does not throw ----------
+  await runInSettings(
+    `const i = document.getElementById('in-code');
+     i.value = 'IB1-Z2FiLXBjLnRhaWw5';
+     i.dispatchEvent(new Event('input'));`,
+  );
+  await waitFor('the bad code to be rejected', () => /CODE NOT RECOGNISED/.test(probe.joinResolved || ''));
+  if (/Uncaught|TypeError/.test(output)) throw new Error('a bad code must not throw into the console');
+  console.log('[e2e] §6.4 truncated code: nothing populated, CONNECT disabled, nothing thrown');
+
+  // --- a valid code enables CONNECT and resolves --------------------------
+  const validCode = `IB1-${Buffer.from('gab-pc.tail9f2b.ts.net:8140:kd93').toString('base64url').replace(/=+$/, '')}`;
+  await runInSettings(
+    `const i = document.getElementById('in-code');
+     i.value = ${JSON.stringify(validCode)};
+     i.dispatchEvent(new Event('input'));`,
+  );
+  await waitFor('the good code to resolve', () => (probe.joinResolved || '').includes('GAB-PC'));
+  // There is no CONNECT key any more: a code that parses connects on its own.
+  // Main logs the reconnect, which is the observable proof it acted.
+  await waitFor('the paste to connect by itself', () => /relay connection changed/.test(output), 10000);
+  console.log('[e2e] a pasted code resolves and connects with no CONNECT key');
+
+  // --- required steps go GREEN once satisfied ------------------------------
+  // JOIN 01 is satisfied by a code that parses; 02 waits for a live socket.
+  if (probe.joinSteps[0] !== 'done') {
+    throw new Error(`a parsed code must tick JOIN step 01, got "${probe.joinSteps[0]}"`);
+  }
+  if (probe.joinSteps[1] !== 'running') {
+    throw new Error(`step 02 must stay pending until connected, got "${probe.joinSteps[1]}"`);
+  }
+  // --go is #98BB62. Assert the mark is actually green rather than the plain
+  // lit white it used to be — a class name alone would not prove that.
+  const rgb = (probe.doneMarkColour.match(/\d+/g) || []).map(Number);
+  if (rgb.length < 3) throw new Error(`no done mark rendered: "${probe.doneMarkColour}"`);
+  if (!(rgb[1] > rgb[0] + 20 && rgb[1] > rgb[2] + 20)) {
+    throw new Error(`a completed step must read green, got rgb(${rgb.join(',')})`);
+  }
+  console.log(`[e2e] completed steps are green — rgb(${rgb.join(',')}), JOIN 01 done / 02 pending`);
 
   // --- hotkey recording writes through to config ---------------------------
   await click('.rail__item[data-setup="keys"]');

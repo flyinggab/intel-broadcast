@@ -63,13 +63,11 @@
     'received.emptyHint': 'ANYTHING THE SQUAD SHARES LANDS HERE',
 
     // share
-    'cap.folder': 'FOLDER',
-    'cap.selected': 'SELECTED',
     'share.count': '{sel} OF {n} · {size}',
     'share.noPhotos': 'NO PHOTOS',
     'share.notSet': 'NOT SET',
     'share.all': 'SELECT ALL',
-    'share.none': 'NONE',
+    'share.none': 'DESELECT ALL',
     'share.folderBtn': 'FOLDER…',
     'share.reveal': 'REVEAL {photos}',
     'share.nothingSelected': 'NOTHING SELECTED',
@@ -178,9 +176,17 @@
     'save.unsaved': 'UNSAVED CHANGES',
     'save.cta': 'SAVE & APPLY',
 
-    // main process (tray / app menu)
+    // main process (tray / app menu). Sentence case: these are OS chrome,
+    // not the engraved cockpit labels the rest of the app uses.
     'menu.settings': 'Settings',
     'menu.quit': 'Quit',
+    'menu.edit': 'Edit',
+    'menu.undo': 'Undo',
+    'menu.redo': 'Redo',
+    'menu.cut': 'Cut',
+    'menu.copy': 'Copy',
+    'menu.paste': 'Paste',
+    'menu.selectAll': 'Select All',
   };
 
   const it = {
@@ -218,13 +224,11 @@
     'received.emptyTitle': 'ANCORA NESSUNA RICEZIONE',
     'received.emptyHint': 'CIÒ CHE LA SQUADRA INVIA ARRIVA QUI',
 
-    'cap.folder': 'CARTELLA',
-    'cap.selected': 'SELEZIONATE',
     'share.count': '{sel} DI {n} · {size}',
     'share.noPhotos': 'NESSUNA FOTO',
     'share.notSet': 'NON IMPOSTATA',
-    'share.all': 'TUTTE',
-    'share.none': 'NESSUNA',
+    'share.all': 'SELEZIONA TUTTO',
+    'share.none': 'DESELEZIONA TUTTO',
     'share.folderBtn': 'CARTELLA…',
     'share.reveal': 'INVIA {photos}',
     'share.nothingSelected': 'NESSUNA SELEZIONE',
@@ -328,6 +332,13 @@
 
     'menu.settings': 'Impostazioni',
     'menu.quit': 'Esci',
+    'menu.edit': 'Modifica',
+    'menu.undo': 'Annulla',
+    'menu.redo': 'Ripristina',
+    'menu.cut': 'Taglia',
+    'menu.copy': 'Copia',
+    'menu.paste': 'Incolla',
+    'menu.selectAll': 'Seleziona tutto',
   };
 
   const DICTS = { en, it };

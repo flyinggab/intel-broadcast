@@ -42,15 +42,11 @@ const net = {
   funnelAction: el('btn-funnel-action'),
   funnelHint: el('funnel-hint'),
   codeInput: el('in-code'),
-  connect: el('btn-connect'),
   joinStep1: el('join-step1'),
   joinStep2: el('join-step2'),
   joinResolved: el('join-resolved'),
   pilots: el('net-pilots'),
   count: el('net-count'),
-  stateDot: el('netstate-dot'),
-  stateWhat: el('netstate-what'),
-  stateMeta: el('netstate-meta'),
 };
 
 const log = {
@@ -162,22 +158,10 @@ function render(s) {
   // NETWORK -------------------------------------------------------------
   if (document.activeElement !== pilot.callsign) pilot.callsign.value = s.callsign || '';
 
-  // Status line: what you ARE, regardless of the unsaved choice below it.
+  // The connection state used to be repeated here in a status line. It is in
+  // the strip at the top of the window, which is always on screen, so saying
+  // it twice was noise. The funnel detail below is still needed.
   const f = s.funnel || {};
-  if (s.isHost) {
-    setText(net.stateWhat, t('net.hosting'));
-    const funnelPart = f.funnelOn ? t('net.funnelUp', { t: zulu(f.since) }) : t('net.funnelDown');
-    setText(net.stateMeta, t('net.hostingMeta', { n: s.peers.length, funnel: funnelPart }));
-    net.stateDot.classList.remove('netstate__dot--off');
-  } else if (s.connected) {
-    setText(net.stateWhat, t('net.joined'));
-    setText(net.stateMeta, `${(s.relayLabel || '').toUpperCase()} · ${zulu(s.lastContactAt)}`);
-    net.stateDot.classList.remove('netstate__dot--off');
-  } else {
-    setText(net.stateWhat, t('net.notConnected'));
-    setText(net.stateMeta, t(mode === 'join' ? 'net.pasteToJoin' : 'net.offline'));
-    net.stateDot.classList.add('netstate__dot--off');
-  }
 
   // Mode is an unsaved form choice until you press save, so a state push must
   // not overwrite it — otherwise picking JOIN gets silently reverted to HOST
@@ -280,19 +264,31 @@ function render(s) {
 }
 
 // --- JOIN decode ------------------------------------------------------------
-// Decode as the user types. A bad code populates nothing, keeps CONNECT dead
-// and says so in step 02 — it must not throw into the console and leave the
-// UI looking fine.
+// Decode as the user types. A bad code populates nothing and says so in step
+// 02 — it must not throw into the console and leave the UI looking fine.
+//
+// A code that PARSES connects, immediately. There is no CONNECT key: the code
+// is an instruction, not a proposal, and a button that only ever gets pressed
+// once after a paste is a step for its own sake. `connectedWith` guards the
+// obvious hazard — `input` fires per keystroke, and reconnecting on each one
+// would tear the socket down over and over.
+let connectedWith = null;
+
 async function refreshJoinPreview() {
   if (!window.viewerAPI) return; // dev harness: no main to decode against
-  const decoded = await window.viewerAPI.decodeCode(net.codeInput.value);
-  const typed = net.codeInput.value.trim().length > 0;
+  const raw = net.codeInput.value.trim();
+  const decoded = await window.viewerAPI.decodeCode(raw);
   if (decoded.ok) {
-    net.connect.disabled = false;
     setText(net.joinResolved, t('net.resolved', { host: decoded.host.toUpperCase(), port: decoded.port }));
+    if (raw !== connectedWith) {
+      connectedWith = raw;
+      modeDirty = false; // connecting adopts JOIN; it is not a pending edit
+      send('connect', raw);
+      renderSavebar();
+    }
   } else {
-    net.connect.disabled = true;
-    setText(net.joinResolved, t(typed ? 'net.badCode' : 'net.pasteToConnect'));
+    setText(net.joinResolved, t(raw ? 'net.badCode' : 'net.pasteToConnect'));
+    connectedWith = null;
   }
   // Same idiom as the host column: 01 is satisfied once the code parses, 02
   // once we are actually on that relay. `connected` comes from the snapshot,
@@ -354,11 +350,7 @@ el('btn-paste').addEventListener('click', async () => {
   refreshJoinPreview();
 });
 net.codeInput.addEventListener('input', refreshJoinPreview);
-net.connect.addEventListener('click', () => {
-  modeDirty = false; // CONNECT applies the mode immediately
-  send('connect', net.codeInput.value);
-  renderSavebar();
-});
+
 
 el('btn-save').addEventListener('click', () => {
   modeDirty = false; // saving adopts the chosen mode; pushes may drive it again

@@ -875,6 +875,8 @@ app.whenReady().then(() => {
     onState: pushState,
   });
 
+  attachContextMenu(viewer.window.webContents);
+
   if (process.env.INTEL_BROADCAST_VIEWER_PANEL_PROBE) attachViewerProbe();
 
   registerHotkeys();
@@ -923,9 +925,7 @@ function attachViewerProbe() {
            mode: document.body.dataset.mode,
            hostVisible: Boolean(document.querySelector('.page[data-setup="net"] [data-mode="host"]') && document.querySelector('.page[data-setup="net"] [data-mode="host"]').offsetParent),
            joinVisible: Boolean(document.querySelector('.page[data-setup="net"] [data-mode="join"]') && document.querySelector('.page[data-setup="net"] [data-mode="join"]').offsetParent),
-           connectDisabled: document.getElementById('btn-connect').disabled,
            joinResolved: document.getElementById('join-resolved').textContent,
-           netstate: document.getElementById('netstate-what').textContent,
            dirty: document.getElementById('save-state').textContent,
            saveDisabled: document.getElementById('btn-save').disabled,
            squadCodePrefix: document.getElementById('squad-code').textContent.slice(0, 4),
@@ -974,6 +974,7 @@ function attachViewerProbe() {
            banner: document.getElementById('banner').classList.contains('is-hidden') ? null : document.getElementById('banner-who').textContent,
            bannerMeta: document.getElementById('banner').classList.contains('is-hidden') ? null : document.getElementById('banner-meta').textContent,
            revealBtn: document.getElementById('share-reveal').textContent,
+           shareToggle: document.getElementById('share-toggle').textContent,
          }))`,
       )
       .catch(() => {});
@@ -992,9 +993,41 @@ function buildAppMenu() {
           { label: i18n.t('menu.quit'), role: 'quit' },
         ],
       },
+      {
+        // WITHOUT THIS, Ctrl/Cmd+V DOES NOTHING. Electron binds the standard
+        // editing shortcuts through menu items carrying these roles; an app
+        // that replaces the default menu and omits them leaves every text
+        // field unable to paste, which is how the squad code — a string you
+        // are explicitly told to paste — could not be pasted.
+        label: i18n.t('menu.edit'),
+        submenu: [
+          { role: 'undo', label: i18n.t('menu.undo') },
+          { role: 'redo', label: i18n.t('menu.redo') },
+          { type: 'separator' },
+          { role: 'cut', label: i18n.t('menu.cut') },
+          { role: 'copy', label: i18n.t('menu.copy') },
+          { role: 'paste', label: i18n.t('menu.paste') },
+          { role: 'selectAll', label: i18n.t('menu.selectAll') },
+        ],
+      },
     ]),
   );
   if (tray) tray.retranslate(i18n.t);
+}
+
+/** Right-click on a text field offers the clipboard. Electron ships no
+ *  context menu at all, so without this there is no mouse path to paste. */
+function attachContextMenu(webContents) {
+  webContents.on('context-menu', (_event, props) => {
+    if (!props.isEditable) return;
+    Menu.buildFromTemplate([
+      { role: 'cut', label: i18n.t('menu.cut'), enabled: props.editFlags.canCut },
+      { role: 'copy', label: i18n.t('menu.copy'), enabled: props.editFlags.canCopy },
+      { role: 'paste', label: i18n.t('menu.paste'), enabled: props.editFlags.canPaste },
+      { type: 'separator' },
+      { role: 'selectAll', label: i18n.t('menu.selectAll') },
+    ]).popup();
+  });
 }
 
 app.on('will-quit', () => {

@@ -125,32 +125,39 @@
     </section>
 
     <!-- =============================================== SHARE ========== -->
-    <section class="page page--pad stack" data-page="share">
-      <div class="cellrow">
-        <div class="cell">
-          <span class="cap" data-i18n="cap.folder">Folder</span>
-          <span class="cell__val truncate" id="share-folder"></span>
+    <section class="page page--flush share" data-page="share">
+      <div class="share__scroll stack">
+        <!-- Above the grid on purpose: below it, a full folder pushed these off
+             the bottom and you had to scroll the whole gallery to select all or
+             change folder. The controls that act on the grid come first.
+
+             Sized to their labels and pushed right: they adjust what REVEAL
+             will send, and a row of full-width keys reads as the page's
+             primary action. REVEAL is that. -->
+        <div class="keyrow keyrow--end">
+          <!-- One key, two states. Its label is rendered from the snapshot:
+               anything selected -> DESELECT ALL, nothing -> SELECT ALL. -->
+          <button class="key--sm key" id="share-toggle"></button>
+          <!-- The folder lives here, next to what it feeds — not in settings. -->
+          <button class="key--sm key" id="share-folder-btn" data-i18n="share.folderBtn">FOLDER&hellip;</button>
         </div>
-        <div class="cell">
-          <span class="cap" data-i18n="cap.selected">Selected</span>
-          <span class="cell__val" id="share-count"></span>
-        </div>
+
+        <div class="tiles" id="share-grid"></div>
       </div>
 
-      <!-- Above the grid on purpose: below it, a full folder pushed these off
-           the bottom and you had to scroll the whole gallery to select all or
-           change folder. The controls that act on the grid come first. -->
-      <div class="keyrow">
-        <button class="key--sm key" id="share-all" data-i18n="share.all">SELECT ALL</button>
-        <button class="key--sm key" id="share-none" data-i18n="share.none">NONE</button>
-        <!-- The folder lives here, next to what it feeds — not in settings. -->
-        <button class="key--sm key" id="share-folder-btn" data-i18n="share.folderBtn">FOLDER&hellip;</button>
+      <div class="share__foot">
+        <!-- No printed hotkey here: bindings live in SETUP → KEYBINDS. -->
+        <button class="key key--lg key--primary" id="share-reveal" disabled></button>
       </div>
 
-      <div class="tiles" id="share-grid"></div>
-
-      <!-- No printed hotkey here: bindings live in SETUP → KEYS. -->
-      <button class="key key--lg key--primary" id="share-reveal" disabled></button>
+      <!-- Which folder, and what a reveal would actually send. A strip at the
+           bottom, mirroring the connection strip at the top: standing facts
+           about the page, not controls, and they were taking a full cellrow
+           at the top for two short values. -->
+      <footer class="sharebar">
+        <span class="sharebar__folder truncate" id="share-folder"></span>
+        <span class="sharebar__count" id="share-count"></span>
+      </footer>
     </section>
 
 
@@ -191,11 +198,6 @@
               </div>
             </div>
 
-            <div class="netstate">
-              <i class="netstate__dot" id="netstate-dot"></i>
-              <span class="netstate__what" id="netstate-what"></span>
-              <span class="netstate__meta" id="netstate-meta"></span>
-            </div>
 
             <div>
               <span class="cap" data-i18n="cap.whereRelay">Who hosts the squad?</span>
@@ -280,10 +282,9 @@
                 <i class="step__mark"></i><span class="step__n">02</span>
                 <div class="step__body">
                   <span class="step__title" data-i18n="step.connect">CONNECT</span>
-                  <div class="meta" id="join-resolved" style="margin-top:.3rem">PASTE A CODE TO CONNECT</div>
-                  <div class="step__row step__row--full">
-                    <button class="key key--primary" id="btn-connect" disabled data-i18n="net.connect">CONNECT</button>
-                  </div>
+                  <!-- No CONNECT key: a code that parses is an instruction,
+                       not a proposal. Pasting one connects; this reports it. -->
+                  <div class="meta" id="join-resolved" style="margin-top:.3rem"></div>
                 </div>
               </div>
               <div class="meta"><span data-i18n="net.codeCarries">THE CODE CARRIES HOST, PORT AND TOKEN</span><br /><span data-i18n="net.nothingElse">NOTHING ELSE TO TYPE</span></div>

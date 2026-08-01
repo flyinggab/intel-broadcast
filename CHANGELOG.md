@@ -13,7 +13,25 @@ talk to each other.
 
 ## Unreleased
 
+### Fixed
+- **The squad code could not be pasted.** Neither Ctrl/Cmd+V nor right-click
+  worked, in the one field the app explicitly tells you to paste into.
+  Electron binds the standard editing shortcuts through menu items carrying
+  the `cut`/`copy`/`paste` roles, and this app replaced the default menu
+  without them; it also ships no context menu at all. Both are now provided,
+  in both languages.
+
 ### Changed
+- **JOIN has no CONNECT key.** A squad code that parses is an instruction, not
+  a proposal — pasting one connects. Guarded so that typing does not reconnect
+  on every keystroke.
+- SHARE: SELECT ALL and NONE became one key whose label follows the state
+  (anything selected → DESELECT ALL), sized to its label and pushed right
+  rather than stretched full width, since REVEAL is the page's primary action.
+  The folder and staged-selection readout moved to a strip along the bottom,
+  mirroring the connection strip at the top.
+- SETUP → NETWORK no longer repeats the connection state: the strip at the top
+  of the window already says it.
 - **Settings is a page, not a window.** This reverses a founding invariant, on
   purpose: the product is an EFB, and the tablet a pilot actually flies with
   carries its own settings — reaching them should not conjure a second window
