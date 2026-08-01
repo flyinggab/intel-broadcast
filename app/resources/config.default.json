@@ -3,7 +3,7 @@
   "relayUrl": "ws://localhost:8787",
   "token": "dev-secret",
   "callsign": "",
-  "windowTitle": "Intel Broadcast Viewer",
+  "windowTitle": "Tac Link",
   "uiScale": null,
   "autoShow": true,
   "passthroughKeys": false,

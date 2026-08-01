@@ -73,7 +73,7 @@ console.log('[test] packaged builds resolve settings into userData');
 // --- 3/3. That directory is actually writable ------------------------------
 // Electron's userData lives under the OS app-data dir; prove a write there
 // succeeds, which is the whole point of the move.
-const userDataLike = path.join(os.homedir(), '.config', 'intel-broadcast-writetest');
+const userDataLike = path.join(os.homedir(), '.config', 'taclink-writetest');
 fs.mkdirSync(userDataLike, { recursive: true });
 const probe = path.join(userDataLike, 'config.local.json');
 fs.writeFileSync(probe, JSON.stringify({ relayHostEnabled: true }));

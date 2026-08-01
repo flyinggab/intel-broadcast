@@ -11,7 +11,7 @@ const os = require('os');
 const path = require('path');
 const assert = require('assert');
 
-const TMP_CONFIG = path.join(os.tmpdir(), `intel-broadcast-config-test-${process.pid}.json`);
+const TMP_CONFIG = path.join(os.tmpdir(), `taclink-config-test-${process.pid}.json`);
 process.env.INTEL_BROADCAST_LOCAL_CONFIG_PATH = TMP_CONFIG; // must be set before require
 const { loadConfig } = require('../src/main/config');
 

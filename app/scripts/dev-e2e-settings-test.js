@@ -150,7 +150,7 @@ async function main() {
   console.log(`[e2e] the host's code decodes back to ${decoded.host}:${decoded.port}`);
 
   // --- §6.9 the code (a password) reaches no log line ----------------------
-  const logPath = path.join(require('os').homedir(), '.config', 'intel-broadcast', 'intel-broadcast.log');
+  const logPath = path.join(require('os').homedir(), '.config', 'taclink', 'taclink.log');
   // The log file persists across runs, so only THIS session's slice is ours to
   // judge — everything after the last "session started" marker.
   const wholeLog = fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : '';

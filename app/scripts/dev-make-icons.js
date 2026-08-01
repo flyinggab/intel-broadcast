@@ -43,7 +43,7 @@ const ICNS_SIZES = [16, 32, 64, 128, 256, 512, 1024];
 const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256];
 const ALL_SIZES = [...new Set([...ICNS_SIZES, ...ICO_SIZES])].sort((a, b) => a - b);
 
-const OUT = path.join(os.tmpdir(), 'intel-broadcast-icons');
+const OUT = path.join(os.tmpdir(), 'taclink-icons');
 
 // --- render -----------------------------------------------------------------
 
