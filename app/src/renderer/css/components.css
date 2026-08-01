@@ -192,41 +192,125 @@
   background: var(--lit);
 }
 
-/* --- tab bar -------------------------------------------------------------
-   Permanent. There is no back button anywhere in this app.                 */
-.tabbar {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  height: var(--h-tab);
-  background: var(--bg);
-  border-top: var(--rule);
+/* --- breadcrumb + menu key ------------------------------------------------
+   Navigation lives in the strip now. The tab bar is gone: it divided a fixed
+   width by the number of destinations, so it stopped working at six, and it
+   charged 58px of the captured window for an interaction the pilot cannot
+   perform in flight anyway.                                                 */
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+  align-self: stretch;          /* the strip's full height is the target */
+  min-height: var(--touch-min);
+  padding: 0 var(--sp-2) 0 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  letter-spacing: .04em;
 }
-.tab {
+.crumb__page { color: var(--lit); font-weight: 700; }
+.crumb__pos { color: var(--hi); }
+
+.menukey {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: var(--up);
+  box-shadow: var(--bevel-up);
+  color: var(--ink);
+  cursor: pointer;
+}
+.menukey:active,
+.menukey.is-active { background: var(--dn); box-shadow: var(--bevel-dn); color: var(--lit); }
+.menukey__icon { width: .875rem; height: .875rem; stroke: currentColor; fill: none; stroke-width: 1.6; }
+
+/* --- launcher -------------------------------------------------------------
+   A full-screen grouped grid, over whatever page you were on. Grouping is
+   the part that scales: fourteen destinations in a flat row is a lookup
+   problem, under four headings it is not.                                   */
+.launcher {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: var(--bg);
+  padding: var(--sp-3);
+  overflow-y: auto;
+}
+.launcher.is-hidden { display: none; }
+
+/* The launcher is the closest thing this app has to a home screen, so it is
+   where the product says its own name — the icon alone identifies it on a
+   taskbar, but not to someone looking at the kneeboard. */
+.launcher__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-3);
+  margin-bottom: var(--sp-2);
+  border-bottom: var(--rule);
+  box-shadow: 0 1px 0 var(--hi);
+}
+.launcher__mark { flex: none; width: 2rem; height: 2rem; display: block; }
+.launcher__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-key);
+  font-weight: 700;
+  letter-spacing: .14em;
+  color: var(--lit);
+}
+.launcher__version {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-cap);
+  letter-spacing: .08em;
+  color: var(--hi);
+}
+
+.launcher__group {
+  display: block;
+  margin: var(--sp-3) 0 var(--sp-2);
+  font-size: var(--fs-cap);
+  font-weight: 700;
+  letter-spacing: var(--ls-cap);
+  text-transform: uppercase;
+  color: var(--ink);
+  text-shadow: var(--engrave);
+}
+.launcher__group:first-child { margin-top: 0; }
+.launcher__tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); }
+.dest {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--sp-1);
-  font-size: var(--fs-meta);
-  font-weight: 700;
-  letter-spacing: var(--ls-tab);
-  text-transform: uppercase;
+  min-height: 4.25rem;
+  padding: var(--sp-1);
+  background: var(--up);
+  box-shadow: var(--bevel-up);
+  border: 0;
   color: var(--ink);
   text-shadow: var(--engrave);
+  font-family: inherit;
+  font-size: var(--fs-cap);
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  text-align: center;
   cursor: pointer;
-  position: relative;
-  min-height: var(--touch-min);
 }
-.tab + .tab { border-left: var(--rule); }
-.tab.is-active {
-  background: var(--dn);
-  color: var(--lit);
-  text-shadow: none;
-  box-shadow: inset 0 3px 0 var(--lit);
-}
-.tab__icon { width: 1.125rem; height: 1.125rem; stroke: currentColor; fill: none; stroke-width: 1.4; }
-/* No tab badge: the banner announces arrivals; RECEIVED holds the history. */
+.dest.is-active { background: var(--dn); box-shadow: var(--bevel-dn); color: var(--lit); text-shadow: none; }
+.dest__icon { width: 1.375rem; height: 1.375rem; stroke: currentColor; fill: none; stroke-width: 1.4; }
 
 /* --- keys ----------------------------------------------------------------
    Physical keys, not web buttons. Nothing under --touch-min.               */

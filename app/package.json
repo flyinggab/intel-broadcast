@@ -13,7 +13,6 @@
     "build:mac": "electron-builder --mac"
   },
   "dependencies": {
-    "uiohook-napi": "^1.5.5",
     "ws": "^8.21.1"
   },
   "devDependencies": {
@@ -52,7 +51,10 @@
           ]
         }
       ],
-      "category": "public.app-category.utilities"
+      "category": "public.app-category.utilities",
+      "files": [
+        "!node_modules/uiohook-napi/**"
+      ]
     },
     "publish": {
       "provider": "github",
@@ -64,5 +66,8 @@
     "asarUnpack": [
       "**/node_modules/uiohook-napi/**"
     ]
+  },
+  "optionalDependencies": {
+    "uiohook-napi": "^1.5.5"
   }
 }

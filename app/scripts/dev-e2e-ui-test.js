@@ -106,6 +106,14 @@ async function runInViewer(js) {
 
 const click = (selector) => runInViewer(`document.querySelector(${JSON.stringify(selector)}).click()`);
 
+// The tab bar is gone: navigation is the launcher. Open it from the strip,
+// then pick a destination. Two clicks, exactly as a pilot does it.
+async function goTo(dest) {
+  if (!probe.launcherOpen) await click('#menukey');
+  await waitFor('the launcher to open', () => probe.launcherOpen === true);
+  await click(`.dest[data-dest="${dest}"]`);
+}
+
 function connectClient(callsign) {
   const client = new RelayClient({ url: `ws://localhost:${RELAY_PORT}`, token: TOKEN, role: 'viewer', callsign });
   clients.push(client);
@@ -159,7 +167,6 @@ async function main() {
       EVAL_PATH,
       `console.log('CHROME_PROBE ' + JSON.stringify({
          strip: !!document.querySelector('.strip').offsetParent,
-         tabbar: !!document.querySelector('.tabbar').offsetParent,
          stageChrome: !!document.querySelector('.stage__chrome').offsetParent,
          img: !!document.getElementById('stage-img').offsetParent,
        }))`,
@@ -177,7 +184,7 @@ async function main() {
     }, 8000);
   });
   if (!chromeVisible) throw new Error('chrome probe never reported');
-  if (chromeVisible.strip || chromeVisible.tabbar || chromeVisible.stageChrome) {
+  if (chromeVisible.strip || chromeVisible.stageChrome) {
     throw new Error(`HIDE CHROME must blank all chrome, got ${JSON.stringify(chromeVisible)}`);
   }
   if (!chromeVisible.img) throw new Error('the photo must remain visible with chrome hidden');
@@ -188,7 +195,7 @@ async function main() {
   console.log('[e2e] chrome auto-hides when idle and returns on activity');
 
   // --- tabs switch pages; SETUP does not ------------------------------------
-  await click('.tab[data-tab="received"]');
+  await goTo('received');
   await waitFor('RECEIVED page', () => probe.page === 'received');
   if (probe.batches.length !== 1) throw new Error(`expected 1 batch, got ${probe.batches.length}`);
   if (!probe.batches[0].who.includes('JOKER 2-1')) throw new Error(`batch shows "${probe.batches[0].who}"`);
@@ -198,8 +205,22 @@ async function main() {
   if (probe.batches[0].tiles.length !== 3) throw new Error('every received photo gets a tile');
   console.log('[e2e] RECEIVED lists the batch with callsign, selection count and Zulu time');
 
+  // --- the launcher is the navigation now ---------------------------------
+  if (!probe.launcherOpen) await click('#menukey');
+  await waitFor('the launcher to open', () => probe.launcherOpen === true);
+  if (!probe.dests.includes('brief') || !probe.dests.includes('setup')) {
+    throw new Error(`launcher must list every destination, got ${JSON.stringify(probe.dests)}`);
+  }
+  if (!probe.groups.length) throw new Error('destinations must be grouped — that is what scales');
+  // Escape must close it: it covers the whole window.
+  await runInViewer(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await waitFor('Escape to close the launcher', () => probe.launcherOpen === false);
+  console.log('[e2e] launcher lists every destination, grouped, and Escape closes it');
+
   const pageBeforeSetup = probe.page;
-  await click('#tab-setup');
+  if (!probe.launcherOpen) await click('#menukey');
+  await waitFor('launcher open', () => probe.launcherOpen === true);
+  await click('.dest[data-dest="setup"]');
   await sleep(800);
   if (probe.page !== pageBeforeSetup) {
     throw new Error(`opening SETUP must not change what the viewer displays (went to ${probe.page})`);
@@ -210,7 +231,7 @@ async function main() {
   // --- rule C: an arrival during interaction queues, page holds still ------
   const bravo = await connectClient('UZI 1-1');
   await sleep(300);
-  await click('.tab[data-tab="share"]'); // deliberate interaction, starts the grace window
+  await goTo('share'); // deliberate interaction, starts the grace window
   await waitFor('SHARE page', () => probe.page === 'share');
   bravo.sendRevealBatch([photo('d.jpg', 4)]);
   await waitFor('the arrival to join the queue', () => probe.batches.length === 2, 10000);
@@ -224,13 +245,13 @@ async function main() {
   console.log('[e2e] rule C: arrival during interaction queued with a QUEUED banner, page held still');
 
   // --- RECEIVED curation drives the brief's queue ---------------------------
-  await click('.tab[data-tab="brief"]');
+  await goTo('brief');
   await waitFor('back on the brief', () => probe.page === 'brief');
   if (probe.pos !== '2 / 4') {
     // 1 (d.jpg, prepended) + 3 (a/b/c) — the stage stayed on a.jpg, renumbered.
     throw new Error(`prepend should renumber the held stage to 2 / 4, got "${probe.pos}"`);
   }
-  await click('.tab[data-tab="received"]');
+  await goTo('received');
   await waitFor('RECEIVED again', () => probe.page === 'received');
 
   // Deselect the photo BEHIND the stage (b.jpg): queue shrinks, stage holds.
@@ -254,7 +275,7 @@ async function main() {
   console.log('[e2e] RECEIVED curation: tile off, batch HIDE, RESTORE — queue follows, stage repairs');
 
   // --- share selection decides what goes on the wire ------------------------
-  await click('.tab[data-tab="share"]');
+  await goTo('share');
   await waitFor('share page', () => probe.page === 'share');
   await click('#share-none');
   await waitFor('nothing selected', () => probe.tiles.every((t) => !t.selected));

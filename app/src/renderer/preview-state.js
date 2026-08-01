@@ -80,6 +80,7 @@
     reconnect: null,
 
     page: 'brief',
+    launcherOpen: false,
     chromeHidden: false,
     focused: true,
     autoShow: true,
@@ -118,6 +119,7 @@
       standby: scenario({ queue: { total: 0, pos: -1, current: null }, batches: [] }),
       'banner switched': scenario({ banner: { who: 'JOKER 2-1', count: 2, switched: true, at: T0 } }),
       'banner queued': scenario({ banner: { who: 'UZI 1-1', count: 3, switched: false, at: T0 } }),
+      launcher: scenario({ launcherOpen: true }),
       received: scenario({ page: 'received' }),
       share: scenario({ page: 'share' }),
       fault: scenario({

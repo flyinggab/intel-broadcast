@@ -11,6 +11,33 @@ talk to each other.
 
 ---
 
+## Unreleased
+
+### Changed
+- **The tab bar is gone; navigation is a grouped launcher.** A bar divides a
+  fixed width by the number of destinations and stopped working at six — the
+  roadmap needs many more than six. The strip now carries a breadcrumb (where
+  you are, and where you are in it) and a key that opens a full-screen grid,
+  grouped INTEL / MISSION / REFERENCE / TOOLS / SYSTEM. Adding a page is one
+  entry in `DESTINATIONS` plus two i18n keys. Chrome cost drops from 28px of
+  strip + 58px of tab bar to 44px of strip.
+- The launcher names the product: app icon, `INTEL BROADCAST` and the version
+  sit above the groups, so the window says what it is to anyone looking at the
+  kneeboard.
+- The strip grew from 28px to 44px, because it now holds interactive targets
+  and the viewer's 44px floor exists for VR controller pointing in phase 4.
+
+### Fixed
+- **The app could not start on macOS.** `keyHook.js` required `uiohook-napi` at
+  module load, and there is no prebuild for every platform, so the require
+  threw before any window existed. The dependency is now *optional*, the
+  require is guarded, and its absence degrades exactly as designed: pass-through
+  reports unavailable and Electron's exclusive `globalShortcut` is used instead.
+  `dev-keyhook-test` skips loudly rather than failing where the module is absent,
+  and the mac build no longer packs it.
+
+---
+
 ## v0.6.0 — 2026-07-31
 
 ### Added

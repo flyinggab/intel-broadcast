@@ -32,12 +32,22 @@
 <div class="shell">
 
   <!-- ============================================ connection strip ====
-       The only information above the photo: who you are, the net, the
-       relay. One line, non-interactive, 28px of the capture. -->
+       The only chrome above the photo, and now the only navigation too:
+       where you are, the connection, and the key that opens the launcher.
+       28px of the capture, replacing a 28px strip AND a 58px tab bar. -->
   <header class="strip" id="strip">
-    <span class="strip__seg strip__seg--id" id="strip-callsign"></span>
+    <button class="crumb" id="crumb" aria-haspopup="menu" aria-expanded="false">
+      <span class="crumb__page" id="crumb-page"></span>
+      <span class="crumb__pos" id="crumb-pos"></span>
+    </button>
     <span class="strip__seg" id="strip-net"></span>
     <span class="strip__seg" id="strip-relay"></span>
+    <button class="menukey" id="menukey" aria-haspopup="menu" aria-expanded="false">
+      <svg class="menukey__icon" viewBox="0 0 20 20" aria-hidden="true">
+        <rect x="3" y="3" width="5" height="5"/><rect x="12" y="3" width="5" height="5"/>
+        <rect x="3" y="12" width="5" height="5"/><rect x="12" y="12" width="5" height="5"/>
+      </svg>
+    </button>
   </header>
 
   <!-- ================================================= arrival banner ====
@@ -159,28 +169,18 @@
       </div>
     </section>
 
-  </main>
+    <!-- ============================================ LAUNCHER =========
+         Replaces the tab bar. Full-screen and GROUPED, because the roadmap
+         adds a dozen more destinations and a flat bar stops working long
+         before then — a bar divides a fixed width by N, a grid does not.
+         It costs nothing when closed, which is most of the time: in the air
+         the hotkeys page the queue and the chrome hides itself.
 
-  <!-- ================================================= tab bar ======== -->
-  <nav class="tabbar">
-    <button class="tab is-active" data-tab="brief">
-      <svg class="tab__icon" viewBox="0 0 20 20"><rect x="3" y="2" width="14" height="16"/><path d="M6 7h8M6 11h8M6 15h5"/></svg>
-      <span data-i18n="tab.brief">BRIEF</span>
-    </button>
-    <button class="tab" data-tab="received">
-      <svg class="tab__icon" viewBox="0 0 20 20"><path d="M10 2v9M6 8l4 4 4-4" stroke-linecap="round"/><path d="M3 14h14v4H3z"/></svg>
-      <span data-i18n="tab.received">RECEIVED</span>
-    </button>
-    <button class="tab" data-tab="share">
-      <svg class="tab__icon" viewBox="0 0 20 20"><path d="M10 13V4M6 7l4-4 4 4" stroke-linecap="round"/><path d="M3 14h14v4H3z"/></svg>
-      <span data-i18n="tab.share">SHARE</span>
-    </button>
-    <!-- opens the SEPARATE settings window; does not switch a page here -->
-    <button class="tab" data-tab="setup" id="tab-setup">
-      <svg class="tab__icon" viewBox="0 0 20 20"><path d="M2 5h16M2 10h16M2 15h16"/><circle cx="7" cy="5" r="2" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="2" fill="currentColor" stroke="none"/><circle cx="6" cy="15" r="2" fill="currentColor" stroke="none"/></svg>
-      <span data-i18n="tab.setup">SETUP</span>
-    </button>
-  </nav>
+         Rendered from DESTINATIONS in viewer.js, so a new page is one entry
+         there plus its two i18n keys. -->
+    <section class="launcher is-hidden" id="launcher" role="menu" aria-label="Pages"></section>
+
+  </main>
 
 </div>
 <script src="i18n.js"></script>

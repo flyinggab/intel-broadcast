@@ -100,7 +100,7 @@ async function measure(file, scale, locale) {
   await win.webContents.executeJavaScript(PREVIEW_STATE_SOURCE);
   await win.webContents.executeJavaScript(
     file === 'viewer.html'
-      ? `window.__preview.render({ ...PreviewState.viewer['banner switched'], locale: ${JSON.stringify(locale)} })`
+      ? `window.__preview.render({ ...PreviewState.viewer['banner switched'], launcherOpen: true, locale: ${JSON.stringify(locale)} })`
       : `window.__preview.render({ ...PreviewState.settings, locale: ${JSON.stringify(locale)} })`,
   );
   await win.webContents.executeJavaScript(

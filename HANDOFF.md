@@ -188,6 +188,16 @@ them. Verify a pack after touching build config: `npx electron-builder --linux
 dir --publish never`, then check `dist/*/resources/app.asar.unpacked` actually
 contains the `.node`.
 
+**Navigation is a launcher, not a bar, and `launcherOpen` lives in main.**
+A bar divides a fixed width by the number of destinations, so it stopped
+working at six; the roadmap needs far more than six. The grouped grid scales,
+and the strip that replaced the bar costs 44px instead of 28+58. Adding a page
+is one entry in `DESTINATIONS` in `viewer.js` plus two i18n keys. The open
+state is main's, like everything else — phase 4 drives a second surface from
+the same snapshot, and a menu open in one DOM would be invisible to the other.
+The strip had to grow to 44px when it took the trigger: it holds interactive
+targets now, and the viewer's touch floor is not negotiable.
+
 **The viewer prints no hotkey, anywhere.** Printed bindings went stale the
 moment a pilot recorded a new one. SETUP → KEYBINDS is the single source.
 
@@ -255,7 +265,10 @@ JS toggles these. JS never writes inline styles. This supersedes `BRIEF.md` §4.
 | `<body>` viewer | `.is-unfocused` | DCS has focus; chrome dims |
 | `<body>` settings | `data-page` | `net` `keys` `log` |
 | `<body>` settings | `data-mode` | `host` `join` |
-| `.tab`, `.rail__item` | `.is-active` | one per bar |
+| `.rail__item` (settings) | `.is-active` | one per rail |
+| `.dest` (launcher) | `.is-active` | the page you are on |
+| `.launcher` | `.is-hidden` | closed; it is chrome, so capture-clean hides it |
+| `.menukey` | `.is-active` | launcher open |
 | `.choice` | `.is-on` | the selected relay mode |
 | `.tile` | `.is-off` | deselected (SHARE *and* RECEIVED) |
 | `.step` | `.is-done`, `.is-running` | |
@@ -268,7 +281,8 @@ JS toggles these. JS never writes inline styles. This supersedes `BRIEF.md` §4.
 
 Gone since BRIEF: `.row` / `.row__*` (RECEIVED is tiles now), `.subtab` (a
 rail), `.tab__badge` (no unread state), the `frame` page (BRIEF *is* the
-stage), the `pilot` settings page.
+stage), the `pilot` settings page, and — since v0.7 — `.tabbar` / `.tab`
+entirely.
 
 ---
 

@@ -430,7 +430,9 @@ function setChromeHidden(hidden) {
 function scheduleChromeHide() {
   clearTimeout(chromeTimer);
   chromeTimer = null;
-  if (view.state.page !== 'brief') return setChromeHidden(false);
+  // Only BRIEF auto-hides, and never while the launcher is open: hiding the
+  // chrome out from under an open menu would blank the thing being read.
+  if (view.state.page !== 'brief' || view.state.launcherOpen) return setChromeHidden(false);
   chromeTimer = setTimeout(() => setChromeHidden(true), CHROME_IDLE_MS);
 }
 
@@ -663,6 +665,14 @@ function handleViewerIntent(intent, payload) {
       break;
     case 'set-page':
       view.setPage(payload);
+      noteActivity();
+      break;
+    case 'toggle-launcher':
+      view.toggleLauncher();
+      noteActivity();
+      break;
+    case 'close-launcher':
+      view.setLauncher(false);
       noteActivity();
       break;
     case 'step':
@@ -969,6 +979,10 @@ function attachViewerProbe() {
         `console.log('PANEL_PROBE ' + JSON.stringify({
            page: document.body.dataset.page,
            chromeHidden: document.body.classList.contains('is-chrome-hidden'),
+           launcherOpen: !document.getElementById('launcher').classList.contains('is-hidden'),
+           crumb: document.getElementById('crumb-page').textContent + ' ' + document.getElementById('crumb-pos').textContent,
+           dests: [...document.querySelectorAll('.dest[data-dest]')].map((d) => d.dataset.dest),
+           groups: [...document.querySelectorAll('.launcher__group')].map((g) => g.textContent),
            pos: document.getElementById('stage-pos-n').textContent,
            standby: !document.getElementById('stage-standby').classList.contains('is-hidden'),
            batches: [...document.querySelectorAll('.batch[data-batch-id]')].map((b) => ({

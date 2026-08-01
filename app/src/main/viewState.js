@@ -40,6 +40,11 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
 
     // viewer
     page: 'brief',
+    // The page launcher replaced the tab bar. Open/closed is STATE, not a
+    // renderer detail: phase 4 drives a second surface from this same
+    // snapshot, and a launcher open in the DOM of one window would be
+    // invisible to the other.
+    launcherOpen: false,
     chromeHidden: false,
     focused: true,
     autoShow: true,
@@ -203,9 +208,19 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
   }
 
   // -- viewer chrome --------------------------------------------------------
+  /** Switching page always closes the launcher: it is a way to get somewhere,
+   *  never a thing you leave open over the page you just chose. */
   function setPage(page) {
     noteInteraction();
     state.page = page;
+    state.launcherOpen = false;
+  }
+  function setLauncher(open) {
+    noteInteraction();
+    state.launcherOpen = Boolean(open);
+  }
+  function toggleLauncher() {
+    setLauncher(!state.launcherOpen);
   }
   function toggleChrome() {
     state.chromeHidden = !state.chromeHidden;
@@ -245,7 +260,11 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     // FAULT owns the screen while the relay is down, but never steals it from
     // a photo the pilot is actually reading — that is BRIEF with a live queue.
     const readingPhoto = state.page === 'brief' && queue().length > 0;
-    if (!connected && !readingPhoto) state.page = 'fault';
+    if (!connected && !readingPhoto) {
+      state.page = 'fault';
+      // An alarm that a menu can sit on top of is not an alarm.
+      state.launcherOpen = false;
+    }
     if (connected && state.page === 'fault') state.page = 'brief';
   }
 
@@ -264,6 +283,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
       reconnect: state.reconnect,
 
       page: state.page,
+      launcherOpen: state.launcherOpen,
       chromeHidden: state.chromeHidden,
       focused: state.focused,
       autoShow: state.autoShow,
@@ -309,6 +329,8 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     toggleItem,
     setBatchSelected,
     setPage,
+    setLauncher,
+    toggleLauncher,
     toggleChrome,
     setFocused,
     clearBanner,

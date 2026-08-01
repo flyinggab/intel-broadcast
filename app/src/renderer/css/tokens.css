@@ -69,8 +69,9 @@
      --touch-min is a floor, not a target. Nothing interactive goes under it. */
   --touch-min: 2.750rem;  /* 44px */
   --h-top:     2.875rem;  /* 46px — settings status bar */
-  --h-strip:   1.750rem;  /* 28px — viewer connection strip */
-  --h-tab:     3.625rem;  /* 58px — tab bar */
+  --h-strip:   2.750rem;  /* 44px — viewer strip. It carries the launcher
+                             trigger now, so it must clear --touch-min:
+                             from phase 4 this is pointed at with a VR ray. */
   --h-field:   3.250rem;  /* 52px */
   --h-key:     3.500rem;  /* 56px */
   --h-key-lg:  4.000rem;  /* 64px — the share reveal key */

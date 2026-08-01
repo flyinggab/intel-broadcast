@@ -74,18 +74,17 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   height: 100vh;
 }
 
-/* Flex column, NOT `grid-template-rows: auto auto 1fr auto`. The banner is
-   display:none in the normal case, so only three of the four children exist;
-   with fixed grid rows every later child shifts up one — .body took its
-   content height and the tab bar landed in the 1fr row, floating up against
-   the page content with dead space under it. The bar only sat correctly while
-   the arrival banner happened to be showing. Flex skips hidden children, so
-   the chrome pins to the edges in every combination. Do not go back to grid
-   rows without giving each child an explicit grid-row. */
+/* Flex column, NOT `grid-template-rows`. The banner is display:none in the
+   normal case, so a fixed row count shifts every later child up one — which
+   is exactly how the old tab bar ended up floating off the bottom edge with
+   dead space under it, correct only while the banner happened to be showing.
+   Flex skips hidden children, so the chrome pins to the edges in every
+   combination. Do not go back to grid rows without giving each child an
+   explicit grid-row. */
 .shell > .topbar,
 .shell > .strip,
+.shell > .subtabs,
 .shell > .banner,
-.shell > .tabbar,
 .shell > .savebar { flex: none; }
 .shell > .frame { flex: 1 1 auto; min-height: 0; }
 
@@ -123,10 +122,15 @@ body.viewer[data-page="brief"] .body { overflow: hidden; }
    the rules now means phase 2 adds a branch instead of unpicking one. */
 
 /* --- capture-clean -------------------------------------------------------
-   Ctrl+Shift+H. Everything except the photo goes away, so the kneeboard
-   grab is a clean page. This is the state that matters most in the air.    */
+   Everything except the photo goes away, so the kneeboard grab is a clean
+   page. This is the state that matters most in the air, and since v0.6 it
+   arrives on its own after six idle seconds on BRIEF.
+
+   The launcher is listed here too: it is chrome. If the chrome hides while
+   it happens to be open, an open menu would otherwise be the one thing left
+   on the pilot's knee.                                                     */
 body[data-surface="window"].is-chrome-hidden .strip,
-body[data-surface="window"].is-chrome-hidden .tabbar,
+body[data-surface="window"].is-chrome-hidden .launcher,
 body[data-surface="window"].is-chrome-hidden .banner,
 body[data-surface="window"].is-chrome-hidden .stage__chrome { display: none !important; }
 /* No .shell override needed here: with the chrome hidden .body is the only
@@ -134,9 +138,9 @@ body[data-surface="window"].is-chrome-hidden .stage__chrome { display: none !imp
 
 /* Dim the chrome while another app (DCS) holds focus, so it stays out of
    the capture without being gone when you look at the real window. */
-body.is-unfocused .tabbar,
+body.is-unfocused .strip,
 body.is-unfocused .stage__chrome { opacity: .25; }
-.tabbar, .stage__chrome { transition: opacity .15s ease; }
+.strip, .stage__chrome { transition: opacity .15s ease; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }

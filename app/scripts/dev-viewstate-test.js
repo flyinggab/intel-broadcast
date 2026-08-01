@@ -199,6 +199,44 @@ const cur = (view) => view.snapshot().queue.current;
   console.log('[test] eviction caps history and repairs the stage');
 }
 
+// --- The page launcher -------------------------------------------------------
+// It replaced the tab bar, and open/closed is main's state, not the renderer's.
+{
+  const { view } = withClock();
+  assert.strictEqual(view.snapshot().launcherOpen, false, 'starts closed');
+
+  view.toggleLauncher();
+  assert.strictEqual(view.snapshot().launcherOpen, true);
+  view.toggleLauncher();
+  assert.strictEqual(view.snapshot().launcherOpen, false);
+
+  view.setLauncher(true);
+  assert.strictEqual(view.snapshot().launcherOpen, true);
+  // Choosing a destination closes it: the launcher is a way to get somewhere,
+  // never a thing left open on top of the page you just picked.
+  view.setPage('share');
+  assert.strictEqual(view.snapshot().page, 'share');
+  assert.strictEqual(view.snapshot().launcherOpen, false, 'picking a page closes the launcher');
+
+  // Opening it is a deliberate act, so it must arm the auto-switch grace
+  // window — an arrival must not yank the page while the menu is open.
+  const { view: v2, advance } = withClock();
+  advance(INTERACTION_GRACE_MS + 1);
+  v2.setLauncher(true);
+  assert.strictEqual(v2.recentlyInteracted(), true, 'opening the launcher counts as interaction');
+  const { switched } = v2.addBatch({ sharedBy: 'alpha', items: items(2) });
+  assert.strictEqual(switched, false, 'an arrival must not switch the page under an open launcher');
+
+  // A relay fault takes the screen — and must not leave a menu floating on
+  // top of the alarm.
+  const { view: v3 } = withClock();
+  v3.setLauncher(true);
+  v3.setConnection({ connected: false, relayLabel: 'gab-pc' });
+  assert.strictEqual(v3.state.page, 'fault');
+  assert.strictEqual(v3.snapshot().launcherOpen, false, 'FAULT closes the launcher');
+  console.log('[test] launcher: toggle, closes on pick, arms grace, yields to FAULT');
+}
+
 // --- Share selection ---------------------------------------------------------
 {
   const { view } = withClock();

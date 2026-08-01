@@ -12,8 +12,20 @@
 // Usage: node scripts/dev-keyhook-test.js
 
 const assert = require('assert');
+const { parseAccelerator, matchBinding, eventMatches, isAvailable } = require('../src/main/keyHook');
+
+// uiohook-napi is an OPTIONAL dependency — the feature is Windows-shaped and
+// there is no prebuild for every platform. The keycode table lives inside it,
+// so without it there is nothing to match against and this test has nothing to
+// assert. SKIP loudly rather than fail: a red test on a Mac would be noise
+// that trains people to ignore the suite.
+if (!isAvailable()) {
+  console.log('[dev-keyhook-test] SKIP — uiohook-napi not installed on this platform');
+  console.log('  (the app falls back to exclusive globalShortcut; settings shows UNAVAILABLE)');
+  process.exit(0);
+}
+
 const { UiohookKey } = require('uiohook-napi');
-const { parseAccelerator, matchBinding, eventMatches } = require('../src/main/keyHook');
 
 /** A uiohook-shaped keydown event. */
 function down(keycode, mods = {}) {

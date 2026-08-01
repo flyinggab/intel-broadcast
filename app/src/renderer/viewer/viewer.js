@@ -17,7 +17,27 @@ const body = document.body;
 
 const el = (id) => document.getElementById(id);
 
-const strip = { callsign: el('strip-callsign'), net: el('strip-net'), relay: el('strip-relay') };
+// --- destinations -----------------------------------------------------------
+// The launcher is generated from this. Adding a page is ONE entry here plus
+// its two i18n keys — which is the whole reason the tab bar went: a bar
+// divides a fixed width by N and stops working at six, a grouped grid does
+// not. `opens: 'settings'` marks the one destination that is not a page in
+// this window: settings is a separate BrowserWindow, because OpenKneeboard
+// captures this one and a config form must never reach the pilot's knee.
+const DESTINATIONS = [
+  { id: 'brief',    group: 'intel',  label: 'tab.brief',    icon: 'M3 2h14v16H3zM6 7h8M6 11h8M6 15h5' },
+  { id: 'received', group: 'intel',  label: 'tab.received', icon: 'M10 2v9M6 8l4 4 4-4M3 14h14v4H3z' },
+  { id: 'share',    group: 'intel',  label: 'tab.share',    icon: 'M10 13V4M6 7l4-4 4 4M3 14h14v4H3z' },
+  { id: 'setup',    group: 'system', label: 'tab.setup',    icon: 'M2 5h16M2 10h16M2 15h16', opens: 'settings' },
+];
+// Group order is the order they appear; a group with no destinations is
+// simply not rendered, so this list can run ahead of the pages.
+const GROUPS = ['intel', 'mission', 'reference', 'tools', 'system'];
+
+const strip = { net: el('strip-net'), relay: el('strip-relay') };
+const crumb = { root: el('crumb'), page: el('crumb-page'), pos: el('crumb-pos') };
+const menukey = el('menukey');
+const launcher = el('launcher');
 const banner = {
   root: el('banner'),
   who: el('banner-who'),
@@ -51,6 +71,8 @@ const fault = {
 };
 
 const PLACEHOLDER = 'img/frame-placeholder.svg';
+// A proper noun: never translated, never localised.
+const PRODUCT_NAME = 'INTEL BROADCAST';
 
 // Every arrival banner dismisses itself. Keyed on banner.at so a later state
 // push re-rendering the SAME banner cannot extend its life.
@@ -74,13 +96,85 @@ function setText(node, text) {
 // --- render -----------------------------------------------------------------
 
 function renderStrip(s) {
-  setText(strip.callsign, (s.callsign || t('strip.unnamed')).toUpperCase());
+  // The breadcrumb replaced the callsign here: the callsign is identity, which
+  // settings owns and the squad sees, while WHERE YOU ARE is the thing the
+  // strip has to answer now that there is no tab bar to answer it.
+  const dest = DESTINATIONS.find((d) => d.id === s.page);
+  setText(crumb.page, t(dest ? dest.label : 'fault.title'));
+  // Position is only meaningful where there is a queue to be positioned in.
+  const q = s.queue;
+  setText(crumb.pos, s.page === 'brief' && q.current ? `${q.pos + 1} / ${q.total}` : '');
+
   setText(
     strip.net,
     s.isHost ? t('strip.host', { n: s.peers.length }) : s.connected ? t('strip.joined') : t('strip.nonet'),
   );
   setText(strip.relay, s.connected ? t('strip.relayUp', { t: zulu(s.lastContactAt) }) : t('strip.relayDown'));
   strip.relay.classList.toggle('strip__seg--fault', !s.connected);
+}
+
+function renderLauncher(s) {
+  launcher.classList.toggle('is-hidden', !s.launcherOpen);
+  menukey.classList.toggle('is-active', Boolean(s.launcherOpen));
+  menukey.setAttribute('aria-expanded', s.launcherOpen ? 'true' : 'false');
+  crumb.root.setAttribute('aria-expanded', s.launcherOpen ? 'true' : 'false');
+  // Rebuilding a hidden menu every push is waste, and it would also fight the
+  // pilot's scroll position inside it.
+  if (!s.launcherOpen) return;
+
+  launcher.textContent = '';
+
+  // Identity: the icon says which app this is on a taskbar, the name says it
+  // to whoever is looking at the kneeboard. PRODUCT_NAME is a proper noun and
+  // is deliberately not translated.
+  const head = document.createElement('div');
+  head.className = 'launcher__head';
+  const mark = document.createElement('img');
+  mark.className = 'launcher__mark';
+  mark.src = 'img/icon.png';
+  mark.alt = '';
+  const name = document.createElement('span');
+  name.className = 'launcher__name';
+  name.textContent = PRODUCT_NAME;
+  const version = document.createElement('span');
+  version.className = 'launcher__version';
+  version.textContent = s.version ? `V${s.version}` : '';
+  head.append(mark, name, version);
+  launcher.appendChild(head);
+
+  for (const group of GROUPS) {
+    const members = DESTINATIONS.filter((d) => d.group === group);
+    if (members.length === 0) continue;
+
+    const heading = document.createElement('span');
+    heading.className = 'launcher__group';
+    heading.textContent = t(`group.${group}`);
+    launcher.appendChild(heading);
+
+    const tiles = document.createElement('div');
+    tiles.className = 'launcher__tiles';
+    for (const d of members) {
+      const tile = document.createElement('button');
+      tile.className = 'dest' + (d.id === s.page && !d.opens ? ' is-active' : '');
+      tile.dataset.dest = d.id;
+      tile.setAttribute('role', 'menuitem');
+
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'dest__icon');
+      svg.setAttribute('viewBox', '0 0 20 20');
+      svg.setAttribute('aria-hidden', 'true');
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d.icon);
+      svg.appendChild(path);
+
+      const name = document.createElement('span');
+      name.textContent = t(d.label);
+
+      tile.append(svg, name);
+      tiles.appendChild(tile);
+    }
+    launcher.appendChild(tiles);
+  }
 }
 
 function renderBanner(s) {
@@ -260,11 +354,7 @@ function render(s) {
   body.classList.toggle('is-chrome-hidden', s.chromeHidden);
   body.classList.toggle('is-unfocused', !s.focused);
 
-  for (const tab of document.querySelectorAll('.tab')) {
-    // SETUP is a launcher, never a page — it must never look selected.
-    tab.classList.toggle('is-active', tab.dataset.tab === s.page && tab.dataset.tab !== 'setup');
-  }
-
+  renderLauncher(s);
   renderStrip(s);
   renderBanner(s);
   renderStage(s);
@@ -280,15 +370,28 @@ function render(s) {
 
 const send = (intent, payload) => window.viewerAPI && window.viewerAPI.send(intent, payload);
 
-for (const tab of document.querySelectorAll('.tab')) {
-  tab.addEventListener('click', () => {
-    // BRIEF §2: SETUP opens the separate settings window. If it switched a
-    // page here, opening setup would put the settings form on the pilot's
-    // knee mid-flight.
-    if (tab.dataset.tab === 'setup') send('open-settings');
-    else send('set-page', tab.dataset.tab);
-  });
-}
+// Two ways into the launcher, both in the strip: the key, and the breadcrumb
+// itself — the label already says where you are, so it is the obvious thing
+// to press to go somewhere else.
+menukey.addEventListener('click', () => send('toggle-launcher'));
+crumb.root.addEventListener('click', () => send('toggle-launcher'));
+
+launcher.addEventListener('click', (event) => {
+  const tile = event.target.closest('.dest[data-dest]');
+  if (!tile) return;
+  const dest = DESTINATIONS.find((d) => d.id === tile.dataset.dest);
+  if (!dest) return;
+  // SETUP opens the separate settings window rather than switching a page
+  // here. Main closes the launcher either way.
+  if (dest.opens === 'settings') send('open-settings');
+  else send('set-page', dest.id);
+});
+
+// Escape closes it — the launcher covers the whole window, so there has to be
+// a way out that is not "find the key again".
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') send('close-launcher');
+});
 
 banner.close.addEventListener('click', () => send('banner-dismiss'));
 

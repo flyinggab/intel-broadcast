@@ -1,6 +1,26 @@
 'use strict';
 
-const { UiohookKey } = require('uiohook-napi');
+// `uiohook-napi` is an OPTIONAL dependency, and this module must survive its
+// absence — a top-level require here took the whole app down on macOS, where
+// there is no prebuild. It is also the one place the app loads native code,
+// so keeping it optional keeps every other platform installable.
+//
+// The feature it powers is Windows-shaped (see the RegisterHotKey note below);
+// without the module `parseAccelerator` returns null for everything, so no
+// binding ever matches and `startKeyHook` reports ok:false. Main already
+// falls back to Electron's exclusive globalShortcut in that case, and the
+// settings toggle already says UNAVAILABLE ON THIS PC.
+let UiohookKey = null;
+try {
+  ({ UiohookKey } = require('uiohook-napi'));
+} catch {
+  UiohookKey = null;
+}
+
+/** Whether the native hook is even installed on this machine. */
+function isAvailable() {
+  return UiohookKey !== null;
+}
 
 // Global keybinds that OBSERVE a key without swallowing it.
 //
@@ -53,6 +73,7 @@ const MODIFIER_TOKENS = new Set(['CTRL', 'CONTROL', 'COMMANDORCONTROL', 'CMDORCT
  * we can match.
  */
 function parseAccelerator(accelerator) {
+  if (!UiohookKey) return null; // no native module: nothing can match
   if (!accelerator || typeof accelerator !== 'string') return null;
   const parts = accelerator.split('+').map((p) => p.trim()).filter(Boolean);
   if (parts.length === 0) return null;
@@ -114,6 +135,10 @@ function matchBinding(bindings, event) {
  * down. Callers check `.ok`.
  */
 function startKeyHook({ bindings = {}, onFire = () => {}, onLog = () => {} } = {}) {
+  if (!isAvailable()) {
+    onLog('pass-through keybinds unavailable: uiohook-napi is not installed on this platform');
+    return { ok: false, stop() {}, update() {} };
+  }
   let current = { ...bindings };
   let running = false;
   let uIOhook;
@@ -153,4 +178,4 @@ function startKeyHook({ bindings = {}, onFire = () => {}, onLog = () => {} } = {
   };
 }
 
-module.exports = { startKeyHook, parseAccelerator, eventMatches, matchBinding };
+module.exports = { startKeyHook, parseAccelerator, eventMatches, matchBinding, isAvailable };
