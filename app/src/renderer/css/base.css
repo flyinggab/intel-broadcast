@@ -91,6 +91,11 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .body {
   flex: 1 1 auto;
   min-height: 0;
+  /* The containing block for anything absolutely positioned inside a page —
+     the launcher, the stage's standby plate. Without it `inset: 0` escapes to
+     the viewport and the launcher covers the strip, taking the breadcrumb and
+     the menu key with it. */
+  position: relative;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--edge) var(--bg);

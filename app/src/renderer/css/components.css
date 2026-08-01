@@ -318,21 +318,22 @@ body[data-mode="join"] [data-mode="host"] { display: none; }
 }
 .launcher__group:first-child { margin-top: 0; }
 .launcher__tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); }
+.dest > span { display: block; }
 .dest {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--sp-1);
-  min-height: 4.25rem;
-  padding: var(--sp-1);
+  min-height: 4.75rem;
+  padding: var(--sp-2);
   background: var(--up);
   box-shadow: var(--bevel-up);
   border: 0;
   color: var(--ink);
   text-shadow: var(--engrave);
   font-family: inherit;
-  font-size: var(--fs-cap);
+  font-size: var(--fs-meta);
   font-weight: 700;
   letter-spacing: .06em;
   text-transform: uppercase;
@@ -340,7 +341,7 @@ body[data-mode="join"] [data-mode="host"] { display: none; }
   cursor: pointer;
 }
 .dest.is-active { background: var(--dn); box-shadow: var(--bevel-dn); color: var(--lit); text-shadow: none; }
-.dest__icon { width: 1.375rem; height: 1.375rem; stroke: currentColor; fill: none; stroke-width: 1.4; }
+.dest__icon { width: 1.625rem; height: 1.625rem; stroke: currentColor; fill: none; stroke-width: 1.4; }
 
 /* --- keys ----------------------------------------------------------------
    Physical keys, not web buttons. Nothing under --touch-min.               */

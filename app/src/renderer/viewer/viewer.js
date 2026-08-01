@@ -23,11 +23,46 @@ const el = (id) => document.getElementById(id);
 // divides a fixed width by N and stops working at six, a grouped grid does
 // not. Every entry is a page of this window, SETUP included: the EFB carries
 // its own settings, like the tablet a pilot actually flies with.
+// Icons are ELEMENT LISTS, not one flattened path. Squashing them into a
+// single `d` lost real artwork: SETUP's three slider knobs are filled circles
+// and simply vanished, leaving three bare lines, and the arrows lost their
+// round caps.
 const DESTINATIONS = [
-  { id: 'brief',    group: 'intel',  label: 'tab.brief',    icon: 'M3 2h14v16H3zM6 7h8M6 11h8M6 15h5' },
-  { id: 'received', group: 'intel',  label: 'tab.received', icon: 'M10 2v9M6 8l4 4 4-4M3 14h14v4H3z' },
-  { id: 'share',    group: 'intel',  label: 'tab.share',    icon: 'M10 13V4M6 7l4-4 4 4M3 14h14v4H3z' },
-  { id: 'setup',    group: 'system', label: 'tab.setup',    icon: 'M2 5h16M2 10h16M2 15h16' },
+  {
+    id: 'brief',
+    group: 'intel',
+    label: 'tab.brief',
+    icon: [['rect', { x: 3, y: 2, width: 14, height: 16 }], ['path', { d: 'M6 7h8M6 11h8M6 15h5' }]],
+  },
+  {
+    id: 'received',
+    group: 'intel',
+    label: 'tab.received',
+    icon: [
+      ['path', { d: 'M10 2v9M6 8l4 4 4-4', 'stroke-linecap': 'round' }],
+      ['path', { d: 'M3 14h14v4H3z' }],
+    ],
+  },
+  {
+    id: 'share',
+    group: 'intel',
+    label: 'tab.share',
+    icon: [
+      ['path', { d: 'M10 13V4M6 7l4-4 4 4', 'stroke-linecap': 'round' }],
+      ['path', { d: 'M3 14h14v4H3z' }],
+    ],
+  },
+  {
+    id: 'setup',
+    group: 'system',
+    label: 'tab.setup',
+    icon: [
+      ['path', { d: 'M2 5h16M2 10h16M2 15h16' }],
+      ['circle', { cx: 7, cy: 5, r: 2, fill: 'currentColor', stroke: 'none' }],
+      ['circle', { cx: 13, cy: 10, r: 2, fill: 'currentColor', stroke: 'none' }],
+      ['circle', { cx: 6, cy: 15, r: 2, fill: 'currentColor', stroke: 'none' }],
+    ],
+  },
 ];
 // Group order is the order they appear; a group with no destinations is
 // simply not rendered, so this list can run ahead of the pages.
@@ -136,9 +171,11 @@ function renderLauncher(s) {
       svg.setAttribute('class', 'dest__icon');
       svg.setAttribute('viewBox', '0 0 20 20');
       svg.setAttribute('aria-hidden', 'true');
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', d.icon);
-      svg.appendChild(path);
+      for (const [tag, attrs] of d.icon) {
+        const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+        for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, String(value));
+        svg.appendChild(node);
+      }
 
       const name = document.createElement('span');
       name.textContent = t(d.label);
