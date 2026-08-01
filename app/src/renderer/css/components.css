@@ -233,6 +233,48 @@
 .menukey.is-active { background: var(--dn); box-shadow: var(--bevel-dn); color: var(--lit); }
 .menukey__icon { width: .875rem; height: .875rem; stroke: currentColor; fill: none; stroke-width: 1.6; }
 
+/* --- fault bar -----------------------------------------------------------
+   The relay going down used to take the whole screen. It does not any more:
+   losing the relay does not lose the intel already received, so replacing a
+   photo the pilot is reading with an error page cost more than it told them.
+   This is chrome, so the capture stays clean and it hides with everything
+   else after the idle timeout.                                              */
+.faultbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--dn);
+  box-shadow: var(--bevel-dn);
+  position: relative;
+}
+.faultbar.is-hidden { display: none; }
+.faultbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--bar-w);
+  background: var(--fault);
+}
+.faultbar__title {
+  font-size: var(--fs-row);
+  font-weight: 700;
+  color: var(--fault);
+  letter-spacing: .06em;
+  white-space: nowrap;
+}
+.faultbar__meta {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  color: var(--hi);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.faultbar .key { flex: none; width: auto; min-width: 5rem; }
+
 /* --- launcher -------------------------------------------------------------
    A full-screen grouped grid, over whatever page you were on. Grouping is
    the part that scales: fourteen destinations in a flat row is a lookup
@@ -242,39 +284,12 @@
   inset: 0;
   z-index: 2;
   background: var(--bg);
-  padding: var(--sp-3);
+  /* Extra room at the top: the grid sat flush under the strip, which read as
+     cramped and made the first group heading look like part of the chrome. */
+  padding: var(--sp-6) var(--sp-3) var(--sp-3);
   overflow-y: auto;
 }
 .launcher.is-hidden { display: none; }
-
-/* The launcher is the closest thing this app has to a home screen, so it is
-   where the product says its own name — the icon alone identifies it on a
-   taskbar, but not to someone looking at the kneeboard. */
-.launcher__head {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding-bottom: var(--sp-3);
-  margin-bottom: var(--sp-2);
-  border-bottom: var(--rule);
-  box-shadow: 0 1px 0 var(--hi);
-}
-.launcher__mark { flex: none; width: 2rem; height: 2rem; display: block; }
-.launcher__name {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--fs-key);
-  font-weight: 700;
-  letter-spacing: .14em;
-  color: var(--lit);
-}
-.launcher__version {
-  flex: none;
-  font-family: var(--font-mono);
-  font-size: var(--fs-cap);
-  letter-spacing: .08em;
-  color: var(--hi);
-}
 
 .launcher__group {
   display: block;

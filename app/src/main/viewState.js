@@ -257,15 +257,12 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     if (relayLabel !== undefined) state.relayLabel = relayLabel;
     state.reconnect = connected ? null : reconnect || state.reconnect;
     if (connected) state.lastContactAt = now();
-    // FAULT owns the screen while the relay is down, but never steals it from
-    // a photo the pilot is actually reading — that is BRIEF with a live queue.
-    const readingPhoto = state.page === 'brief' && queue().length > 0;
-    if (!connected && !readingPhoto) {
-      state.page = 'fault';
-      // An alarm that a menu can sit on top of is not an alarm.
-      state.launcherOpen = false;
-    }
-    if (connected && state.page === 'fault') state.page = 'brief';
+    // The relay going down NO LONGER changes the page. It used to take the
+    // whole screen, which meant an error card replaced a photo the pilot was
+    // reading — and losing the relay does not lose the intel already
+    // received: the queue is local, and browsing and sharing still work. It
+    // is reported in place by the fault bar, which is chrome and therefore
+    // stays out of the capture.
   }
 
   /** The snapshot pushed to renderers. Everything derived is computed here so

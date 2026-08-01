@@ -156,7 +156,7 @@ function render(s) {
     net.stateDot.classList.remove('netstate__dot--off');
   } else {
     setText(net.stateWhat, t('net.notConnected'));
-    setText(net.stateMeta, t(mode === 'join' ? 'net.pasteToJoin' : 'net.relayDown'));
+    setText(net.stateMeta, t(mode === 'join' ? 'net.pasteToJoin' : 'net.offline'));
     net.stateDot.classList.add('netstate__dot--off');
   }
 

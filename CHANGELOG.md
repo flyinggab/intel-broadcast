@@ -27,6 +27,18 @@ talk to each other.
 - The strip grew from 28px to 44px, because it now holds interactive targets
   and the viewer's 44px floor exists for VR controller pointing in phase 4.
 
+- **Losing the connection no longer takes the screen.** It used to switch to a
+  full RELAY LOST page, which replaced a photo the pilot was reading with an
+  error card — and going offline does not lose the intel already received: the
+  queue is local, browsing and sharing keep working. It is now reported in
+  place by a bar under the strip, with RETRY and OPEN SETUP, and it is chrome,
+  so it stays out of the capture and hides with the rest.
+- **"Relay" is gone from the interface.** It is how the app is built, not
+  something a pilot should have to know. The EFB says ONLINE / OFFLINE, in both
+  languages; settings asks WHO HOSTS THE SQUAD? instead of WHERE IS THE RELAY?.
+- The launcher no longer repeats the product name and version, and the grid has
+  breathing room at the top instead.
+
 ### Fixed
 - **The app could not start on macOS.** `keyHook.js` required `uiohook-napi` at
   module load, and there is no prebuild for every platform, so the require

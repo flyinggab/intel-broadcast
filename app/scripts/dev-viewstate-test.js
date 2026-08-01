@@ -227,14 +227,7 @@ const cur = (view) => view.snapshot().queue.current;
   const { switched } = v2.addBatch({ sharedBy: 'alpha', items: items(2) });
   assert.strictEqual(switched, false, 'an arrival must not switch the page under an open launcher');
 
-  // A relay fault takes the screen — and must not leave a menu floating on
-  // top of the alarm.
-  const { view: v3 } = withClock();
-  v3.setLauncher(true);
-  v3.setConnection({ connected: false, relayLabel: 'gab-pc' });
-  assert.strictEqual(v3.state.page, 'fault');
-  assert.strictEqual(v3.snapshot().launcherOpen, false, 'FAULT closes the launcher');
-  console.log('[test] launcher: toggle, closes on pick, arms grace, yields to FAULT');
+  console.log('[test] launcher: toggle, closes on pick, arms grace');
 }
 
 // --- Share selection ---------------------------------------------------------
@@ -261,23 +254,27 @@ const cur = (view) => view.snapshot().queue.current;
   console.log('[test] share selection + interaction tracking');
 }
 
-// --- FAULT owns the screen, but never steals a photo being read -------------
+// --- Losing the relay never changes the page ---------------------------------
+// It used to take the screen. Replacing a photo the pilot is reading with an
+// error card cost more than it told them, and the queue is local: browsing and
+// sharing keep working while the relay is down.
 {
   const { view } = withClock();
   view.setConnection({ connected: false, relayLabel: 'gab-pc' });
-  assert.strictEqual(view.state.page, 'fault', 'down with nothing on stage -> FAULT');
-  view.setConnection({ connected: true });
-  assert.strictEqual(view.state.page, 'brief', 'recovers off the fault page');
+  assert.strictEqual(view.state.page, 'brief', 'a dead relay does not take the screen');
+  assert.strictEqual(view.snapshot().connected, false, 'but the snapshot says so, for the fault bar');
 
-  view.addBatch({ sharedBy: 'alpha', items: items(1) }); // brief, queue live
+  view.setPage('share');
   view.setConnection({ connected: false });
-  assert.strictEqual(view.state.page, 'brief', 'must not yank a photo away to show a fault');
+  assert.strictEqual(view.state.page, 'share', 'and it does not interrupt what you were doing');
+
+  view.setLauncher(true);
+  view.setConnection({ connected: false });
+  assert.strictEqual(view.snapshot().launcherOpen, true, 'nor close the launcher');
 
   view.setConnection({ connected: true });
-  view.setPage('received');
-  view.setConnection({ connected: false });
-  assert.strictEqual(view.state.page, 'fault', 'not reading a photo -> FAULT may take over');
-  console.log('[test] fault page behaviour');
+  assert.strictEqual(view.state.page, 'share', 'recovery does not move you either');
+  console.log('[test] a dead relay is reported, never navigated to');
 }
 
 console.log('[dev-viewstate-test] PASS');

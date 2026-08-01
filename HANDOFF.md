@@ -198,6 +198,13 @@ the same snapshot, and a menu open in one DOM would be invisible to the other.
 The strip had to grow to 44px when it took the trigger: it holds interactive
 targets now, and the viewer's touch floor is not negotiable.
 
+**The pilot never reads the word "relay", and going offline never changes
+the page.** The relay is an implementation detail; the interface says ONLINE
+and OFFLINE. And a dead connection does not lose the intel already received —
+the queue is local — so replacing a photo being read with an error page cost
+more than it told anyone. The `fault` page is gone; a fault bar reports it in
+place, and it is chrome, so the capture stays clean.
+
 **The viewer prints no hotkey, anywhere.** Printed bindings went stale the
 moment a pilot recorded a new one. SETUP → KEYBINDS is the single source.
 
@@ -259,7 +266,7 @@ JS toggles these. JS never writes inline styles. This supersedes `BRIEF.md` §4.
 
 | Element | Attribute / class | Values |
 |---|---|---|
-| `<body>` viewer | `data-page` | `brief` `received` `share` `fault` |
+| `<body>` viewer | `data-page` | `brief` `received` `share` |
 | `<body>` viewer | `data-surface` | `window` today, `vr` in phase 4 |
 | `<body>` viewer | `.is-chrome-hidden` | blanks all chrome for the capture |
 | `<body>` viewer | `.is-unfocused` | DCS has focus; chrome dims |
@@ -268,6 +275,7 @@ JS toggles these. JS never writes inline styles. This supersedes `BRIEF.md` §4.
 | `.rail__item` (settings) | `.is-active` | one per rail |
 | `.dest` (launcher) | `.is-active` | the page you are on |
 | `.launcher` | `.is-hidden` | closed; it is chrome, so capture-clean hides it |
+| `.faultbar` | `.is-hidden` | connected; also chrome |
 | `.menukey` | `.is-active` | launcher open |
 | `.choice` | `.is-on` | the selected relay mode |
 | `.tile` | `.is-off` | deselected (SHARE *and* RECEIVED) |

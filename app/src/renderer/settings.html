@@ -9,7 +9,7 @@
   v0.4.1 layout: no topbar (SECTION echoed the active nav item, CALLSIGN
   echoed a field); a vertical rail — NETWORK, KEYBINDS, LOG — that scales by
   adding rows; and NETWORK leads with the question it actually asks, WHERE
-  IS THE RELAY?, as two radio cards, then walks the chosen path in the same
+  HOSTS THE SQUAD?, as two radio cards, then walks the chosen path in the same
   numbered-step idiom as the Tailscale setup.
 
   There is deliberately no watch-folder toggle (always on), no send-quality
@@ -72,12 +72,12 @@
         </div>
 
         <div>
-          <span class="cap" data-i18n="cap.whereRelay">Where is the relay?</span>
+          <span class="cap" data-i18n="cap.whereRelay">Who hosts the squad?</span>
           <button class="choice" data-set-mode="host" id="choice-host">
             <i class="choice__radio"></i>
             <span class="choice__text">
               <span class="choice__label" data-i18n="choice.host">I HOST THE SQUAD</span>
-              <span class="choice__hint" data-i18n="choice.hostHint">THIS MACHINE RUNS THE RELAY</span>
+              <span class="choice__hint" data-i18n="choice.hostHint">THIS MACHINE HOSTS</span>
             </span>
           </button>
           <button class="choice" data-set-mode="join" id="choice-join">

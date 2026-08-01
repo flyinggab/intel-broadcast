@@ -63,16 +63,9 @@ const share = {
   grid: el('share-grid'),
   reveal: el('share-reveal'),
 };
-const fault = {
-  attempt: el('fault-attempt'),
-  last: el('fault-last'),
-  relay: el('fault-relay'),
-  cached: el('fault-cached'),
-};
+const fault = { bar: el('faultbar'), attempt: el('fault-attempt') };
 
 const PLACEHOLDER = 'img/frame-placeholder.svg';
-// A proper noun: never translated, never localised.
-const PRODUCT_NAME = 'INTEL BROADCAST';
 
 // Every arrival banner dismisses itself. Keyed on banner.at so a later state
 // push re-rendering the SAME banner cannot extend its life.
@@ -100,7 +93,7 @@ function renderStrip(s) {
   // settings owns and the squad sees, while WHERE YOU ARE is the thing the
   // strip has to answer now that there is no tab bar to answer it.
   const dest = DESTINATIONS.find((d) => d.id === s.page);
-  setText(crumb.page, t(dest ? dest.label : 'fault.title'));
+  setText(crumb.page, dest ? t(dest.label) : '');
   // Position is only meaningful where there is a queue to be positioned in.
   const q = s.queue;
   setText(crumb.pos, s.page === 'brief' && q.current ? `${q.pos + 1} / ${q.total}` : '');
@@ -109,7 +102,7 @@ function renderStrip(s) {
     strip.net,
     s.isHost ? t('strip.host', { n: s.peers.length }) : s.connected ? t('strip.joined') : t('strip.nonet'),
   );
-  setText(strip.relay, s.connected ? t('strip.relayUp', { t: zulu(s.lastContactAt) }) : t('strip.relayDown'));
+  setText(strip.relay, s.connected ? t('strip.online', { t: zulu(s.lastContactAt) }) : t('strip.offline'));
   strip.relay.classList.toggle('strip__seg--fault', !s.connected);
 }
 
@@ -123,25 +116,6 @@ function renderLauncher(s) {
   if (!s.launcherOpen) return;
 
   launcher.textContent = '';
-
-  // Identity: the icon says which app this is on a taskbar, the name says it
-  // to whoever is looking at the kneeboard. PRODUCT_NAME is a proper noun and
-  // is deliberately not translated.
-  const head = document.createElement('div');
-  head.className = 'launcher__head';
-  const mark = document.createElement('img');
-  mark.className = 'launcher__mark';
-  mark.src = 'img/icon.png';
-  mark.alt = '';
-  const name = document.createElement('span');
-  name.className = 'launcher__name';
-  name.textContent = PRODUCT_NAME;
-  const version = document.createElement('span');
-  version.className = 'launcher__version';
-  version.textContent = s.version ? `V${s.version}` : '';
-  head.append(mark, name, version);
-  launcher.appendChild(head);
-
   for (const group of GROUPS) {
     const members = DESTINATIONS.filter((d) => d.group === group);
     if (members.length === 0) continue;
@@ -204,7 +178,7 @@ function renderStage(s) {
     setText(stage.posN, '');
     setText(stage.posMeta, '');
     setText(stage.standbyLine1, t('standby.nothing'));
-    setText(stage.standbyLine2, t(s.connected ? 'standby.sincePowerUp' : 'standby.relayDown'));
+    setText(stage.standbyLine2, t(s.connected ? 'standby.sincePowerUp' : 'standby.offline'));
     return;
   }
   // Only reassign src when it actually changed: re-setting it restarts the
@@ -326,6 +300,11 @@ function renderShare(s) {
 }
 
 function renderFault(s) {
+  // Reported in place. The relay being down does not take the screen: the
+  // photos already received are still there to read, and replacing one the
+  // pilot is looking at with an error page told them less than this line does.
+  fault.bar.classList.toggle('is-hidden', s.connected);
+  if (s.connected) return;
   const r = s.reconnect || {};
   setText(
     fault.attempt,
@@ -333,10 +312,6 @@ function renderFault(s) {
       ? t('fault.attempt', { n: r.attempt, s: Math.ceil((r.nextInMs || 0) / 1000) })
       : t('fault.reconnecting'),
   );
-  setText(fault.last, zulu(s.lastContactAt));
-  setText(fault.relay, (s.relayLabel || t('fault.unknown')).toUpperCase());
-  const photoCount = s.batches.reduce((n, b) => n + b.count, 0);
-  setText(fault.cached, t('fault.cached', { batches: s.batches.length, photos: photoCount }));
 }
 
 let renderedLocale = null;
