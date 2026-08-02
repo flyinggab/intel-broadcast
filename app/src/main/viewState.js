@@ -249,14 +249,31 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
   }
 
   /** The presenter moved to an image. Only moves us if we are following. */
-  function setFocus({ hash, batchId, filename }) {
+  /**
+   * The presenter moved to an image. Resolved by CONTENT HASH, never by the
+   * batchId and filename the message also carries.
+   *
+   * Those are the presenter's LOCAL coordinates: `nextBatchId` is a per-
+   * instance counter starting at 1, so their batch 3 and ours are unrelated.
+   * Setting `current` from them pointed at a photo that does not exist here,
+   * `indexOfCurrent` returned -1, `queue.current` became null — and every
+   * following pilot's kneeboard went to STANDBY the instant someone pressed
+   * PRESENT. The hash is the only identifier that means the same thing on two
+   * machines, which is exactly why ink is keyed by it too.
+   */
+  function setFocus({ hash }) {
     state.brief.focusHash = hash || null;
     if (!state.brief.following || state.brief.presenting) return false;
-    if (!batchId || !filename) return false;
-    state.current = { batchId, filename };
+    if (!hash) return false;
     const q = queue();
-    const at = indexOfCurrent(q);
-    if (at !== -1) state.lastIdx = at;
+    const at = q.findIndex((p) => p.hash === hash);
+    // We may simply not have this photo: joined after it was shared, or
+    // curated it out of our own brief. Leave the page alone — blanking a
+    // pilot's kneeboard is worse than showing them the previous photo, and
+    // `focusMissing` in the snapshot lets the UI say so out loud.
+    if (at === -1) return false;
+    state.current = { batchId: q[at].batchId, filename: q[at].filename };
+    state.lastIdx = at;
     return true;
   }
 
@@ -388,6 +405,14 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
         // away from them. The renderer needs the distinction: "browsing on
         // your own" still shows who is presenting and offers REJOIN.
         live: Boolean(state.brief.presenter) && state.brief.following,
+        // Following, but the image they are on is not in our queue. Silently
+        // showing a different photo from everyone else is the worst possible
+        // outcome in a brief, so this is stated.
+        focusMissing:
+          Boolean(state.brief.focusHash) &&
+          !state.brief.presenting &&
+          state.brief.following &&
+          !q.some((p) => p.hash === state.brief.focusHash),
       },
 
       queue: {

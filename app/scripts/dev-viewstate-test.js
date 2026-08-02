@@ -277,4 +277,57 @@ const cur = (view) => view.snapshot().queue.current;
   console.log('[test] a dead relay is reported, never navigated to');
 }
 
+
+// ---------------------------------------------------------------------------
+// FOCUS resolves by CONTENT HASH, never by the presenter's batchId.
+//
+// This shipped broken in v0.8.0 and it was as bad as it gets: the moment
+// anyone pressed PRESENT, every OTHER pilot's kneeboard went to STANDBY. The
+// cause is that `nextBatchId` is a per-instance counter starting at 1, so the
+// presenter's "batch 3" names a different batch on every other machine — and
+// pointing `current` at one that does not exist here makes indexOfCurrent
+// return -1 and the stage go empty.
+// ---------------------------------------------------------------------------
+{
+  const host = createViewState();
+  const pilot = createViewState();
+
+  host.addBatch({ sharedBy: 'GHOST', items: [{ filename: 'a.jpg', url: 'u1', hash: 'h-a' }] });
+
+  // The pilot received an unrelated batch first, so their local ids differ.
+  pilot.addBatch({ sharedBy: 'JOKER', items: [{ filename: 'other.jpg', url: 'u0', hash: 'h-other' }] });
+  pilot.addBatch({ sharedBy: 'GHOST', items: [{ filename: 'a.jpg', url: 'u1', hash: 'h-a' }] });
+
+  const hostBatchId = host.snapshot().queue.current.batchId;
+  const pilotBatchId = pilot.snapshot().batches.find((b) => b.sharedBy === 'GHOST').id;
+  assert.notStrictEqual(hostBatchId, pilotBatchId, 'the two instances must disagree, or this proves nothing');
+
+  pilot.setPresenter('GHOST');
+  // Exactly what main sends: the presenter's own local coordinates, plus the
+  // hash. Only the hash may be trusted.
+  pilot.setFocus({ hash: 'h-a', batchId: String(hostBatchId), filename: 'a.jpg' });
+
+  const shown = pilot.snapshot().queue.current;
+  assert.ok(shown, 'the follower must NOT go to STANDBY when the presenter picks a photo');
+  assert.strictEqual(shown.filename, 'a.jpg', 'and must land on the same photo');
+  assert.strictEqual(shown.batchId, pilotBatchId, 'resolved into the follower\'s OWN batch id');
+  assert.strictEqual(pilot.snapshot().brief.focusMissing, false);
+
+  // A photo the follower does not have: keep their page, and say so.
+  pilot.setFocus({ hash: 'h-never-seen' });
+  assert.ok(pilot.snapshot().queue.current, 'an unknown photo must not blank the kneeboard');
+  assert.strictEqual(pilot.snapshot().queue.current.filename, 'a.jpg', 'the page is left alone');
+  assert.strictEqual(pilot.snapshot().brief.focusMissing, true, 'and the pilot is told they are out of step');
+
+  // A presenter never follows their own FOCUS.
+  const solo = createViewState();
+  solo.addBatch({ sharedBy: 'ME', items: [{ filename: 'x.jpg', url: 'u', hash: 'h-x' }, { filename: 'y.jpg', url: 'u2', hash: 'h-y' }] });
+  solo.setPresenting(true, 'ME');
+  solo.step(1);
+  const before = solo.snapshot().queue.current.filename;
+  solo.setFocus({ hash: 'h-x' });
+  assert.strictEqual(solo.snapshot().queue.current.filename, before, 'a presenter is not moved by their own focus');
+  console.log('[test] FOCUS resolves by content hash across instances, never by batch id');
+}
+
 console.log('[dev-viewstate-test] PASS');

@@ -599,7 +599,9 @@ function renderBrief(s) {
     brief.key.dataset.act = 'rejoin';
   } else if (theirs) {
     setText(brief.title, t('brief.following', { who: (b.presenter || '').toUpperCase() }));
-    setText(brief.meta, t('brief.pageAwayToLeave'));
+    // A pilot who does not have the presenter's photo is looking at a
+    // different image from everyone else. Never let that be silent.
+    setText(brief.meta, t(b.focusMissing ? 'brief.notInYourBrief' : 'brief.pageAwayToLeave'));
     setText(brief.key, t('brief.break'));
     brief.key.dataset.act = 'break';
   }

@@ -14,6 +14,25 @@ that entry.
 
 ---
 
+## v0.8.2 — 2026-08-02
+
+### Fixed
+- **Pressing PRESENT blanked every other pilot's kneeboard.** The presenter
+  drew happily; everyone following went straight to STANDBY. FOCUS was resolved
+  by the `batchId` and `filename` the message carries, and `nextBatchId` is a
+  *per-instance* counter starting at 1 — so the presenter's "batch 3" names a
+  different batch on every other machine, `current` pointed at a photo that
+  does not exist there, and the stage emptied. (It was also sent as a string
+  against numeric local ids, so it could not have matched even on one machine.)
+  FOCUS now resolves by **content hash**, the only identifier that means the
+  same thing on two machines — which is exactly why ink was already keyed by
+  it — and lands on the follower's own local coordinates.
+- A follower who does not have the presenter's photo — joined late, or curated
+  it out — keeps their current page instead of being blanked, and the brief bar
+  now says `THEY ARE ON A PHOTO YOU DO NOT HAVE`. Silently showing one pilot a
+  different image from the rest of the flight is the worst outcome in a brief,
+  so it is stated rather than guessed at.
+
 ## v0.8.1 — 2026-08-02
 
 ### Fixed
