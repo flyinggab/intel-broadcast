@@ -70,6 +70,19 @@
   </header>
 
 
+  <!-- ==================================================== brief bar ====
+       One line, one action, and the action follows the state: PRESENT ->
+       STOP, someone else presenting -> BREAK, paged away -> REJOIN. This is
+       chrome and hides with the rest; the mark that survives capture-clean
+       is `.briefmark`, on the stage. -->
+  <div class="briefbar is-hidden" id="briefbar">
+    <div class="briefbar__text">
+      <div class="briefbar__title" id="briefbar-title"></div>
+      <div class="meta" id="briefbar-meta"></div>
+    </div>
+    <button class="key key--sm briefbar__key" id="briefbar-key"></button>
+  </div>
+
   <!-- ================================================= arrival banner ====
        Shown for every arrival (there is no badge): QUEUED when the page held
        still, SWITCHED AUTOMATICALLY when it moved. Auto-dismisses. -->
@@ -91,11 +104,57 @@
     <section class="page page--flush" data-page="brief">
       <div class="stage">
         <img class="stage__img" id="stage-img" src="img/frame-placeholder.svg" alt="" />
+
+        <!-- Ink. Sized and positioned by JS to the image's CONTAINED box, not
+             the stage: object-fit: contain letterboxes, and a canvas covering
+             the letterbox would put marks where there is no photo. It is
+             image content rather than stage chrome, so it survives
+             capture-clean for free and reaches the pilot's knee. -->
+        <canvas class="stage__ink" id="stage-ink"></canvas>
+
+        <!-- The clean-view marker. Deliberately NOT inside .stage__chrome:
+             this is the only thing on screen explaining why a pilot's page
+             just turned by itself, and the pilots who most need that answer
+             are the ones watching through OpenKneeboard with the chrome
+             hidden. Attaching it to .stage__chrome would hide it exactly
+             when it is needed. -->
+        <div class="briefmark is-hidden" id="brief-mark">
+          <span class="briefmark__label" id="brief-mark-label"></span>
+        </div>
+
         <div class="stage__chrome">
           <button class="stage__nav stage__nav--prev" id="stage-prev" aria-label="Previous">&lsaquo;</button>
           <button class="stage__nav stage__nav--next" id="stage-next" aria-label="Next">&rsaquo;</button>
+
+          <!-- Tools. Icons, not labels: at this density labels would not
+               survive the Italian strings, and every one of these has a
+               hotkey anyway — some presenters are on a HOTAS. -->
+          <div class="tools is-hidden" id="brief-tools">
+            <button class="tool" id="tool-pen" data-tool="pen" aria-label="Pen">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17l3-1 9-9-2-2-9 9-1 3z" /><path d="M13 3l2-2 3 3-2 2" /></svg>
+            </button>
+            <button class="tool" id="tool-arrow" data-tool="arrow" aria-label="Arrow">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17L16 4" /><path d="M10 4h6v6" /></svg>
+            </button>
+            <button class="tool" id="tool-ring" data-tool="ring" aria-label="Ring">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /></svg>
+            </button>
+            <span class="tools__gap"></span>
+            <button class="tool" id="tool-undo" aria-label="Undo">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 9h8a4 4 0 010 8H8" /><path d="M7 5L3 9l4 4" /></svg>
+            </button>
+            <button class="tool" id="tool-clear" aria-label="Clear">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12" /><path d="M8 6V4h4v2" /><path d="M6 6l1 10h6l1-10" /></svg>
+            </button>
+          </div>
+
           <div class="stage__foot">
             <span class="stage__file" id="stage-file"></span>
+            <!-- PRESENT. One key, in the foot, always reachable from the page
+                 the brief is about. -->
+            <button class="cast" id="brief-cast" aria-label="Present">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 15a5 5 0 015 5" /><path d="M2 11a9 9 0 019 9" /><path d="M2 7a13 13 0 0113 13" /><circle cx="3" cy="19" r="1.2" fill="currentColor" stroke="none" /></svg>
+            </button>
             <span class="stage__pos"><span id="stage-pos-n"></span><span class="stage__pos-meta" id="stage-pos-meta"></span></span>
           </div>
         </div>

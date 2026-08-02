@@ -51,6 +51,27 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     locale: 'en', // display language; both renderers translate through it
     banner: null, // { who, count, switched, at } — at keys the renderer's dismiss timer
 
+    // Brief mode. See design/brief-mode/HANDOFF.md.
+    //
+    // `following` is default-ON and is what makes this usable at all: many
+    // pilots see the EFB only through OpenKneeboard and cannot click
+    // anything, so a consent prompt would be a wall rather than a control.
+    // Paging away — keys they already use — leaves the brief; FOLLOW rejoins.
+    //
+    // `tool` lives here rather than in the renderer for the same reason
+    // everything else does: phase 4 drives a second surface from this same
+    // snapshot, and a tool selected in one DOM would be invisible to the
+    // other.
+    brief: {
+      presenting: false, // this instance is driving the brief
+      presenter: null, // callsign driving it, ours or someone else's
+      focusHash: null, // the image the presenter is on
+      following: true, // we snap to the presenter's page
+      tool: 'pen', // pen | arrow | ring
+      cursor: null, // { u, v, who } — the presenter's pointer, 20 Hz
+      inkRevs: {}, // hash -> revision; the ONLY ink that rides the snapshot
+    },
+
     // received — the queue's backing store.
     // newest first: { id, sharedBy, receivedAt, items:[{filename, url, selected}] }
     batches: [],
@@ -101,6 +122,10 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
             batchId: b.id,
             filename: item.filename,
             url: item.url,
+            // Brief-mode ink is keyed by this, never by filename — a
+            // re-shared file with the same name must show no foreign ink
+            // rather than the wrong ink.
+            hash: item.hash || null,
             sharedBy: b.sharedBy,
             receivedAt: b.receivedAt,
           });
@@ -148,7 +173,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
       id: nextBatchId++,
       sharedBy: sharedBy || '',
       receivedAt,
-      items: (items || []).map((item) => ({ filename: item.filename, url: item.url, selected: true })),
+      items: (items || []).map((item) => ({ filename: item.filename, url: item.url, hash: item.hash || null, selected: true })),
     };
     state.batches.unshift(entry);
     if (state.batches.length > maxBatches) state.batches.length = maxBatches;
@@ -184,6 +209,77 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     const i = (from + delta + q.length) % q.length;
     state.current = { batchId: q[i].batchId, filename: q[i].filename };
     state.lastIdx = i;
+    // Paging away IS how you leave a brief. There is no BREAK requirement and
+    // no dialog, because a pilot watching through OpenKneeboard cannot click
+    // one — the chevrons and the next/prev hotkeys are controls they already
+    // have. A presenter paging is not leaving: they ARE the page.
+    if (state.brief.following && state.brief.presenter && !state.brief.presenting) {
+      state.brief.following = false;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Brief mode
+  // -------------------------------------------------------------------------
+
+  /** This instance starts or stops driving the brief. */
+  function setPresenting(on, callsign = state.callsign) {
+    state.brief.presenting = Boolean(on);
+    if (on) {
+      state.brief.presenter = callsign || '';
+      state.brief.following = true; // you cannot page away from yourself
+    } else if (state.brief.presenter === (callsign || '')) {
+      state.brief.presenter = null;
+      state.brief.cursor = null;
+    }
+  }
+
+  /** Someone else started or stopped presenting. */
+  function setPresenter(callsign) {
+    const had = state.brief.presenter;
+    state.brief.presenter = callsign || null;
+    if (!callsign) {
+      state.brief.cursor = null;
+      state.brief.focusHash = null;
+      state.brief.presenting = false;
+    }
+    // A NEW brief starts with you in it. Re-following on every FOCUS would
+    // undo a deliberate page-away on the presenter's next page turn.
+    if (callsign && callsign !== had) state.brief.following = true;
+  }
+
+  /** The presenter moved to an image. Only moves us if we are following. */
+  function setFocus({ hash, batchId, filename }) {
+    state.brief.focusHash = hash || null;
+    if (!state.brief.following || state.brief.presenting) return false;
+    if (!batchId || !filename) return false;
+    state.current = { batchId, filename };
+    const q = queue();
+    const at = indexOfCurrent(q);
+    if (at !== -1) state.lastIdx = at;
+    return true;
+  }
+
+  /** FOLLOW / REJOIN. Deliberately does NOT note an interaction: rejoining is
+   *  asking to be moved, and the arrival grace would fight that. */
+  function setFollowing(on) {
+    state.brief.following = Boolean(on);
+  }
+
+  function setTool(tool) {
+    if (tool !== 'pen' && tool !== 'arrow' && tool !== 'ring') return;
+    noteInteraction();
+    state.brief.tool = tool;
+  }
+
+  function setCursor(cursor) {
+    state.brief.cursor = cursor || null;
+  }
+
+  /** hash -> revision, so a renderer can spot a gap and ask for the full set.
+   *  This is the only ink that rides the 3-second state push. */
+  function setInkRevs(revs) {
+    state.brief.inkRevs = revs || {};
   }
 
   /** RECEIVED curation: drop or restore one photo in the brief. */
@@ -286,6 +382,13 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
       autoShow: state.autoShow,
       locale: state.locale,
       banner: state.banner,
+      brief: {
+        ...state.brief,
+        // A brief is live when someone is presenting AND we have not paged
+        // away from them. The renderer needs the distinction: "browsing on
+        // your own" still shows who is presenting and offers REJOIN.
+        live: Boolean(state.brief.presenter) && state.brief.following,
+      },
 
       queue: {
         total: q.length,
@@ -298,7 +401,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
         receivedAt: b.receivedAt,
         count: b.items.length,
         selectedCount: b.items.filter((it) => it.selected).length,
-        items: b.items.map((it) => ({ filename: it.filename, url: it.url, selected: it.selected })),
+        items: b.items.map((it) => ({ filename: it.filename, url: it.url, hash: it.hash || null, selected: it.selected })),
       })),
 
       folder: state.folder,
@@ -318,6 +421,13 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
   return {
     state,
     snapshot,
+    setPresenting,
+    setPresenter,
+    setFocus,
+    setFollowing,
+    setTool,
+    setCursor,
+    setInkRevs,
     noteInteraction,
     recentlyInteracted,
     queue,

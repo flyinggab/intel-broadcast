@@ -29,4 +29,11 @@ contextBridge.exposeInMainWorld('viewerAPI', {
   // implementation, and so a pasted code is validated before any socket opens.
   decodeCode: (raw) => ipcRenderer.invoke('settings:decode-code', raw),
   readClipboard: () => ipcRenderer.invoke('settings:read-clipboard'),
+
+  // Brief mode ink rides its OWN channel, not the state snapshot. At 30 Hz a
+  // full snapshot per stroke frame would be absurd; these are deltas, and the
+  // snapshot carries only a revision per image so a renderer that missed one
+  // can notice and ask for the whole set back.
+  onInk: (callback) => ipcRenderer.on('ink', (_event, delta) => callback(delta)),
+  onInkSnapshot: (callback) => ipcRenderer.on('ink-snapshot', (_event, snap) => callback(snap)),
 });

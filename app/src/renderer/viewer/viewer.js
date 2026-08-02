@@ -88,6 +88,20 @@ const stage = {
   standby: el('stage-standby'),
   standbyLine1: el('standby-line1'),
   standbyLine2: el('standby-line2'),
+  ink: el('stage-ink'),
+  cast: el('brief-cast'),
+};
+
+const brief = {
+  bar: el('briefbar'),
+  title: el('briefbar-title'),
+  meta: el('briefbar-meta'),
+  key: el('briefbar-key'),
+  mark: el('brief-mark'),
+  markLabel: el('brief-mark-label'),
+  tools: el('brief-tools'),
+  undo: el('tool-undo'),
+  clear: el('tool-clear'),
 };
 const batches = el('batches');
 const autoshow = el('tg-autoshow');
@@ -370,9 +384,316 @@ function render(s) {
   if (window.__renderSetup) window.__renderSetup(s);
   renderBanner(s);
   renderStage(s);
+  renderBrief(s);
   renderReceived(s);
   renderShare(s);
 }
+
+
+// --- brief mode -------------------------------------------------------------
+// The renderer draws ink and reports gestures. It decides nothing: which tool
+// is active, who is presenting and whether we are following all live in main
+// (ROADMAP §5.2). The one thing kept locally is the ink itself, because at
+// 30 Hz it cannot ride the state push — main pushes deltas on a separate
+// channel and a revision per image on the snapshot, so a renderer that missed
+// a delta can spot the gap and ask for the whole set again.
+
+const U16 = 65535;
+/** hash -> { rev, strokes: [] }. A local mirror of main's store, nothing more. */
+const inkByHash = new Map();
+let inkHash = null; // the image the canvas is currently showing
+let drawing = null; // { id, tool, a } while a gesture is in flight
+let presenterCursor = null; // the presenter's pointer, from the last push
+
+// The gesture handlers read the RENDERED DOM rather than a cached snapshot.
+// That is not a dodge: the DOM here IS the last snapshot, written by
+// renderBrief, and reading it back keeps this file from holding a decision of
+// its own — which is the whole point of the invariant in HANDOFF §3. A
+// `lastSnapshot` binding would be a second copy of main's state living in one
+// surface's DOM, and phase 4 renders two.
+const isPresenting = () => stage.ink.classList.contains('is-live');
+const activeTool = () => {
+  const on = brief.tools.querySelector('[data-tool].is-on');
+  return (on && on.dataset.tool) || 'pen';
+};
+
+function inkFor(hash) {
+  let e = inkByHash.get(hash);
+  if (!e) {
+    e = { rev: 0, strokes: [] };
+    inkByHash.set(hash, e);
+  }
+  return e;
+}
+
+/**
+ * Puts the canvas exactly over the image's CONTAINED box.
+ *
+ * object-fit: contain letterboxes, and only the natural dimensions say where
+ * the photo actually landed. A canvas stretched over the whole stage would
+ * put marks in the letterbox, and — worse — would resolve the same {u,v} to a
+ * different pixel on a differently-shaped window, which is the one thing the
+ * normalised coordinates exist to prevent.
+ */
+function sizeInkCanvas() {
+  const img = stage.img;
+  const box = img.getBoundingClientRect();
+  const nw = img.naturalWidth || 0;
+  const nh = img.naturalHeight || 0;
+  if (!nw || !nh || !box.width || !box.height) return null;
+
+  const scale = Math.min(box.width / nw, box.height / nh);
+  const w = nw * scale;
+  const h = nh * scale;
+  const left = (box.width - w) / 2;
+  const top = (box.height - h) / 2;
+
+  const dpr = window.devicePixelRatio || 1;
+  const c = stage.ink;
+  c.style.left = `${left}px`;
+  c.style.top = `${top}px`;
+  c.style.width = `${w}px`;
+  c.style.height = `${h}px`;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
+    c.width = Math.round(w * dpr);
+    c.height = Math.round(h * dpr);
+  }
+  return { w, h, dpr };
+}
+
+function drawInk() {
+  const geom = sizeInkCanvas();
+  const c = stage.ink;
+  const ctx = c.getContext('2d');
+  if (!ctx) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, c.width, c.height);
+  if (!geom) return;
+  const { w, h, dpr } = geom;
+  ctx.scale(dpr, dpr);
+
+  // One ink style, the EFB's. A second emphasis would have to be semantic,
+  // not a palette — see design/brief-mode/HANDOFF.md §5.
+  const css = getComputedStyle(document.documentElement);
+  ctx.strokeStyle = css.getPropertyValue('--lit').trim() || '#e8ece6';
+  ctx.lineWidth = Math.max(2, w / 320);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const X = (u) => (u / U16) * w;
+  const Y = (v) => (v / U16) * h;
+
+  for (const stroke of inkFor(inkHash).strokes) {
+    if (stroke.tool === 'pen') {
+      if (!stroke.points.length) continue;
+      ctx.beginPath();
+      ctx.moveTo(X(stroke.points[0].u), Y(stroke.points[0].v));
+      for (const p of stroke.points.slice(1)) ctx.lineTo(X(p.u), Y(p.v));
+      ctx.stroke();
+    } else if (stroke.tool === 'arrow') {
+      drawArrow(ctx, X(stroke.a.u), Y(stroke.a.v), X(stroke.b.u), Y(stroke.b.v), ctx.lineWidth);
+    } else if (stroke.tool === 'ring') {
+      // Radius as a fraction of image WIDTH, so it survives any surface size
+      // exactly like the coordinates do.
+      const r = Math.hypot(X(stroke.b.u) - X(stroke.a.u), Y(stroke.b.v) - Y(stroke.a.v));
+      ctx.beginPath();
+      ctx.arc(X(stroke.a.u), Y(stroke.a.v), Math.max(r, 1), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  // The presenter's pointer. Most of a brief is pointing rather than drawing,
+  // which is why this streams even with no tool down.
+  const cur = presenterCursor;
+  if (cur) {
+    const x = X(cur.u);
+    const y = Y(cur.v);
+    ctx.beginPath();
+    ctx.arc(x, y, ctx.lineWidth * 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fill();
+    if (cur.who) {
+      ctx.font = `700 ${Math.max(9, w / 60)}px var(--font-mono), monospace`;
+      const label = cur.who.toUpperCase();
+      const tw = ctx.measureText(label).width;
+      ctx.fillRect(x + 8, y - 7, tw + 8, 14);
+      ctx.fillStyle = css.getPropertyValue('--ink').trim() || '#1c211c';
+      ctx.fillText(label, x + 12, y + 4);
+    }
+  }
+}
+
+function drawArrow(ctx, ax, ay, bx, by, lw) {
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(bx, by);
+  ctx.stroke();
+  const ang = Math.atan2(by - ay, bx - ax);
+  const head = Math.max(lw * 4, 8);
+  ctx.beginPath();
+  ctx.moveTo(bx, by);
+  ctx.lineTo(bx - head * Math.cos(ang - Math.PI / 7), by - head * Math.sin(ang - Math.PI / 7));
+  ctx.moveTo(bx, by);
+  ctx.lineTo(bx - head * Math.cos(ang + Math.PI / 7), by - head * Math.sin(ang + Math.PI / 7));
+  ctx.stroke();
+}
+
+/** Applies one delta from main, then redraws if it is the image on screen. */
+function applyInkDelta(d) {
+  if (!d || !d.hash) return;
+  const e = inkFor(d.hash);
+  if (d.kind === 'clear') {
+    e.strokes = [];
+  } else if (d.kind === 'undo') {
+    e.strokes = e.strokes.filter((x) => x.id !== d.id);
+  } else if (d.kind === 'append') {
+    const at = e.strokes.find((x) => x.id === d.id);
+    if (at) at.points.push(...d.points);
+    else e.strokes.push({ id: d.id, tool: 'pen', by: d.by || '', points: [...d.points] });
+  } else if (d.kind === 'upsert') {
+    const i = e.strokes.findIndex((x) => x.id === d.id);
+    const stroke = { id: d.id, tool: d.tool, by: d.by || '', a: d.a, b: d.b, final: d.final };
+    if (i === -1) e.strokes.push(stroke);
+    else e.strokes[i] = stroke;
+  } else {
+    return;
+  }
+  e.rev = d.rev;
+  if (d.hash === inkHash) drawInk();
+}
+
+/** Replaces one image's ink wholesale — the answer to a detected gap. */
+function loadInk(snap) {
+  if (!snap || !snap.hash) return;
+  inkByHash.set(snap.hash, { rev: snap.rev || 0, strokes: snap.strokes || [] });
+  if (snap.hash === inkHash) drawInk();
+}
+
+function renderBrief(s) {
+  const b = s.brief || {};
+  presenterCursor = b.presenting ? null : b.cursor || null; // never draw our own
+  const mine = b.presenting;
+  const theirs = Boolean(b.presenter) && !mine;
+  const away = theirs && !b.following;
+
+  stage.cast.classList.toggle('is-on', mine);
+  brief.tools.classList.toggle('is-hidden', !mine);
+  stage.ink.classList.toggle('is-live', mine);
+
+  for (const node of brief.tools.querySelectorAll('[data-tool]')) {
+    node.classList.toggle('is-on', node.dataset.tool === b.tool);
+  }
+
+  // The bar states what is happening and offers the one way out of it.
+  const show = mine || theirs;
+  brief.bar.classList.toggle('is-hidden', !show);
+  if (mine) {
+    setText(brief.title, t('brief.youArePresenting'));
+    setText(brief.meta, t('brief.withYou', { n: countFollowers(s) }));
+    setText(brief.key, t('brief.stop'));
+    brief.key.dataset.act = 'stop';
+  } else if (away) {
+    setText(brief.title, t('brief.onYourOwn'));
+    setText(brief.meta, t('brief.presenterIsOn', { who: (b.presenter || '').toUpperCase() }));
+    setText(brief.key, t('brief.rejoin'));
+    brief.key.dataset.act = 'rejoin';
+  } else if (theirs) {
+    setText(brief.title, t('brief.following', { who: (b.presenter || '').toUpperCase() }));
+    setText(brief.meta, t('brief.pageAwayToLeave'));
+    setText(brief.key, t('brief.break'));
+    brief.key.dataset.act = 'break';
+  }
+
+  // The capture-clean marker. Only while FOLLOWING someone else: a presenter
+  // knows why their own page turned, and a pilot browsing on their own is not
+  // being moved by anyone.
+  const following = theirs && b.following;
+  brief.mark.classList.toggle('is-hidden', !following);
+  if (following) setText(brief.markLabel, t('brief.following', { who: (b.presenter || '').toUpperCase() }));
+
+  // Ink follows the focused image. Which image that is comes from the queue,
+  // not from FOCUS: a pilot browsing on their own annotates what THEY are
+  // looking at.
+  const hash = (s.queue.current && s.queue.current.hash) || null;
+  const revs = b.inkRevs || {};
+  if (hash !== inkHash) {
+    inkHash = hash;
+    drawInk();
+  }
+  // A revision ahead of ours means we missed a delta. Ask for the whole set
+  // rather than rendering a brief with a hole in it.
+  if (hash && revs[hash] !== undefined && revs[hash] !== inkFor(hash).rev) {
+    send('brief-snapshot-req', { hash });
+  }
+}
+
+function countFollowers(s) {
+  // Everyone on the net except us. The relay does not report per-pilot follow
+  // state, so this is honestly "pilots who can see it", not "pilots watching".
+  return Math.max(0, (s.peers || []).length - 1);
+}
+
+// --- gestures ---------------------------------------------------------------
+// PEN: hold, draw, release commits. ARROW: press anchors the TAIL, drag
+// rubber-bands the head. RING: press anchors the CENTRE, drag sets the radius.
+
+function pointFromEvent(ev) {
+  const box = stage.ink.getBoundingClientRect();
+  if (!box.width || !box.height) return null;
+  const u = Math.round(Math.max(0, Math.min(1, (ev.clientX - box.left) / box.width)) * U16);
+  const v = Math.round(Math.max(0, Math.min(1, (ev.clientY - box.top) / box.height)) * U16);
+  return { u, v };
+}
+
+let cursorSentAt = 0;
+const CURSOR_HZ_MS = 50; // 20 Hz
+
+if (stage.ink) {
+  stage.ink.addEventListener('pointerdown', (ev) => {
+    if (!isPresenting()) return;
+    const p = pointFromEvent(ev);
+    if (!p) return;
+    stage.ink.setPointerCapture(ev.pointerId);
+    const tool = activeTool();
+    drawing = { id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`, tool, a: p };
+    if (tool === 'pen') send('brief-stroke', { id: drawing.id, points: [p] });
+    else send('brief-shape', { id: drawing.id, tool, a: p, b: p, final: false });
+  });
+
+  stage.ink.addEventListener('pointermove', (ev) => {
+    if (!isPresenting()) return;
+    const p = pointFromEvent(ev);
+    if (!p) return;
+
+    if (!drawing) {
+      // Pointing, not drawing. Most of a brief is this.
+      const now = Date.now();
+      if (now - cursorSentAt >= CURSOR_HZ_MS) {
+        cursorSentAt = now;
+        send('brief-cursor', p);
+      }
+      return;
+    }
+    if (drawing.tool === 'pen') send('brief-stroke', { id: drawing.id, points: [p] });
+    else send('brief-shape', { id: drawing.id, tool: drawing.tool, a: drawing.a, b: p, final: false });
+  });
+
+  const finish = (ev) => {
+    if (!drawing) return;
+    const p = pointFromEvent(ev) || drawing.a;
+    if (drawing.tool !== 'pen') {
+      send('brief-shape', { id: drawing.id, tool: drawing.tool, a: drawing.a, b: p, final: true });
+    }
+    drawing = null;
+  };
+  stage.ink.addEventListener('pointerup', finish);
+  stage.ink.addEventListener('pointercancel', finish);
+}
+
+// The canvas is positioned from measured geometry, so anything that changes
+// the geometry has to re-run it: a new photo, a resize, a scale change.
+if (stage.img) stage.img.addEventListener('load', drawInk);
+window.addEventListener('resize', drawInk);
 
 // --- intents ----------------------------------------------------------------
 // Every handler sends; none of them mutate. Main decides and pushes back.
@@ -404,6 +725,22 @@ banner.close.addEventListener('click', () => send('banner-dismiss'));
 
 stage.prev.addEventListener('click', () => send('step', -1));
 stage.next.addEventListener('click', () => send('step', 1));
+
+// Brief mode. PRESENT toggles; the bar's single key does whatever the state
+// needs — STOP, BREAK or REJOIN — so there is never more than one way out.
+stage.cast.addEventListener('click', () => send('brief-present', !isPresenting()));
+brief.key.addEventListener('click', () => {
+  const act = brief.key.dataset.act;
+  if (act === 'stop') send('brief-present', false);
+  else if (act === 'break') send('brief-follow', false);
+  else if (act === 'rejoin') send('brief-follow', true);
+});
+brief.tools.addEventListener('click', (event) => {
+  const tool = event.target.closest('[data-tool]');
+  if (tool) return send('brief-tool', tool.dataset.tool);
+  if (event.target.closest('#tool-undo')) return send('brief-undo');
+  if (event.target.closest('#tool-clear')) return send('brief-clear');
+});
 
 // The auto-switch rule. The desired value derives from the rendered state
 // (aria-checked mirrors the snapshot), not from renderer-owned state.
@@ -466,6 +803,8 @@ for (const type of ['mousemove', 'mousedown', 'keydown', 'wheel']) {
 }
 
 window.viewerAPI.onState(render);
+window.viewerAPI.onInk(applyInkDelta);
+window.viewerAPI.onInkSnapshot(loadInk);
   send('ready');
 } else {
   // preview.html / the geometry harness, loading this file without Electron:

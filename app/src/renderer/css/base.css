@@ -142,7 +142,15 @@ body.viewer[data-page="brief"] .body { overflow: hidden; }
 body[data-surface="window"].is-chrome-hidden .strip,
 body[data-surface="window"].is-chrome-hidden .launcher,
 body[data-surface="window"].is-chrome-hidden .banner,
+body[data-surface="window"].is-chrome-hidden .briefbar,
 body[data-surface="window"].is-chrome-hidden .stage__chrome { display: none !important; }
+
+/* NOT in the list above, on purpose: .briefmark and .stage__ink.
+   The ink is image content — it is the point of the exercise and must reach
+   the pilot's knee. The mark is the only thing explaining why a page turned
+   by itself, and the pilots who need that answer are precisely the ones
+   flying with the chrome hidden. Adding either one above would hide it
+   exactly when it matters. */
 /* No .shell override needed here: with the chrome hidden .body is the only
    flex child left, and flex:1 already gives it the whole window. */
 

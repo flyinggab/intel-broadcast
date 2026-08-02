@@ -53,6 +53,24 @@
     'standby.sincePowerUp': 'SINCE POWER UP',
     'standby.offline': 'OFFLINE',
 
+    // --- brief mode ---
+    // Never "relay", never red: this is a live thing, not a fault.
+    'brief.youArePresenting': 'YOU ARE PRESENTING',
+    'brief.withYou': '{n} WITH YOU',
+    'brief.stop': 'STOP',
+    'brief.following': 'FOLLOWING {who}',
+    'brief.pageAwayToLeave': 'PAGE AWAY, OR PRESS BREAK, TO LEAVE',
+    'brief.break': 'BREAK',
+    'brief.onYourOwn': 'BROWSING ON YOUR OWN',
+    'brief.presenterIsOn': '{who} IS STILL PRESENTING',
+    'brief.rejoin': 'REJOIN',
+    'brief.present': 'PRESENT',
+    'brief.pen': 'PEN',
+    'brief.arrow': 'ARROW',
+    'brief.ring': 'RING',
+    'brief.undo': 'UNDO',
+    'brief.clear': 'CLEAR',
+
     // received
     'received.autoshow': 'SHOW NEW INTEL ON ARRIVAL',
     'received.autoshowHint': 'SWITCHES THE BRIEF FOR YOU · OFF = BANNER ONLY',
@@ -211,6 +229,23 @@
     'standby.nothing': 'NESSUN INTEL RICEVUTO',
     'standby.sincePowerUp': "DALL'ACCENSIONE",
     'standby.offline': 'OFFLINE',
+
+    // --- brief mode ---
+    'brief.youArePresenting': 'STAI PRESENTANDO',
+    'brief.withYou': '{n} CON TE',
+    'brief.stop': 'FERMA',
+    'brief.following': 'SEGUI {who}',
+    'brief.pageAwayToLeave': 'CAMBIA PAGINA, O PREMI STACCA, PER USCIRE',
+    'brief.break': 'STACCA',
+    'brief.onYourOwn': 'STAI NAVIGANDO DA SOLO',
+    'brief.presenterIsOn': '{who} STA ANCORA PRESENTANDO',
+    'brief.rejoin': 'RIENTRA',
+    'brief.present': 'PRESENTA',
+    'brief.pen': 'PENNA',
+    'brief.arrow': 'FRECCIA',
+    'brief.ring': 'CERCHIO',
+    'brief.undo': 'ANNULLA',
+    'brief.clear': 'CANCELLA',
 
     'received.autoshow': 'MOSTRA I NUOVI INTEL ALL’ARRIVO',
     'received.autoshowHint': 'CAMBIA IL BRIEF DA SOLO · OFF = SOLO BANNER',

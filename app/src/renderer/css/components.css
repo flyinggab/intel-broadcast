@@ -699,3 +699,106 @@ body[data-page="share"] .page.share { display: flex; }
   background: var(--bg); border-top: var(--rule); border-bottom: var(--rule);
   min-height: var(--h-top);
 }
+
+/* --- brief mode -----------------------------------------------------------
+   A brief is a live thing happening to the pilot's screen, so it is stated
+   plainly and it is always reversible in one key.
+
+   `--lit` carries "live", never `--fault`. Red is reserved for a broken
+   relay, and a red bar saying PRESENTING would read as an error at the exact
+   moment the pilot needs to trust what they are seeing.                    */
+.briefbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--dn);
+  box-shadow: var(--bevel-dn), inset 3px 0 0 var(--lit);
+}
+.briefbar__text { flex: 1; min-width: 0; }
+.briefbar__title {
+  font-size: var(--fs-row);
+  font-weight: 700;
+  color: var(--lit);
+  letter-spacing: .05em;
+}
+.briefbar__key { flex: none; }
+
+/* The clean-view marker: one hairline and one label, over the photo, outside
+   the chrome. Everything here is subordinate to the image — it explains, it
+   does not decorate. */
+.briefmark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  pointer-events: none;
+  border-top: 2px solid var(--lit);
+}
+.briefmark__label {
+  display: inline-block;
+  padding: 2px var(--sp-3);
+  background: var(--lit);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--fs-cap);
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+/* Ink sits over the image's contained box. JS owns its position and size —
+   see sizeInkCanvas() in viewer.js — because only JS knows where
+   object-fit: contain actually put the photo. */
+.stage__ink {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1;
+}
+.stage__ink.is-live { pointer-events: auto; cursor: crosshair; }
+
+/* Tool strip. Icon keys at the 44px floor: this is aimed at with a VR
+   controller ray from phase 4, and labels would not survive the Italian
+   strings at this width anyway. */
+.tools {
+  position: absolute;
+  left: var(--sp-3);
+  right: var(--sp-3);
+  bottom: calc(var(--touch-min) + var(--sp-3));
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  background: var(--bg);
+  box-shadow: var(--bevel-up);
+}
+.tools__gap { flex: 1; }
+.tool {
+  display: grid;
+  place-items: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  flex: none;
+  background: var(--up);
+  box-shadow: var(--bevel-up);
+  color: var(--ink);
+  cursor: pointer;
+}
+.tool svg { width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.tool.is-on { background: var(--lit); color: var(--ink); }
+.tool:disabled { opacity: .4; cursor: default; }
+
+/* PRESENT, in the stage foot. Lit while presenting — same signal as the bar
+   and the mark, so all three agree at a glance. */
+.cast {
+  display: grid;
+  place-items: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  flex: none;
+  background: var(--up);
+  box-shadow: var(--bevel-up);
+  color: var(--ink);
+  cursor: pointer;
+}
+.cast svg { width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.cast.is-on { background: var(--lit); }

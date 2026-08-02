@@ -12,6 +12,7 @@ const { revealPhotosFolder } = require('./reveal');
 const { listPhotoFilenames, makeThumbnail } = require('./photoLibrary');
 const { createBlobStore } = require('./blobStore');
 const { createViewState } = require('./viewState');
+const { createInkStore, quantise } = require('./inkStore');
 const { createImagePrep } = require('./imagePrep');
 const squad = require('./squadCode');
 const { createTray } = require('./tray');
@@ -48,6 +49,10 @@ let relayClient = null;
 
 const blobs = createBlobStore();
 const view = createViewState();
+// Brief-mode ink. Main-process authoritative like everything else, but NOT
+// part of the state snapshot: at 30 Hz that would be absurd. Deltas go out on
+// their own IPC channel, and the snapshot carries only a revision per image.
+const ink = createInkStore();
 const prep = createImagePrep({ onLog: (msg) => console.log(`[prep] ${msg}`) });
 
 function isHost() {
@@ -121,6 +126,140 @@ function effectiveRelayUrl() {
 }
 function currentPhotosFolder() {
   return config.photosFolder || path.join(BUNDLED_PHOTOS_DIR, config.missionName);
+}
+
+
+// ---------------------------------------------------------------------------
+// Brief mode
+// ---------------------------------------------------------------------------
+
+/** Sends one ink delta to the renderer on its own channel. */
+function pushInk(delta) {
+  if (delta && viewer && !viewer.window.isDestroyed()) viewer.window.webContents.send('ink', delta);
+}
+
+/** The image the local pilot is looking at — what they annotate, and what a
+ *  FOCUS names when they present. Ink is keyed by content hash, so a photo
+ *  with no hash (an old batch) simply cannot be annotated. */
+function currentHash() {
+  const q = view.snapshot().queue;
+  return (q.current && q.current.hash) || null;
+}
+
+/** Applies an incoming realtime message from the relay. */
+function applyBriefMessage(msg) {
+  switch (msg.type) {
+    case 'brief-present-start':
+      view.setPresenter(msg.presenter);
+      break;
+    case 'brief-present-stop':
+      view.setPresenter(null);
+      break;
+    case 'brief-focus':
+      view.setFocus(msg);
+      break;
+    case 'brief-cursor':
+      view.setCursor({ u: msg.u, v: msg.v, who: msg.presenter });
+      break;
+    case 'brief-stroke':
+      pushInk(ink.apply({ kind: 'append', hash: msg.hash, id: msg.id, by: msg.presenter, points: msg.points, rev: bump(msg.hash) }));
+      break;
+    case 'brief-shape':
+      pushInk(ink.apply({ kind: 'upsert', hash: msg.hash, id: msg.id, tool: msg.tool, by: msg.presenter, a: msg.a, b: msg.b, final: msg.final, rev: bump(msg.hash) }));
+      break;
+    case 'brief-undo':
+      pushInk(ink.apply({ kind: 'undo', hash: msg.hash, id: msg.id, rev: bump(msg.hash) }));
+      break;
+    case 'brief-clear':
+      pushInk(ink.apply({ kind: 'clear', hash: msg.hash, rev: bump(msg.hash) }));
+      break;
+    default:
+      return;
+  }
+  view.setInkRevs(ink.revisions());
+  pushState();
+}
+
+/** The revision an applied delta should land on. The relay does not carry
+ *  revisions — each instance counts its own, and the snapshot's per-image
+ *  revision is what lets a renderer notice it fell behind. */
+function bump(hash) {
+  return (ink.revisions()[hash] || 0) + 1;
+}
+
+/**
+ * The local pilot draws. Two things happen and the order matters: the ink is
+ * applied HERE first so it renders immediately, and only then does it go to
+ * the relay. Local echo is not an optimisation — the funnel rides DERP at
+ * 30-80ms and a presenter watching their own line lag behind the pen would
+ * stop trusting the tool.
+ */
+function originateBrief(msg) {
+  const withMe = { ...msg, presenter: config.callsign || '' };
+  applyBriefMessage(withMe);
+  if (relayClient) relayClient.sendBrief(msg);
+  if (relayServer) relayServer.broadcastBrief(withMe);
+}
+
+function handleBriefIntent(intent, payload) {
+  const hash = currentHash();
+  switch (intent) {
+    case 'brief-present': {
+      const on = Boolean(payload);
+      view.setPresenting(on, config.callsign || '');
+      if (on) {
+        originateBrief({ type: 'brief-present-start' });
+        const q = view.snapshot().queue;
+        if (q.current && q.current.hash) {
+          originateBrief({
+            type: 'brief-focus',
+            hash: q.current.hash,
+            batchId: String(q.current.batchId),
+            filename: q.current.filename,
+          });
+        }
+      } else {
+        originateBrief({ type: 'brief-present-stop' });
+      }
+      return true;
+    }
+    case 'brief-follow':
+      view.setFollowing(Boolean(payload));
+      return true;
+    case 'brief-tool':
+      view.setTool(payload);
+      return true;
+    case 'brief-stroke':
+      if (!hash) return true;
+      originateBrief({ type: 'brief-stroke', hash, id: payload.id, points: payload.points });
+      return true;
+    case 'brief-shape':
+      if (!hash) return true;
+      originateBrief({ type: 'brief-shape', hash, id: payload.id, tool: payload.tool, a: payload.a, b: payload.b, final: payload.final });
+      return true;
+    case 'brief-cursor':
+      if (!hash) return true;
+      originateBrief({ type: 'brief-cursor', u: payload.u, v: payload.v });
+      return true;
+    case 'brief-undo': {
+      if (!hash) return true;
+      // Scoped to our own marks: a slip must not erase someone else's brief.
+      const d = ink.undo(hash, config.callsign || '');
+      if (d) originateBrief({ type: 'brief-undo', hash, id: d.id });
+      return true;
+    }
+    case 'brief-clear':
+      if (!hash) return true;
+      originateBrief({ type: 'brief-clear', hash });
+      return true;
+    case 'brief-snapshot-req':
+      if (viewer && !viewer.window.isDestroyed()) {
+        viewer.window.webContents.send('ink-snapshot', ink.snapshot(payload.hash));
+      }
+      return true;
+    default:
+      return false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -304,12 +443,16 @@ function startClient() {
     view.state.reconnect = info;
     pushState();
   });
+  relayClient.on('brief', (msg) => applyBriefMessage(msg));
+
   relayClient.on('reveal-batch', (batch) => {
     // Bytes go to the blob store keyed by content hash; the renderer only ever
     // sees intel:// URLs (§9.1, §5.1).
     const items = batch.items.map((item) => {
       const hash = blobs.put(item.buffer, item.mimeType);
-      return { filename: item.filename, url: blobs.urlFor(hash) };
+      // The hash travels with the item: brief-mode ink is keyed by it, and
+      // re-hashing later would mean holding the bytes again for no reason.
+      return { filename: item.filename, url: blobs.urlFor(hash), hash };
     });
     view.addBatch({ sharedBy: batch.sharedBy, items });
     pushState();
@@ -389,6 +532,22 @@ function bindingActions() {
     next: () => pageBoth(1),
     prev: () => pageBoth(-1),
     reveal: doReveal,
+    // Brief mode is bindable end to end, and that is not a convenience: many
+    // pilots see the EFB only through OpenKneeboard and cannot click
+    // anything. A control that exists only as a button does not exist for
+    // them.
+    present: () => {
+      handleBriefIntent('brief-present', !view.state.brief.presenting);
+      pushState();
+    },
+    follow: () => {
+      handleBriefIntent('brief-follow', !view.state.brief.following);
+      pushState();
+    },
+    clearInk: () => {
+      handleBriefIntent('brief-clear');
+      pushState();
+    },
   };
 }
 
@@ -476,6 +635,9 @@ function registerHotkeys() {
   registerHotkey('next', config.hotkeys.next, actions.next);
   registerHotkey('prev', config.hotkeys.prev, actions.prev);
   registerHotkey('reveal', config.hotkeys.reveal, actions.reveal);
+  registerHotkey('present', config.hotkeys.present, actions.present);
+  registerHotkey('follow', config.hotkeys.follow, actions.follow);
+  registerHotkey('clearInk', config.hotkeys.clearInk, actions.clearInk);
   // New in this build: blanks all chrome so the kneeboard capture is just the
   // photo. This is the state that matters most in the air.
 
@@ -738,6 +900,9 @@ function handleViewerIntent(intent, payload) {
       return;
     // SETUP's intents arrive here too — one page, one channel.
     default:
+      // Brief intents are VIEWER intents. Putting one in the settings switch
+      // compiles, runs, and does nothing.
+      if (handleBriefIntent(intent, payload)) break;
       return void handleSettingsIntent(intent, payload);
   }
   pushState();
@@ -954,6 +1119,16 @@ function attachViewerProbe() {
              return acc;
            }, {}),
            chromeHidden: document.body.classList.contains('is-chrome-hidden'),
+           brief: {
+             barShown: !document.getElementById('briefbar').classList.contains('is-hidden'),
+             barTitle: document.getElementById('briefbar-title').textContent,
+             barKey: document.getElementById('briefbar-key').textContent,
+             markShown: !document.getElementById('brief-mark').classList.contains('is-hidden'),
+             toolsShown: !document.getElementById('brief-tools').classList.contains('is-hidden'),
+             casting: document.getElementById('brief-cast').classList.contains('is-on'),
+             inkLive: document.getElementById('stage-ink').classList.contains('is-live'),
+             tool: (document.querySelector('#brief-tools [data-tool].is-on') || {}).id || '',
+           },
            launcherOpen: !document.getElementById('launcher').classList.contains('is-hidden'),
            crumb: document.getElementById('crumb-page').textContent + ' ' + document.getElementById('crumb-pos').textContent,
            dests: [...document.querySelectorAll('.dest[data-dest]')].map((d) => d.dataset.dest),
