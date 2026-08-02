@@ -722,7 +722,10 @@ body[data-page="share"] .page.share { display: flex; }
   color: var(--lit);
   letter-spacing: .05em;
 }
-.briefbar__key { flex: none; }
+/* .key is width:100% by default (it is normally a full-width control), so
+   `flex: none` alone loses — the key would take the whole bar and squeeze the
+   sentence into one word per line. */
+.briefbar__key { flex: none; width: auto; padding: 0 var(--sp-4); }
 
 /* The clean-view marker: one hairline and one label, over the photo, outside
    the chrome. Everything here is subordinate to the image — it explains, it
