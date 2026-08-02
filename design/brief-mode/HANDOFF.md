@@ -1,6 +1,11 @@
 # Brief mode — presenter, live ink, follow
 
-**Status** — designed, not started. Phase 2 (`/ROADMAP.md` §2), Tier A.
+**Status** — **in progress.** Phase 2 (`/ROADMAP.md` §2), Tier A.
+Transport and ink model are built and tested (`inkStore.js`, the brief family
+in `protocol.js`, the `/rt` socket in `relayServer.js`, `dev-ink-test`,
+`dev-brief-relay-test`). **Not built yet:** the renderer — canvas overlay,
+tool strip, present/follow/paged-away states — and the main-process wiring:
+hotkeys, IPC deltas, `PANEL_PROBE` fields, i18n strings, preview state.
 **Files here** — `brief-mode.png` (five screens + interaction outline).
 **Depends on** — nothing from protocol v2; ships against the current wire with
 one additive message family. The realtime socket it introduces *becomes*

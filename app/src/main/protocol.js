@@ -133,10 +133,184 @@ class BatchReassembler {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Brief mode — the realtime family. See design/brief-mode/HANDOFF.md §4.
+//
+// These ride a SEPARATE socket (`/rt`) from the reveal batches above, on the
+// same port and the same token. The split is not tidiness: a 3 MB photo and a
+// 26-byte stroke sharing one socket means the stroke waits behind the photo,
+// and head-of-line blocking is exactly what a live brief cannot afford. It
+// also means these frames never touch the reassembler.
+//
+// Two message kinds carry ink, and no third:
+//   stroke  APPEND — pen. Each frame extends one mark. A lost frame is a
+//           real gap in the line, which is why pen is the only stream.
+//   shape   UPSERT — arrow and ring. Each frame carries the CURRENT geometry
+//           in full, so a lost frame heals on the next one and the
+//           rubber-band the clients watch simply IS the message stream.
+//
+// TEXT is deliberately absent. Typing has no place in VR, and a tool that
+// works for desktop pilots but not VR ones splits the tool set.
+// ---------------------------------------------------------------------------
+
+/** The path the realtime socket upgrades on. `/` stays the bulk socket. */
+const REALTIME_PATH = '/rt';
+
+// A realtime frame is tiny by construction — the largest is a snapshot reply,
+// ~157 KB at the 500-stroke cap. A megabyte is generous and still refuses
+// anything trying to push a photo down this socket.
+const MAX_REALTIME_FRAME_BYTES = 1024 * 1024;
+
+// Every field a client may send. Anything else is dropped rather than
+// forwarded: the relay is the one place that can stop a malformed or hostile
+// frame from reaching every pilot's screen at once.
+const BRIEF_TYPES = new Set([
+  'brief-present-start',
+  'brief-present-stop',
+  'brief-focus',
+  'brief-stroke',
+  'brief-shape',
+  'brief-cursor',
+  'brief-undo',
+  'brief-clear',
+  'brief-snapshot-req',
+  'brief-snapshot',
+]);
+
+/** Types only a presenter may originate. `brief-snapshot-req` is deliberately
+ *  not here — any client may ask for the ink on the image it is looking at. */
+const PRESENTER_ONLY = new Set([
+  'brief-present-start',
+  'brief-present-stop',
+  'brief-focus',
+  'brief-stroke',
+  'brief-shape',
+  'brief-cursor',
+  'brief-undo',
+  'brief-clear',
+]);
+
+const isU16 = (n) => Number.isInteger(n) && n >= 0 && n <= 65535;
+const isPoint = (p) => Boolean(p) && isU16(p.u) && isU16(p.v);
+const isHash = (h) => typeof h === 'string' && /^[a-f0-9]{64}$/.test(h);
+
+/**
+ * Parses and validates one realtime text frame.
+ *
+ * Returns the message, or null for anything it does not recognise. Every
+ * coordinate is validated as an already-quantised uint16 — the wire never
+ * carries floats, so a client cannot make everyone else's renderer divide by
+ * 65535 twice, and a NaN cannot reach a canvas call.
+ */
+function parseBriefMessage(data) {
+  let msg;
+  try {
+    msg = JSON.parse(typeof data === 'string' ? data : data.toString('utf8'));
+  } catch {
+    return null;
+  }
+  if (!msg || typeof msg !== 'object' || !BRIEF_TYPES.has(msg.type)) return null;
+
+  switch (msg.type) {
+    case 'brief-present-start':
+    case 'brief-present-stop':
+      return { type: msg.type, presenter: str(msg.presenter) };
+
+    case 'brief-focus':
+      if (!isHash(msg.hash)) return null;
+      return {
+        type: msg.type,
+        hash: msg.hash,
+        batchId: str(msg.batchId),
+        filename: str(msg.filename),
+        presenter: str(msg.presenter),
+      };
+
+    case 'brief-stroke': {
+      if (!isHash(msg.hash) || !str(msg.id)) return null;
+      if (!Array.isArray(msg.points) || !msg.points.length || msg.points.length > 64) return null;
+      if (!msg.points.every(isPoint)) return null;
+      return {
+        type: msg.type,
+        hash: msg.hash,
+        id: str(msg.id),
+        presenter: str(msg.presenter),
+        points: msg.points.map((p) => ({ u: p.u, v: p.v })),
+      };
+    }
+
+    case 'brief-shape': {
+      if (!isHash(msg.hash) || !str(msg.id)) return null;
+      if (msg.tool !== 'arrow' && msg.tool !== 'ring') return null;
+      if (!isPoint(msg.a) || !isPoint(msg.b)) return null;
+      return {
+        type: msg.type,
+        hash: msg.hash,
+        id: str(msg.id),
+        tool: msg.tool,
+        presenter: str(msg.presenter),
+        a: { u: msg.a.u, v: msg.a.v },
+        b: { u: msg.b.u, v: msg.b.v },
+        final: msg.final === true,
+      };
+    }
+
+    case 'brief-cursor':
+      if (!isPoint(msg)) return null;
+      return { type: msg.type, u: msg.u, v: msg.v, presenter: str(msg.presenter) };
+
+    case 'brief-undo':
+      if (!isHash(msg.hash)) return null;
+      return { type: msg.type, hash: msg.hash, id: str(msg.id), presenter: str(msg.presenter) };
+
+    case 'brief-clear':
+      if (!isHash(msg.hash)) return null;
+      return { type: msg.type, hash: msg.hash, presenter: str(msg.presenter) };
+
+    case 'brief-snapshot-req':
+      if (!isHash(msg.hash)) return null;
+      return { type: msg.type, hash: msg.hash };
+
+    case 'brief-snapshot': {
+      if (!isHash(msg.hash)) return null;
+      if (!Array.isArray(msg.strokes)) return null;
+      return {
+        type: msg.type,
+        hash: msg.hash,
+        rev: Number.isInteger(msg.rev) ? msg.rev : 0,
+        strokes: msg.strokes,
+      };
+    }
+
+    default:
+      return null;
+  }
+}
+
+function str(v) {
+  return typeof v === 'string' ? v : '';
+}
+
+/**
+ * Stamps the authenticated identity onto a message before fan-out.
+ *
+ * Same rule as `sharedBy` on a reveal batch: whatever the sender claimed is
+ * discarded. A client cannot present as someone else by editing a field.
+ */
+function stampPresenter(msg, callsign) {
+  return { ...msg, presenter: callsign || '' };
+}
+
 module.exports = {
   buildRevealFrames,
   BatchReassembler,
   ITEM_ID_LENGTH,
   MAX_BATCH_ITEMS,
   MAX_BATCH_BYTES,
+  REALTIME_PATH,
+  MAX_REALTIME_FRAME_BYTES,
+  BRIEF_TYPES,
+  PRESENTER_ONLY,
+  parseBriefMessage,
+  stampPresenter,
 };

@@ -1,11 +1,21 @@
 'use strict';
 
 const { WebSocketServer } = require('ws');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
 const { authenticateConnection } = require('./auth');
-const { buildRevealFrames, BatchReassembler, ITEM_ID_LENGTH } = require('./protocol');
+const {
+  buildRevealFrames,
+  BatchReassembler,
+  ITEM_ID_LENGTH,
+  REALTIME_PATH,
+  MAX_REALTIME_FRAME_BYTES,
+  PRESENTER_ONLY,
+  parseBriefMessage,
+  stampPresenter,
+} = require('./protocol');
 
 /**
  * Starts the embedded relay: a WebSocket server that authenticates connections
@@ -31,17 +41,66 @@ const MAX_FRAME_BYTES = 32 * 1024 * 1024;
 // until it dies, and they get the next reveal normally.
 const MAX_BUFFERED_BYTES = 48 * 1024 * 1024;
 
-function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = () => {} }) {
-  const wss = new WebSocketServer({ port, maxPayload: MAX_FRAME_BYTES });
+// The realtime equivalent. Three orders of magnitude smaller because the
+// frames are: at 0.8 KB/s per presenter, 256 KB queued means roughly five
+// minutes behind. That client is not slow, it is gone.
+const MAX_REALTIME_BUFFERED_BYTES = 256 * 1024;
+
+function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = () => {}, onBrief = null }) {
+  // ONE http server, TWO websocket servers routed by path on upgrade.
+  //
+  // Not a refactor for its own sake: Tailscale Funnel forwards exactly one
+  // port, so the realtime socket brief mode needs cannot be a second listener
+  // — it has to share this one. Splitting by path also makes head-of-line
+  // blocking impossible, which is the real prize: a 3 MB photo in flight on
+  // the bulk socket can never delay a 26-byte stroke on the realtime one.
+  const httpServer = http.createServer((req, res) => {
+    // Anything that is not an upgrade gets an honest answer. This is not a
+    // web server and must never look like one.
+    res.writeHead(426, { 'Content-Type': 'text/plain', Connection: 'close' });
+    res.end('WebSocket only\n');
+  });
+
+  const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES });
+  // No permessage-deflate on the realtime socket. Compressing 26 bytes costs
+  // more in latency than it saves in bytes, and latency is the whole point.
+  const rtServer = new WebSocketServer({
+    noServer: true,
+    maxPayload: MAX_REALTIME_FRAME_BYTES,
+    perMessageDeflate: false,
+  });
+
   // ws -> { role, callsign, connectedAt } for every authenticated client —
   // identity kept so SETUP can show who's connected and so
   // rebroadcasts can be attributed to their sender.
   const clients = new Map();
+  // The realtime half. Separate map: a pilot on an older build has a bulk
+  // socket and no realtime one, and must keep working exactly as before.
+  const rtClients = new Map();
+  // Host-only presenting in v1, but identity is carried from day one so
+  // handing the pen to a callsign later is one new message, not a redesign.
+  let presenter = null;
 
-  // Without a handler, an 'error' event (e.g. EADDRINUSE when a live settings
-  // apply picks a port something else holds) would throw and take down the
-  // whole app instead of just logging.
+  httpServer.on('error', (err) => onLog(`server error: ${err.message}`));
   wss.on('error', (err) => onLog(`server error: ${err.message}`));
+  rtServer.on('error', (err) => onLog(`realtime error: ${err.message}`));
+
+  httpServer.on('upgrade', (req, socket, head) => {
+    const route = (req.url || '/').split('?')[0];
+    const target = route === REALTIME_PATH ? rtServer : route === '/' ? wss : null;
+    if (!target) {
+      // An unknown path is answered rather than dropped silently, so a
+      // misconfigured client reports something useful instead of hanging.
+      socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    target.handleUpgrade(req, socket, head, (ws) => target.emit('connection', ws, req));
+  });
+
+  httpServer.listen(port);
+
+  rtServer.on('connection', (ws, req) => attachRealtime(ws, req));
 
   wss.on('connection', (ws) => {
     const reassembler = new BatchReassembler();
@@ -105,6 +164,136 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
     return [...clients.values()].sort((a, b) => a.connectedAt - b.connectedAt);
   }
 
+  // -------------------------------------------------------------------------
+  // Realtime socket. Same token, same auth handshake — a second socket must
+  // not be a second way in.
+  // -------------------------------------------------------------------------
+
+  function attachRealtime(ws) {
+    let callsign = null;
+    const preAuthQueue = [];
+    let authed = false;
+
+    // Same reasoning as the bulk socket: attach the listener before auth
+    // resolves, because ws can emit already-buffered frames synchronously.
+    ws.on('message', (data, isBinary) => {
+      if (isBinary) return; // the realtime socket is JSON only
+      if (!authed) {
+        if (preAuthQueue.length < 200) preAuthQueue.push(data);
+        return;
+      }
+      handleRealtimeFrame(ws, callsign, data);
+    });
+
+    authenticateConnection(ws, token, { onLog })
+      .then((authMsg) => {
+        callsign = authMsg.callsign || '';
+        rtClients.set(ws, { callsign, connectedAt: Date.now() });
+
+        authed = true;
+        for (const data of preAuthQueue) handleRealtimeFrame(ws, callsign, data);
+        preAuthQueue.length = 0;
+
+        // A late joiner needs to know a brief is already running, and on which
+        // image, before it can ask for the ink. Without this it sits blank
+        // until the presenter happens to turn a page.
+        if (presenter) {
+          send(ws, { type: 'brief-present-start', presenter });
+          if (presenter.focus) send(ws, { ...presenter.focus, presenter: presenter.callsign });
+        }
+
+        ws.on('close', () => {
+          rtClients.delete(ws);
+          // A presenter whose socket drops stops presenting. The honest
+          // answer, and the one the UI states: they re-present.
+          if (presenter && presenter.ws === ws) stopPresenting('the presenter disconnected');
+        });
+      })
+      .catch((err) => onLog(`realtime auth failed: ${err.message}`));
+  }
+
+  function handleRealtimeFrame(ws, callsign, data) {
+    const msg = parseBriefMessage(data);
+    if (!msg) return; // malformed or unknown — never forwarded
+
+    if (msg.type === 'brief-present-start') {
+      presenter = { ws, callsign, focus: null };
+      onLog(`brief: ${callsign || '(none)'} is presenting`);
+      fanOutRealtime(stampPresenter(msg, callsign));
+      if (onBrief) onBrief(stampPresenter(msg, callsign));
+      return;
+    }
+
+    // Everything else that drives what other pilots see must come from the
+    // client we currently recognise as the presenter — checked by socket
+    // identity, not by the callsign in the frame, which the sender controls.
+    if (PRESENTER_ONLY.has(msg.type)) {
+      if (!presenter || presenter.ws !== ws) return;
+      if (msg.type === 'brief-present-stop') {
+        stopPresenting(`${callsign || '(none)'} stopped presenting`);
+        return;
+      }
+      if (msg.type === 'brief-focus') presenter.focus = msg;
+    }
+
+    const stamped = stampPresenter(msg, callsign);
+    // A snapshot request is a question for the host, not something to echo at
+    // every pilot on the net.
+    if (msg.type === 'brief-snapshot-req') {
+      if (onBrief) onBrief(stamped, (reply) => send(ws, reply));
+      return;
+    }
+
+    fanOutRealtime(stamped);
+    if (onBrief) onBrief(stamped);
+  }
+
+  function stopPresenting(why) {
+    if (!presenter) return;
+    const who = presenter.callsign;
+    presenter = null;
+    onLog(`brief: ${why}`);
+    fanOutRealtime({ type: 'brief-present-stop', presenter: who });
+    if (onBrief) onBrief({ type: 'brief-present-stop', presenter: who });
+  }
+
+  /**
+   * Fan-out on the realtime socket. Same backpressure ceiling as the bulk
+   * path and for the same reason, but the numbers are different by orders of
+   * magnitude: a client this far behind on 26-byte frames is not slow, it is
+   * gone, and dropping frames for it is the only thing that keeps the host
+   * from buffering for a socket that is never coming back.
+   */
+  function fanOutRealtime(msg, except = null) {
+    const text = JSON.stringify(msg);
+    for (const [ws, info] of rtClients) {
+      if (ws === except) continue;
+      if (ws.readyState !== ws.OPEN) continue;
+      if (ws.bufferedAmount > MAX_REALTIME_BUFFERED_BYTES) {
+        onLog(`realtime: dropping frame for ${info.callsign || '(none)'} (${ws.bufferedAmount}B queued)`);
+        continue;
+      }
+      ws.send(text);
+    }
+  }
+
+  function send(ws, msg) {
+    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
+  }
+
+  /** What the local (host's own) UI sends into the brief. */
+  function broadcastBrief(msg) {
+    const stamped = stampPresenter(msg, msg.presenter || '');
+    if (msg.type === 'brief-present-start') presenter = { ws: null, callsign: stamped.presenter, focus: null };
+    if (msg.type === 'brief-present-stop') presenter = null;
+    if (msg.type === 'brief-focus' && presenter) presenter.focus = stamped;
+    fanOutRealtime(stamped);
+  }
+
+  function getPresenter() {
+    return presenter ? presenter.callsign : null;
+  }
+
   /**
    * items: [{ filename, mimeType, buffer }]
    */
@@ -136,18 +325,34 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
   }
 
   /**
-   * Closes the server. wss.close() alone only stops the listener — it leaves
-   * established client sockets connected (to a server object nothing will
-   * ever broadcast through again), so terminate them explicitly. `done` fires
-   * once the port is fully released, which is what lets a live settings apply
-   * restart the relay on the same port without hitting EADDRINUSE.
+   * Closes the server. Terminating the sockets is not optional: closing a
+   * WebSocketServer only stops it accepting, and leaves established clients
+   * connected to an object nothing will ever broadcast through again.
+   *
+   * The port now belongs to the http server, so that is what `done` has to
+   * wait on — waiting on wss.close() alone would fire while the listener was
+   * still bound, and a live settings apply restarting the relay on the same
+   * port would hit EADDRINUSE intermittently.
    */
   function close(done = () => {}) {
     for (const ws of wss.clients) ws.terminate();
-    wss.close(done);
+    for (const ws of rtServer.clients) ws.terminate();
+    presenter = null;
+    wss.close(() => {
+      rtServer.close(() => httpServer.close(done));
+    });
   }
 
-  return { broadcastRevealBatch, getConnectedClients, close, wss };
+  return {
+    broadcastRevealBatch,
+    getConnectedClients,
+    broadcastBrief,
+    getPresenter,
+    close,
+    wss,
+    rtServer,
+    httpServer,
+  };
 }
 
 /**

@@ -16,6 +16,19 @@ that entry.
 
 ## Unreleased
 
+### Added
+- **Brief mode, foundations.** The transport and the ink model, both tested;
+  no UI yet. `inkStore.js` holds strokes normalised against the *image* — not
+  the screen — quantised to uint16 and keyed by the image's content hash, so
+  the same mark lands on the same pixel at any surface size without anyone
+  agreeing a resolution, and a re-shared file can never inherit a stranger's
+  annotations. The relay grew a second WebSocket on the **same port**, routed
+  by path on upgrade (`/` bulk, `/rt` realtime): Tailscale Funnel forwards one
+  port so a second listener was never an option, and the split makes
+  head-of-line blocking impossible — a 3 MB photo can no longer delay a
+  26-byte stroke. HELLO now advertises a `brief` capability, so a peer on an
+  older build still receives photos and simply never sees a stroke.
+
 ### Changed
 - **The app is now Tac Link.** Renamed throughout: product name, bundle id
   (`com.flyinggab.taclink`), window title, menus, tray and docs. The GitHub

@@ -103,7 +103,10 @@ function authenticateConnection(ws, expectedToken, { onLog = () => {} } = {}) {
               type: 'hello-ack',
               protocolVersion: 1,
               server: `taclink-electron/${process.env.npm_package_version || '0'}`,
-              capabilities: [],
+              // A peer that does not list 'brief' still receives photos and
+              // simply never sees a FOCUS or STROKE frame, so mixed-version
+              // squads keep working rather than half-working.
+              capabilities: ['brief'],
             }),
           );
         } catch {

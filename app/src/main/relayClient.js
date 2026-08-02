@@ -75,7 +75,7 @@ class RelayClient extends EventEmitter {
           protocolVersion: 1,
           minVersion: 1,
           client: 'taclink-electron',
-          capabilities: [],
+          capabilities: ['brief'],
         }),
       );
       ws.send(JSON.stringify({ type: 'auth', token: this.token, role: this.role, callsign: this.callsign }));
