@@ -10,7 +10,33 @@ permissions:
   contents: write
 
 jobs:
+  # The release is created ONCE, here, before any build runs.
+  #
+  # Without this the two matrix jobs race: both call electron-builder with
+  # --publish always, both try to CREATE the GitHub release, and whichever
+  # loses gets `422 Unprocessable Entity ... tag_name already_exists` and
+  # fails — after building perfectly well. That is exactly how v0.8.0 shipped
+  # with only the macOS artifacts. It had been passing on luck: the two builds
+  # happened to finish far enough apart that one saw the other's release
+  # already there.
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Create the release if it does not exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists — reusing it"
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes
+          fi
+
   build:
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -24,14 +50,24 @@ jobs:
       run:
         working-directory: app
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
 
       - run: npm ci
 
+      # Uploads into the release created above. electron-builder finds the
+      # existing release by tag and adds its assets to it.
       - run: npm run ${{ matrix.build-script }} -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # A green build that published nothing is the failure mode this whole
+      # file exists to prevent, so say out loud what landed.
+      - name: List published assets
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name'

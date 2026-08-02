@@ -491,6 +491,12 @@ outputs.
      `v0.6.0` (after it).
 
   macOS is unchanged: Gatekeeper, $99/yr, issued to individuals.
+- **Release publishing had a race, now fixed — but check the assets anyway.**
+  Both platform builds used to create the GitHub release, and the loser failed
+  with a 422 after building fine, which is how `v0.8.0` first shipped macOS
+  only. `release.yml` now creates the release in a separate job first and
+  prints the asset list at the end of each build. After any release, read that
+  list: a green workflow is not proof that both binaries landed.
 - **No telemetry seam yet.** `ROADMAP.md` §5.5 defines the `NullTelemetry`
   interface to add before phase 3 so DCS integration can be optional.
 - **README claims** "No DCS scripting, mission file, or Hooks install is

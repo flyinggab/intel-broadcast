@@ -16,6 +16,19 @@ that entry.
 
 ## v0.8.0 — 2026-08-02
 
+### Fixed (release pipeline)
+- **`v0.8.0` first published with macOS artifacts only.** Both matrix jobs
+  called electron-builder with `--publish always`, so both tried to *create*
+  the GitHub release; macOS won and Windows died with
+  `422 ... tag_name already_exists` — after building perfectly well. It had
+  been passing on luck, with the two builds finishing far enough apart that
+  one saw the other's release already there. The release is now created once
+  in its own job that the builds depend on, and each build lists the assets
+  actually on the release afterwards, because a green build that published
+  nothing is precisely the failure this needs to catch.
+  (`dev-release.yml` never had the bug — it builds with `--publish never` and
+  assembles the release in a single later job.)
+
 ### Added
 - **A LICENSE, at last: GPL-3.0-or-later.** The repo was public but legally
   all-rights-reserved, so nobody could fork or redistribute it. It also
