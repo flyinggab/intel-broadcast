@@ -751,13 +751,35 @@ body[data-page="share"] .page.share { display: flex; }
 
 /* Ink sits over the image's contained box. JS owns its position and size —
    see sizeInkCanvas() in viewer.js — because only JS knows where
-   object-fit: contain actually put the photo. */
+   object-fit: contain actually put the photo.
+
+   The stacking order below is explicit because the ink HAS to be above the
+   photo and BELOW everything a pilot presses. With only the canvas carrying a
+   z-index it won that fight against .stage__chrome (auto) and swallowed every
+   click meant for the tool strip. */
 .stage__ink {
   position: absolute;
   pointer-events: none;
   z-index: 1;
 }
-.stage__ink.is-live { pointer-events: auto; cursor: crosshair; }
+.stage__ink.is-live { pointer-events: auto; cursor: crosshair; touch-action: none; }
+.briefmark { z-index: 2; }
+.stage__chrome { z-index: 3; }
+.stage__standby { z-index: 4; }
+
+/* The photo is passive: nothing is ever pressed ON it, only on the ink canvas
+   above it. Saying so matters because of object-fit: contain — the <img>
+   ELEMENT fills the whole stage while the PAINTED photo is letterboxed inside
+   it, so on a wide recon shot in a portrait window there are broad bands top
+   and bottom that are bare <img>. A press there is not on the canvas, and an
+   <img> is draggable by default, so it started a native HTML5 image drag:
+   ghost thumbnail, no-entry cursor, no ink. Three belts here because the
+   symptom is baffling and the cause is invisible. */
+.stage__img {
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
 
 /* Tool strip. Icon keys at the 44px floor: this is aimed at with a VR
    controller ray from phase 4, and labels would not survive the Italian

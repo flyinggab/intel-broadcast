@@ -1,6 +1,6 @@
 {
   "name": "taclink",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "private": true,
   "description": "Tac Link — EFB for DCS with shared tactical intel and live briefing",
   "main": "src/main/index.js",

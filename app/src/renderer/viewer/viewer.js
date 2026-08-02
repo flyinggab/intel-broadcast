@@ -616,10 +616,16 @@ function renderBrief(s) {
   // looking at.
   const hash = (s.queue.current && s.queue.current.hash) || null;
   const revs = b.inkRevs || {};
-  if (hash !== inkHash) {
-    inkHash = hash;
-    drawInk();
-  }
+  if (hash !== inkHash) inkHash = hash;
+  // Unconditionally, not only when the image changed. The canvas is POSITIONED
+  // from measured geometry, so it has to be re-measured whenever anything that
+  // affects that geometry might have moved — and gating this on a hash change
+  // meant it was never measured at all when the photo carried no hash: the
+  // canvas kept its untouched 300x150 default, parked below the photo,
+  // covering nothing. Every press then landed on the <img> underneath and
+  // started a native image drag instead of drawing. Redrawing a few hundred
+  // strokes per state push is not worth optimising against that.
+  drawInk();
   // A revision ahead of ours means we missed a delta. Ask for the whole set
   // rather than rendering a brief with a hole in it.
   if (hash && revs[hash] !== undefined && revs[hash] !== inkFor(hash).rev) {

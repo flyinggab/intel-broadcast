@@ -14,6 +14,31 @@ that entry.
 
 ---
 
+## v0.8.1 — 2026-08-02
+
+### Fixed
+- **Drawing did not draw.** Pressing a tool did nothing and dragging on the
+  photo dragged the *photo* — ghost thumbnail, no-entry cursor, no ink. Two
+  causes, both invisible:
+  - The ink canvas carried `z-index: 1` while `.stage__chrome` carried none,
+    so once presenting made the canvas live it sat **on top of the tool strip
+    and the page chevrons**. Every press meant for a tool hit the canvas.
+  - `object-fit: contain` means the `<img>` *element* fills the whole stage
+    while the *painted* photo is letterboxed inside it. On a wide recon shot
+    in a portrait window that leaves broad bands top and bottom which are bare
+    `<img>` — and an `<img>` is draggable by default, so a press there started
+    a native HTML5 image drag. The photo is now passive to pointer events and
+    not draggable, and the stacking order is explicit: ink above the photo,
+    below everything a pilot presses.
+- The ink canvas is now re-measured on every brief render rather than only
+  when the image changes, so geometry that moves for any other reason cannot
+  leave it at its unsized default.
+- `dev-e2e-brief-test` now hit-tests with `elementFromPoint` instead of
+  trusting `element.click()`. That is why all of this reached a release:
+  `.click()` dispatches straight at a node and cannot tell that something is
+  covering it, so the suite was green while the feature was unusable. Both
+  bugs were re-introduced deliberately to confirm the new assertions fail.
+
 ## v0.8.0 — 2026-08-02
 
 ### Fixed (release pipeline)

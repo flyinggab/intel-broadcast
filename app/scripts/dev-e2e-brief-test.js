@@ -151,6 +151,49 @@ async function main() {
   if (probe.brief.markShown) throw new Error('the presenter must not be told they are following themselves');
   console.log('[e2e] PRESENT lights the bar, the tools, the canvas and the cast key');
 
+  // --- HIT TESTING, not .click() -------------------------------------------
+  // Every assertion above uses element.click(), which dispatches straight at
+  // the node and cannot tell whether anything is COVERING it. Three real bugs
+  // hid behind exactly that gap and all three reached a release:
+  //   * the canvas was never sized (it kept its untouched 300x150 default,
+  //     parked below the photo), so every press landed on the <img>;
+  //   * the <img> was draggable, so that press started a native HTML5 image
+  //     drag — ghost thumbnail, no-entry cursor, no ink;
+  //   * once sized, the canvas's z-index put it OVER the tool strip, so the
+  //     tools became unclickable.
+  // elementFromPoint is the only thing that catches any of them.
+  const hits = await hitTest({
+    imageCentre: '#stage-img',
+    ringTool: '#tool-ring',
+    penTool: '#tool-pen',
+    clearTool: '#tool-clear',
+    nextChevron: '#stage-next',
+  });
+
+  if (hits.imageCentre !== 'stage-ink') {
+    throw new Error(
+      `pressing the middle of the photo hits "${hits.imageCentre}", not the ink canvas. ` +
+        'The canvas is positioned from measured geometry — if it was never sized it sits at its ' +
+        '300x150 default covering nothing, and the press lands on the <img> and drags it.',
+    );
+  }
+  for (const [name, id] of [['ringTool', 'tool-ring'], ['penTool', 'tool-pen'], ['clearTool', 'tool-clear']]) {
+    if (hits[name] !== id) {
+      throw new Error(
+        `the ${id} key is covered: pressing it hits "${hits[name]}". The ink canvas must sit ` +
+          'ABOVE the photo and BELOW everything a pilot presses.',
+      );
+    }
+  }
+  if (hits.nextChevron !== 'stage-next') {
+    throw new Error(`the page chevron is covered: hits "${hits.nextChevron}". Paging must work while presenting.`);
+  }
+  const drag = await readGlobals(['__imgDraggable']);
+  if (drag.__imgDraggable) {
+    throw new Error('the stage <img> is draggable — a press-and-drag starts a native image drag instead of drawing');
+  }
+  console.log('[e2e] the canvas covers the photo, the controls are on top of it, the photo does not drag');
+
   // --- the tool set is closed and switching works --------------------------
   if (probe.brief.tool !== 'tool-pen') throw new Error(`pen is the default, got "${probe.brief.tool}"`);
   await click('#tool-ring');
@@ -212,6 +255,33 @@ async function main() {
 
   console.log('[dev-e2e-brief-test] PASS');
   cleanup(0);
+}
+
+/**
+ * What a real press at the centre of each selector would actually hit.
+ *
+ * Resolves to the id of the topmost element there, walking up to the nearest
+ * id-bearing ancestor — a press on a tool key lands on the <svg> inside it,
+ * which is fine and is what closest() handles in the renderer.
+ */
+async function hitTest(selectors) {
+  const marker = `HITS_${Date.now()}`;
+  await run(`
+    const sel = ${JSON.stringify(selectors)};
+    const out = {};
+    for (const [name, s] of Object.entries(sel)) {
+      const el = document.querySelector(s);
+      const r = el.getBoundingClientRect();
+      let hit = document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2));
+      while (hit && !hit.id && hit.parentElement) hit = hit.parentElement;
+      out[name] = hit ? hit.id : null;
+    }
+    window.__imgDraggable = document.getElementById('stage-img').draggable;
+    console.log(${JSON.stringify(marker)} + ' ' + JSON.stringify(out));
+  `);
+  const line = output.split('\n').reverse().find((l) => l.includes(marker));
+  if (!line) throw new Error('hit test never came back');
+  return JSON.parse(line.slice(line.indexOf(marker) + marker.length + 1));
 }
 
 /** Reads globals the eval left behind, via a second eval that logs them. */
