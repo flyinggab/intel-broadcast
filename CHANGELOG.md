@@ -4,12 +4,34 @@ Notable changes per release. The commit messages carry the full reasoning —
 they are long on purpose.
 
 Versions are `0.x`: minor bumps carry behaviour or interface changes, patches
-are assets and fixes. No config migration has ever been required — existing
-`config.local.json` files load unchanged across every version below, and the
-wire protocol has not changed since `v0.3.0`, so mixed-version squads still
-talk to each other.
+are assets and fixes. The wire protocol has not changed since `v0.3.0`, so
+mixed-version squads still talk to each other.
+
+No `config.local.json` has ever needed rewriting, and none does now — but the
+rename to Tac Link moved the directory Electron keeps it in, so from `v0.8.0`
+the app adopts the file left behind under the old name on first launch. See
+that entry.
 
 ---
+
+## Unreleased
+
+### Changed
+- **The app is now Tac Link.** Renamed throughout: product name, bundle id
+  (`com.flyinggab.taclink`), window title, menus, tray and docs. The GitHub
+  repository keeps its `intel-broadcast` name for now, so clone URLs and
+  release links are unchanged.
+
+### Fixed
+- **The rename would have stranded every existing install on defaults.**
+  Electron derives its userData directory from the product name, so
+  `Intel Broadcast/config.local.json` was simply not where `Tac Link` looks.
+  Nothing would have warned the pilot — the app would have come up looking
+  freshly installed, on the **default token**, which means their squad code
+  silently changes and nobody can reach them; hosting switched back off;
+  callsign, keybinds and photos folder gone. The config left behind under the
+  old name is now adopted once, on first launch, and copied rather than moved
+  so a downgrade still works. An existing config always wins over it.
 
 ## v0.7.0 — 2026-08-01
 

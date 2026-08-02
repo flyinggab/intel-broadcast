@@ -40,7 +40,56 @@ function resolveLocalConfigPath() {
   return path.join(__dirname, '..', '..', 'resources', 'config.local.json');
 }
 
+/**
+ * App names this product has shipped under, newest legacy first.
+ *
+ * Electron derives userData from the product name, so renaming the app moves
+ * the entire config directory. Without this, a pilot who updates launches a
+ * stranger's app: the default token — which means their squad code changes
+ * and nobody can reach them — hosting switched back off, callsign, keybinds
+ * and photos folder all gone. Nothing warns them; it just looks freshly
+ * installed.
+ *
+ * The old directory is copied, never moved, so downgrading still works.
+ */
+const LEGACY_APP_NAMES = ['Intel Broadcast'];
+
+/**
+ * Copies a config left behind under a previous app name into place, once.
+ *
+ * Takes its directories as arguments rather than reading Electron so a plain
+ * node test can drive it. Does nothing if the target already exists — the
+ * pilot's current settings always win over an older file.
+ */
+function adoptLegacyConfig(appDataDir, targetPath, legacyNames = LEGACY_APP_NAMES) {
+  if (fs.existsSync(targetPath)) return null;
+  for (const name of legacyNames) {
+    const legacy = path.join(appDataDir, name, 'config.local.json');
+    if (!fs.existsSync(legacy)) continue;
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+    fs.copyFileSync(legacy, targetPath);
+    return name;
+  }
+  return null;
+}
+
+/** The packaged wrapper. Unpackaged runs keep the repo-relative path and are
+ *  unaffected, so this is a no-op in dev and in every test but its own. */
+function adoptLegacyConfigOnce(targetPath) {
+  const app = getElectronApp();
+  if (!app || !app.isPackaged) return;
+  try {
+    const from = adoptLegacyConfig(app.getPath('appData'), targetPath);
+    // Names the source only. The file's contents include the token, which is
+    // the squad password and never goes near a log line.
+    if (from) console.log(`[config] adopted settings from the previous app name "${from}"`);
+  } catch (err) {
+    console.log(`[config] could not adopt previous settings: ${err.message}`);
+  }
+}
+
 const LOCAL_CONFIG_PATH = resolveLocalConfigPath();
+adoptLegacyConfigOnce(LOCAL_CONFIG_PATH);
 
 /**
  * Loads resources/config.default.json (committed, baked in per squad build)
@@ -68,4 +117,4 @@ function loadConfig() {
   return merged;
 }
 
-module.exports = { loadConfig, LOCAL_CONFIG_PATH };
+module.exports = { loadConfig, LOCAL_CONFIG_PATH, adoptLegacyConfig, LEGACY_APP_NAMES };

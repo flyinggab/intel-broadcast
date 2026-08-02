@@ -5,6 +5,10 @@
 **Depends on** — nothing from protocol v2; ships against the current wire with
 one additive message family. The realtime socket it introduces *becomes*
 channel 2 when v2 lands.
+**Read alongside** — `design/okb-integration/HANDOFF.md` §4. If the EFB is ever
+rendered as an OpenKneeboard web dashboard, the intel stage must be **one** OKB
+page with images swapping inside our DOM, never one page per image. Assume that
+split from the start; it costs nothing now and is expensive to unpick later.
 
 The host looks at an image and presses PRESENT. Every EFB snaps to that image
 and stays synced as the host pages; strokes and the presenter's cursor render

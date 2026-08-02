@@ -4,6 +4,13 @@
 **Nothing here blocks phase 2.** Brief mode and kneeboard cards ship against
 OpenKneeboard as-is. This exists so the research is not repeated.
 
+**Read `design/okb-integration/HANDOFF.md` first.** OpenKneeboard's web
+dashboard + plugin APIs deliver setup, paging and pen input for days of
+JavaScript rather than weeks of C++. What survives as the argument for this
+folder is **quad control only** — sizing the kneeboard correctly by
+construction. That is a real prize but a smaller one than "replace
+OpenKneeboard", and it should be judged on its own.
+
 Today the EFB is a window that OpenKneeboard captures and composites into VR.
 This describes owning that step: an OpenXR API layer that draws the EFB into
 the headset directly, plus pen input without OpenKneeboard in the path.
