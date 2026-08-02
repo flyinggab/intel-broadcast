@@ -182,6 +182,47 @@ async function main() {
     late.ws.close();
   }
 
+  // -------------------------------------------------------------------------
+  // End to end through RelayClient, which is what the app actually uses — the
+  // tests above drive raw sockets and would not notice the client half never
+  // opening /rt at all.
+  // -------------------------------------------------------------------------
+  {
+    const { RelayClient } = require('../src/main/relayClient');
+    const url = `ws://127.0.0.1:${PORT}`;
+    const a = new RelayClient({ url, token: TOKEN, role: 'viewer', callsign: 'LEAD' });
+    const b = new RelayClient({ url, token: TOKEN, role: 'viewer', callsign: 'WING' });
+    const heard = [];
+    b.on('brief', (m) => heard.push(m));
+    a.connect();
+    b.connect();
+    await settle(500);
+
+    assert.ok(a.briefConnected && b.briefConnected, 'RelayClient opens the realtime socket on connect');
+
+    a.sendBrief({ type: 'brief-present-start' });
+    a.sendBrief({ type: 'brief-focus', hash: HASH, batchId: 'b1', filename: '01.jpg' });
+    a.sendBrief({ type: 'brief-stroke', hash: HASH, id: 'k', points: [{ u: 7, v: 9 }] });
+    await settle(300);
+
+    const kinds = heard.map((m) => m.type);
+    assert.ok(kinds.includes('brief-present-start'), 'the other pilot is told a brief started');
+    assert.ok(kinds.includes('brief-focus'), 'and follows the page');
+    const ink = heard.find((m) => m.type === 'brief-stroke');
+    assert.deepStrictEqual(ink.points, [{ u: 7, v: 9 }], 'and receives the ink intact');
+    assert.strictEqual(ink.presenter, 'LEAD', 'attributed to the presenter');
+
+    // sendBrief must report honestly when the socket is not up, because the
+    // caller draws its own ink locally either way.
+    const solo = new RelayClient({ url, token: TOKEN, role: 'viewer', callsign: 'SOLO' });
+    assert.strictEqual(solo.sendBrief({ type: 'brief-present-start' }), false, 'no socket, no send, no throw');
+
+    a.close();
+    b.close();
+    await settle(200);
+    console.log('[test] RelayClient carries a brief end to end over /rt');
+  }
+
   await settle();
   await new Promise((resolve) => server.close(resolve));
   console.log('[dev-brief-relay-test] PASS');
