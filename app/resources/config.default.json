@@ -22,5 +22,9 @@
   "gm": {
     "relayPort": 8787,
     "funnelEnabled": false
+  },
+  "okb": {
+    "enabled": false,
+    "port": 8788
   }
 }

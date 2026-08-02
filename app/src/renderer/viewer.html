@@ -441,5 +441,10 @@
 <script src="viewer/format.js"></script>
 <script src="viewer/viewer.js"></script>
 <script src="settings/settings.js"></script>
+<!-- Last, and a no-op in the Electron window: it only does anything when this
+     same page is loaded by OpenKneeboard's WebView2 as a web dashboard tab,
+     where it sets data-surface="okb" and wires their page/cursor APIs. One
+     UI, three surfaces — that is what data-surface has always been for. -->
+<script src="okb-bridge.js"></script>
 </body>
 </html>

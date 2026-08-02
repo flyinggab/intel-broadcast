@@ -17,6 +17,25 @@ that entry.
 ## Unreleased
 
 ### Added
+- **Brief mode.** A host presses PRESENT and every following EFB snaps to the
+  same image and stays synced as they page; pen, arrow and ring render live on
+  every client; ink belongs to the image and survives paging away and back.
+  Coordinates are normalised against the *image*, never the screen, so the
+  same mark lands on the same pixel at any surface size with no client ever
+  agreeing a resolution. Every control has a global keybind, because many
+  pilots see the EFB only through OpenKneeboard and cannot click anything —
+  which is also why paging away is how you leave a brief, and why there is no
+  consent dialog to accept.
+- **OpenKneeboard web-dashboard tab, partly built and unverified.** Registry
+  probe, plugin manifest and registration, a loopback server for the page, and
+  the renderer bridge that sets `data-surface="okb"` and wires their page and
+  cursor APIs. **Off by default — window capture is unchanged and remains the
+  shipped path.** The intel stage maps to exactly ONE OpenKneeboard page with
+  images swapping inside our DOM, so `RequestPageChanged` is never called for
+  sync and the restriction their docs warn about cannot break a brief on
+  someone else's update. Nothing here has run against a real OpenKneeboard;
+  the SETUP panel and reaching photos from WebView2 are both still missing.
+  See `design/okb-integration/HANDOFF.md`.
 - **Brief mode, foundations.** The transport and the ink model, both tested;
   no UI yet. `inkStore.js` holds strokes normalised against the *image* — not
   the screen — quantised to uint16 and keyed by the image's content hash, so

@@ -20,6 +20,8 @@ const { startKeyHook } = require('./keyHook');
 const i18n = require('../renderer/i18n');
 const { initFileLogging, getLogFilePath, recentLines } = require('./logger');
 const tailscale = require('./tailscale');
+const okb = require('./okb');
+const { createOkbServer } = require('./okbServer');
 // SETUP is a page of the viewer, so there is no settings window module any
 // more: what survived is the config writer and the folder dialog.
 const { saveSettingsValues, browseFolder } = require('./settingsConfig');
@@ -46,6 +48,7 @@ let viewer = null;
 let tray = null;
 let relayServer = null;
 let relayClient = null;
+let okbServer = null;
 
 const blobs = createBlobStore();
 const view = createViewState();
@@ -128,6 +131,40 @@ function currentPhotosFolder() {
   return config.photosFolder || path.join(BUNDLED_PHOTOS_DIR, config.missionName);
 }
 
+
+// ---------------------------------------------------------------------------
+// OpenKneeboard web dashboard
+// ---------------------------------------------------------------------------
+
+/** Serves the EFB on loopback and registers our plugin so OpenKneeboard
+ *  offers "Tac Link" in its own tab list. Both halves are reversible. */
+async function startOkb() {
+  if (okbServer) return;
+  const port = (config.okb && config.okb.port) || 8788;
+  okbServer = createOkbServer({ port, onLog: (msg) => console.log(`[okb] ${msg}`) });
+  try {
+    // Our install directory, never OpenKneeboard's — writing into theirs is
+    // unsupported and breaks pilots' setups on update.
+    const dir = path.join(app.getPath('userData'), 'okb');
+    const { file, ok } = await okb.register({ dir, version: app.getVersion(), url: okbServer.url });
+    console.log(`[okb] plugin manifest ${file}${ok ? ' registered' : ' written (registry unavailable)'}`);
+  } catch (err) {
+    console.log(`[okb] could not register the plugin: ${err.message}`);
+  }
+}
+
+async function stopOkb() {
+  if (okbServer) {
+    okbServer.close();
+    okbServer = null;
+  }
+  try {
+    await okb.unregister();
+  } catch {
+    // nothing registered, or no registry — either way there is nothing to undo
+  }
+  console.log('[okb] dashboard stopped and plugin unregistered');
+}
 
 // ---------------------------------------------------------------------------
 // Brief mode
@@ -1059,6 +1096,11 @@ app.whenReady().then(() => {
       })
       .listen(Number(process.env.INTEL_BROADCAST_TEST_TRIGGER_PORT), '127.0.0.1');
   }
+
+  // OpenKneeboard web-dashboard tab. OFF by default and it stays off unless
+  // the pilot asks: window capture is the shipped, working path and nothing
+  // about it changes. See design/okb-integration/HANDOFF.md §5.
+  if (config.okb && config.okb.enabled === true) startOkb();
 
   if (process.env.INTEL_BROADCAST_OPEN_SETTINGS) openSettings();
 

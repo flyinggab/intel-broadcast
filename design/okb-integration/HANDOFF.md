@@ -1,7 +1,24 @@
 # OpenKneeboard integration — web dashboard tab
 
-**Status** — researched, not started. Phase 2/3, **develop alongside
-`design/brief-mode/`**.
+**Status** — **partly built, entirely unverified against a real
+OpenKneeboard.** Phase 2/3.
+
+Built: `main/okb.js` (registry probe, plugin manifest, register/unregister),
+`main/okbServer.js` (loopback static server for the dashboard page),
+`renderer/okb-bridge.js` (detection, `data-surface="okb"`, `SetPages` with the
+§4 one-page split, `MouseEmulation`, custom actions), config toggle
+`okb.enabled` default **off**, and `dev-okb-test`.
+
+**Not built:** the SETUP · OPENKNEEBOARD panel with the four guided steps
+(§5) — the toggle currently only exists in `config.local.json`. Photos still
+travel over `intel://` inside Electron and are NOT reachable from WebView2,
+so the dashboard page renders the UI but not the intel; that is the next real
+problem and it is not a small one.
+
+**Nothing here has ever run against OpenKneeboard.** Every version gate,
+feature name and dated `EnableExperimentalFeatures` number is from
+documentation and must be checked in the §6 spike, on Windows, before any of
+it is trusted.
 **Why together** — the page-mapping decision below is cheap to make now and
 expensive to unpick once presenter mode ships. See §4.
 
