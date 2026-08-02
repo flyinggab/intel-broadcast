@@ -12,6 +12,33 @@ cross-client fan-out is a small relay embedded directly in one pilot's own app i
 shape [DCS-SimpleRadioStandalone](https://github.com/ciribob/dcs-simpleradiostandalone) uses for
 voice, minus the standalone server — see [PROTOCOL.md](./PROTOCOL.md) for the wire format).
 
+## Installing
+
+Download the latest `Tac Link-Setup-<version>.exe` from
+[Releases](https://github.com/flyinggab/intel-broadcast/releases) and run it. It installs
+per-user — no administrator prompt — and adds a Start Menu entry and a desktop shortcut.
+
+### If Windows Defender flags it
+
+**The build is not code-signed yet, so Defender may quarantine it as
+`Trojan:Win32/Wacatac.B!ml`.** The `!ml` suffix means a machine-learning heuristic scored the
+file as suspicious; it is not a match against any known malware. Three ordinary properties of
+this app are what the model reacts to, and all three are visible in the source:
+
+- it is unsigned, so there is no reputation to weigh against the guess;
+- it can install a low-level keyboard hook, which is how a keybind can be a bare letter that
+  still reaches DCS (`app/src/main/keyHook.js` — off by default, and it never logs, buffers or
+  transmits a keystroke);
+- it opens a local WebSocket server, which is how one pilot's machine relays photos to the squad.
+
+Nothing here phones home and nothing is obfuscated. If you would rather not take that on trust,
+build it yourself: `npm install && npm run build:win` in `app/`, and compare.
+
+Reporting it helps everyone — Microsoft clears `!ml` detections by retraining, usually within a
+few days: submit the file at
+[the Defender submission portal](https://www.microsoft.com/en-us/wdsi/filesubmission) as
+"Software developer" → "Incorrectly detected".
+
 ## How it works
 
 Everyone runs the exact same app, and **everyone can both share and receive** — there's no GM

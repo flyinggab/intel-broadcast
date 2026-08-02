@@ -1,6 +1,6 @@
 {
   "name": "taclink",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "Tac Link — EFB for DCS with shared tactical intel and live briefing",
   "main": "src/main/index.js",
@@ -37,7 +37,7 @@
       "output": "dist"
     },
     "win": {
-      "target": "portable",
+      "target": "nsis",
       "icon": "build/icon.ico"
     },
     "mac": {
@@ -65,9 +65,25 @@
     "npmRebuild": false,
     "asarUnpack": [
       "**/node_modules/uiohook-napi/**"
+    ],
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tac Link",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "extraResources": [
+      {
+        "from": "../LICENSE",
+        "to": "LICENSE"
+      }
     ]
   },
   "optionalDependencies": {
     "uiohook-napi": "^1.5.5"
-  }
+  },
+  "license": "GPL-3.0-or-later"
 }

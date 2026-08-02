@@ -14,9 +14,26 @@ that entry.
 
 ---
 
-## Unreleased
+## v0.8.0 — 2026-08-02
 
 ### Added
+- **A LICENSE, at last: GPL-3.0-or-later.** The repo was public but legally
+  all-rights-reserved, so nobody could fork or redistribute it. It also
+  disqualified the project from free code-signing, which now matters more than
+  it did.
+
+### Changed
+- **The Windows build is an installer, not a portable exe.** `portable` builds
+  a self-extracting executable that unpacks the whole app into `%TEMP%` and
+  runs it from there — which is, structurally, exactly what a dropper does.
+  Combined with being unsigned and shipping a low-level keyboard hook, that was
+  enough for Defender to start quarantining the build as
+  `Trojan:Win32/Wacatac.B!ml` (an ML heuristic, not a signature — nothing
+  matched known malware). The NSIS installer is per-user, so it asks for no
+  administrator rights, and it adds a Start Menu entry and a desktop shortcut.
+  The licence text now ships alongside the binary.
+  README tells pilots what the detection means, what in the app causes it, and
+  how to report it; `HANDOFF.md` §7 has the remediation order.
 - **Brief mode.** A host presses PRESENT and every following EFB snaps to the
   same image and stays synced as they page; pen, arrow and ring render live on
   every client; ink belongs to the image and survives paging away and back.
@@ -48,7 +65,6 @@ that entry.
   26-byte stroke. HELLO now advertises a `brief` capability, so a peer on an
   older build still receives photos and simply never sees a stroke.
 
-### Changed
 - **The app is now Tac Link.** Renamed throughout: product name, bundle id
   (`com.flyinggab.taclink`), window title, menus, tray and docs. The GitHub
   repository keeps its `intel-broadcast` name for now, so clone URLs and

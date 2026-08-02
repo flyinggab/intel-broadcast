@@ -465,14 +465,32 @@ outputs.
   packaged app's own log shows `funnel --bg` succeeding. Still unverified on
   Windows: the OpenKneeboard capture path itself, `imagePrep` (proven on
   macOS), and a real two-machine reveal across the funnel.
-- **No LICENSE file.** The repo is public but legally all-rights-reserved: no
-  one can fork or redistribute, and it disqualifies the project from free
-  code-signing programmes (SignPath Foundation). One commit to fix; the choice
-  is the owner's.
-- **Neither build is code-signed.** Windows shows SmartScreen, macOS shows
-  Gatekeeper. Apple needs $99/yr and issues to individuals; Windows now
-  requires a registered company for a commercial cert, so the free OSS route
-  is the realistic one — and it needs the LICENSE first.
+- **Neither build is code-signed, and on Windows that is no longer only a
+  SmartScreen warning.** Defender has started quarantining the build as
+  `Trojan:Win32/Wacatac.B!ml` — an ML heuristic, not a signature. Three
+  ordinary properties of this app feed that score: it is unsigned, so there is
+  no reputation to weigh against the guess; it ships `uiohook-napi`, a
+  low-level keyboard hook, which is the keylogger primitive; and it opens a
+  listening socket. Until v0.8.0 it was also a `portable` self-extracting exe,
+  which unpacks to `%TEMP%` and runs from there — structurally a dropper. That
+  one is fixed (NSIS installer, per-user, no UAC).
+
+  What is left to do, in order of value:
+  1. **Report it.** <https://www.microsoft.com/en-us/wdsi/filesubmission>,
+     "Software developer" → "Incorrectly detected". `!ml` detections clear by
+     retraining, usually within days. This needs doing for each new binary
+     until signing is in place.
+  2. **Sign it.** The LICENSE is now GPL-3.0-or-later, so SignPath Foundation
+     (free for OSS) is open. Azure Trusted Signing is the cheap paid
+     alternative; a traditional OV cert now requires a registered company.
+     Terms on all of these change — check before committing to one.
+  3. **Consider whether `uiohook-napi` earns its place in the shipped binary.**
+     It powers an opt-in feature most pilots never turn on, and it is the
+     single most malware-shaped thing we ship. Not removed yet: confirm it is
+     actually the trigger first, by testing `v0.5.2` (before it) against
+     `v0.6.0` (after it).
+
+  macOS is unchanged: Gatekeeper, $99/yr, issued to individuals.
 - **No telemetry seam yet.** `ROADMAP.md` §5.5 defines the `NullTelemetry`
   interface to add before phase 3 so DCS integration can be optional.
 - **README claims** "No DCS scripting, mission file, or Hooks install is
