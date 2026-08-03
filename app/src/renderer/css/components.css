@@ -228,7 +228,10 @@ body[data-mode="join"] [data-mode="host"] { display: none; }
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
+  /* Square, and both dimensions are the floor. This was 2.25rem (36px) wide
+     against a 44px floor: a corner target you had to aim at. The geometry
+     test never caught it because it only measured HEIGHT. */
+  width: var(--touch-min);
   height: var(--touch-min);
   padding: 0;
   border: 0;
@@ -249,7 +252,7 @@ body[data-mode="join"] [data-mode="host"] { display: none; }
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
+  width: var(--touch-min);
   height: var(--touch-min);
   padding: 0;
   border: 0;

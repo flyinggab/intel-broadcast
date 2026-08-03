@@ -265,23 +265,41 @@ async function main() {
  * which is fine and is what closest() handles in the renderer.
  */
 async function hitTest(selectors) {
-  const marker = `HITS_${Date.now()}`;
-  await run(`
-    const sel = ${JSON.stringify(selectors)};
-    const out = {};
-    for (const [name, s] of Object.entries(sel)) {
-      const el = document.querySelector(s);
-      const r = el.getBoundingClientRect();
-      let hit = document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2));
-      while (hit && !hit.id && hit.parentElement) hit = hit.parentElement;
-      out[name] = hit ? hit.id : null;
+  // Retried, because under suite load the window is not always laid out when
+  // the first eval lands: elementFromPoint then answers about a zero-sized
+  // rect and the assertion fails for a reason that has nothing to do with the
+  // thing being tested. A flaky assertion is worse than no assertion — it
+  // trains you to re-run instead of to look.
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    const marker = `HITS_${Date.now()}_${attempt}`;
+    await run(`
+      const sel = ${JSON.stringify(selectors)};
+      const out = {};
+      let laidOut = true;
+      for (const [name, s] of Object.entries(sel)) {
+        const el = document.querySelector(s);
+        if (!el) { out[name] = '(absent)'; laidOut = false; continue; }
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height) { out[name] = '(zero size)'; laidOut = false; continue; }
+        let hit = document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2));
+        while (hit && !hit.id && hit.parentElement) hit = hit.parentElement;
+        out[name] = hit && hit.id ? hit.id : '(nothing)';
+        if (out[name] === '(nothing)') laidOut = false;
+      }
+      out.__laidOut = laidOut;
+      window.__imgDraggable = document.getElementById('stage-img').draggable;
+      console.log(${'`'}${marker}${'`'} + ' ' + JSON.stringify(out));
+    `);
+    const line = output.split('\n').reverse().find((l) => l.includes(marker));
+    if (!line) throw new Error('hit test never came back');
+    const got = JSON.parse(line.slice(line.indexOf(marker) + marker.length + 1));
+    if (got.__laidOut) {
+      delete got.__laidOut;
+      return got;
     }
-    window.__imgDraggable = document.getElementById('stage-img').draggable;
-    console.log(${JSON.stringify(marker)} + ' ' + JSON.stringify(out));
-  `);
-  const line = output.split('\n').reverse().find((l) => l.includes(marker));
-  if (!line) throw new Error('hit test never came back');
-  return JSON.parse(line.slice(line.indexOf(marker) + marker.length + 1));
+    await sleep(500);
+  }
+  throw new Error('the window never laid out enough to hit-test');
 }
 
 /** Reads globals the eval left behind, via a second eval that logs them. */

@@ -53,11 +53,17 @@ function measureInPage(touchMin) {
     for (const target of document.querySelectorAll('button, input, .toggle, .row, .tile, .step')) {
       const rect = target.getBoundingClientRect();
       if (rect.width === 0 && rect.height === 0) continue; // not on this page
-      if (rect.height < touchMin - 0.5) {
+      // BOTH axes, not just height. A key 36px wide and 44px tall passed this
+      // check for its whole life — which is exactly what the launcher key in
+      // the strip was, and why it read as broken: a corner target you had to
+      // aim at rather than hit. A target is only reachable if it clears the
+      // floor in both directions.
+      if (rect.height < touchMin - 0.5 || rect.width < touchMin - 0.5) {
         report.small.push({
           page: name,
           cls: String(target.className || target.tagName).slice(0, 44),
           h: Math.round(rect.height * 10) / 10,
+          w: Math.round(rect.width * 10) / 10,
         });
       }
     }

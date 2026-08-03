@@ -14,6 +14,21 @@ that entry.
 
 ---
 
+## v0.8.3 — 2026-08-02
+
+### Fixed
+- **The launcher key in the strip was a 36×44 target.** The floor for anything
+  pressed on a flight surface is 44px, and it was under it in width — a corner
+  key you had to aim at rather than hit. Both it and the OFFLINE key beside it
+  are now square at the floor.
+- **`dev-ui-geometry-test` only ever measured HEIGHT.** That is why a 36px-wide
+  key passed the 44px check for its whole life. It now requires both axes,
+  since a target is only reachable if it clears the floor in both — and it
+  reports the width alongside the height so the failure names itself.
+- `dev-e2e-brief-test`'s hit test retries until the window has actually laid
+  out. It passed alone and failed under suite load, answering about a
+  zero-sized rect; a flaky assertion trains you to re-run instead of to look.
+
 ## v0.8.2 — 2026-08-02
 
 ### Fixed
