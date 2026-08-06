@@ -102,25 +102,27 @@ anyone holding it can join. Rotating the token in Setup invalidates every code p
 
 ## Local testing (two instances, one machine)
 
-Two instances launched from the same `app/` folder normally fight over the same
-`resources/config.local.json` — enabling hosting in one makes both think they host, and they
-collide on the relay port. Give each terminal its own config file via
-`INTEL_BROADCAST_LOCAL_CONFIG_PATH`:
-
-```
-# Terminal 1 — the host
-cd app
-INTEL_BROADCAST_LOCAL_CONFIG_PATH=/tmp/host-config.json npm start
-# open Settings, tick "Host the relay on this machine", save — applies immediately
-
-# Terminal 2 — another pilot
-cd app
-INTEL_BROADCAST_LOCAL_CONFIG_PATH=/tmp/pilot-config.json npm start
+```bash
+cd app && node scripts/dev-two-pcs.js
 ```
 
-Either instance can press the reveal hotkey; both windows show the result. (Global hotkeys can
-only be owned by one process at a time, so on a single machine only the instance that launched
-first responds to them — use the menu bar for the second one. Not an issue on separate PCs.)
+Launches two instances set up as two different pilots' PCs: one hosts the relay, the other joins
+it with a real squad code. The code is printed, both logs are streamed prefixed `[PC-A]`/`[PC-B]`,
+and Ctrl+C closes both. Add `--manual` to leave the second one unpaired so you can practise
+pasting the code through SETUP → NETWORK yourself, or `--port 9100` to move the relay.
+
+What makes them independent rather than one app opened twice:
+
+- **`INTEL_BROADCAST_LOCAL_CONFIG_PATH`** gives each its own settings file. Sharing one means
+  hosting in either makes both think they host, and they collide on the relay port. It also
+  disables the single-instance lock, which otherwise makes the second launch exit silently with
+  no output.
+- **`--user-data-dir`** gives each its own log, blob cache and Chromium profile, so the two
+  aren't interleaving into one log file.
+
+**Global keybinds cannot be separated.** Windows and macOS give a combination to exactly one
+process, so only whichever instance started first answers them — use the on-screen controls when
+testing this way. It stops mattering once the two are genuinely on different PCs.
 
 ## Repo layout
 
