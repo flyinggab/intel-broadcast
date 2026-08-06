@@ -93,7 +93,22 @@ child.on('exit', () => {
     console.error('[visual] FAIL: the held-controls probe never reported');
     failed = true;
   } else {
-    const { held, idle } = JSON.parse(controlsMatch[1]);
+    const { held, idle, dragTrapped } = JSON.parse(controlsMatch[1]);
+    // The window is frameless, so part of the chrome has to be draggable —
+    // and a control that lands inside that region silently stops responding.
+    if (dragTrapped.bad.length) {
+      console.error(
+        `[visual] FAIL: controls sit inside a window-drag region and will not take clicks: ` +
+          dragTrapped.bad.join('; '),
+      );
+      failed = true;
+    }
+    if (!dragTrapped.handleIsDrag) {
+      console.error(
+        '[visual] FAIL: nothing in the strip is draggable — a frameless window that cannot be moved',
+      );
+      failed = true;
+    }
     const stillShowing = Object.keys(held).filter((k) => held[k]);
     if (stillShowing.length) {
       console.error(

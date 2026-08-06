@@ -145,13 +145,29 @@ that is accepted, because everything at that contrast is short bold labels. If
 you add long-form copy, use `--lit` on `--dn`, don't lighten `--bg`.
 
 **Two hues, both rationed.** `--fault` red means the relay is broken. `--go`
-green means **a requirement is satisfied** — the SAVE & APPLY key when there is
-something to commit, and the mark on a completed setup step (host *and* join).
-Both are dynamic state, never decoration: an unfinished step keeps the plain
-lit/hollow mark, so scanning the column for green answers "what still needs
-doing". The moment either hue decorates something static, it stops meaning
-anything. `dev-e2e-settings-test` asserts the done mark's *computed* colour
-rather than its class, because a class name would not prove it renders green.
+green means **nothing here is blocking you** — which covers two shapes, and it
+is worth being precise about them because they sit on the same panel:
+
+- a *state* that is satisfied: the mark on a completed setup step (host and
+  join), rendered as a small circle;
+- an *action* that would satisfy the next one: SAVE & APPLY while dirty, and
+  the internet-link key until sharing is on, rendered as a large filled key.
+
+Marks report; keys act, and the shapes never overlap, so NETWORK showing green
+checks above a green key is not ambiguous. Both are dynamic: the checks are
+absent until the step is done, the keys drop to ordinary grey the moment
+nothing is owed. The moment either hue decorates something static, it stops
+meaning anything.
+
+The keys carry green because they are the only treatment in the app that reads
+as pressable — raised and filled, where every other surface is a recessed well
+or a flat panel of the same tone. That is not cosmetic: the internet-link key
+was `.key--primary`, which is *recessed*, so it looked exactly like the
+read-only PORT and TOKEN wells beside it, and hosts finished the setup page
+with sharing still off and their squad code never leaving the LAN.
+
+`dev-e2e-settings-test` asserts the done mark's *computed* colour rather than
+its class, because a class name would not prove it renders green.
 
 **44px minimum touch targets on the flight surfaces.** Looks generous for a
 desktop app. From phase 4 you point at this with a controller ray in VR, where
@@ -294,7 +310,8 @@ JS toggles these. JS never writes inline styles. This supersedes `BRIEF.md` §4.
 | `.tile` | `.is-off` | deselected (SHARE *and* RECEIVED) |
 | `.step` | `.is-done`, `.is-running` | |
 | `.toggle` | `.is-on` + `aria-checked` | keep both in sync |
-| `.key` | `.is-active`, `.key--cta`, `[disabled]` | |
+| `.key` | `.is-active`, `.key--primary`, `.key--cta`, `[disabled]` | `--cta` is the only treatment that reads as pressable (raised, filled `--go`). Reserved for a step still owed: SAVE & APPLY while dirty, the internet-link key until sharing is on. `--primary` is recessed and reads as a well — do not use it to mean "press this" |
+| `.wctl__key` | `.wctl__key--close` | window controls; shown only under `body[data-surface="window"]` |
 | `.field` | `.field--recording` | keybind capture in progress |
 | `.banner` | `.is-hidden` | |
 | `.stage__standby` | `.is-hidden` | shown when the queue is empty |

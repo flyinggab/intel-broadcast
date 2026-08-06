@@ -43,7 +43,7 @@
       <span class="crumb__page" id="crumb-page"></span>
       <span class="crumb__pos" id="crumb-pos"></span>
     </button>
-    <span class="strip__seg" id="strip-net"></span>
+    <span class="strip__seg strip__seg--grow" id="strip-net"></span>
     <!-- The status and its remedy travel together. The strip is
          space-between, so left loose the key drifted to the far edge and read
          as unrelated to the word it belongs to. -->
@@ -66,6 +66,22 @@
         <rect x="3" y="12" width="5" height="5"/><rect x="12" y="12" width="5" height="5"/>
         </svg>
       </button>
+      <!-- The window's own controls. The frame is gone so OpenKneeboard's
+           Window Capture never picks up a Windows title bar, which means the
+           only way to move, size or close this window is here. CSS shows them
+           on the Electron surface only — as an OpenKneeboard web dashboard
+           there is no window to control. -->
+      <span class="wctl" id="wctl">
+        <button class="wctl__key" id="win-min" data-window="minimize" data-i18n-aria="win.minimize">
+          <svg class="wctl__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12"/></svg>
+        </button>
+        <button class="wctl__key" id="win-max" data-window="maximize" data-i18n-aria="win.maximize">
+          <svg class="wctl__icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="4.5" y="4.5" width="11" height="11"/></svg>
+        </button>
+        <button class="wctl__key wctl__key--close" id="win-close" data-window="close" data-i18n-aria="win.close">
+          <svg class="wctl__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg>
+        </button>
+      </span>
     </span>
   </header>
 

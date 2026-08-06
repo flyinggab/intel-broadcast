@@ -897,6 +897,18 @@ function handleViewerIntent(intent, payload) {
       else stopTailscalePolling();
       noteActivity();
       break;
+    case 'window-control':
+      // The frame is gone so OpenKneeboard never captures a Windows title
+      // bar, which makes these the only way to move, size or close the
+      // window. No view state is involved: the window is the OS's, not ours.
+      if (viewer && !viewer.window.isDestroyed()) {
+        if (payload === 'minimize') viewer.window.minimize();
+        else if (payload === 'maximize') {
+          if (viewer.window.isMaximized()) viewer.window.unmaximize();
+          else viewer.window.maximize();
+        } else if (payload === 'close') viewer.window.close();
+      }
+      break;
     case 'toggle-launcher':
       view.toggleLauncher();
       noteActivity();

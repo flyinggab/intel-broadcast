@@ -34,9 +34,13 @@
 
   /* --- the two hues in the product --------------------------------------
      --fault is reserved for a broken relay. --go is reserved for "there is
-     something to commit" — today that is exactly one control, the settings
-     SAVE & APPLY key while dirty. Each appears nowhere else; the moment
-     either decorates anything static it stops meaning anything.            */
+     an action waiting on you here" — today exactly two controls: the settings
+     SAVE & APPLY key while dirty, and the internet-link key while the host's
+     setup is not finished. Both DISAPPEAR the moment there is nothing to do
+     (SAVE greys out; the link key drops to an ordinary STOP SHARING), which
+     is the whole reason the colour still carries meaning. Each appears
+     nowhere else; the moment either decorates anything static it stops
+     meaning anything.                                                      */
   --fault:    #E85F52;
   --fault-dk: #5E2420;
   --go:       #98BB62;   /* advisory green — cockpit "go", not caution amber */

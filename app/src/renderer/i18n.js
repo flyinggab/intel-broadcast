@@ -61,6 +61,12 @@
     'brief.following': 'FOLLOWING {who}',
     'brief.heldByPresenter': 'YOUR CONTROLS ARE HELD UNTIL THEY STOP',
     'brief.notInYourBrief': 'THEY ARE ON A PHOTO YOU DO NOT HAVE',
+
+    // Window controls. Icon-only, so these reach a pilot through aria-label
+    // and the tooltip rather than as visible text — see applyStatic().
+    'win.minimize': 'MINIMISE',
+    'win.maximize': 'MAXIMISE',
+    'win.close': 'CLOSE',
     'brief.present': 'PRESENT',
     'brief.pen': 'PEN',
     'brief.arrow': 'ARROW',
@@ -234,6 +240,10 @@
     'brief.following': 'SEGUI {who}',
     'brief.heldByPresenter': 'I TUOI COMANDI SONO BLOCCATI FINCHÉ NON SMETTE',
     'brief.notInYourBrief': 'SONO SU UNA FOTO CHE NON HAI',
+
+    'win.minimize': 'RIDUCI A ICONA',
+    'win.maximize': 'INGRANDISCI',
+    'win.close': 'CHIUDI',
     'brief.present': 'PRESENTA',
     'brief.pen': 'PENNA',
     'brief.arrow': 'FRECCIA',
@@ -417,6 +427,15 @@
   function applyStatic(root) {
     for (const node of root.querySelectorAll('[data-i18n]')) {
       node.textContent = t(node.dataset.i18n);
+    }
+    // Icon-only controls carry their name in aria-label instead: writing it as
+    // textContent would print the word next to the glyph. A separate attribute
+    // rather than a smarter [data-i18n] rule, because textContent is the whole
+    // reason [data-i18n] must sit on a leaf element and that trap is not worth
+    // making subtler.
+    for (const node of root.querySelectorAll('[data-i18n-aria]')) {
+      node.setAttribute('aria-label', t(node.dataset.i18nAria));
+      node.setAttribute('title', t(node.dataset.i18nAria));
     }
   }
 

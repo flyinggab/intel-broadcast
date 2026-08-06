@@ -749,6 +749,13 @@ stage.next.addEventListener('click', () => send('step', 1));
 // Brief mode. PRESENT toggles; the bar's single key does whatever the state
 // needs — STOP, BREAK or REJOIN — so there is never more than one way out.
 stage.cast.addEventListener('click', () => send('brief-present', !isPresenting()));
+// Window controls. main owns the window, so these are intents like everything
+// else — the renderer never touches BrowserWindow.
+el('wctl').addEventListener('click', (event) => {
+  const key = event.target.closest('[data-window]');
+  if (key) send('window-control', key.dataset.window);
+});
+
 brief.key.addEventListener('click', () => {
   // STOP is the only action this key has ever needed since following stopped
   // being something a pilot leaves.

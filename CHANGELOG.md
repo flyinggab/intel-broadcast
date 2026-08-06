@@ -16,6 +16,18 @@ that entry.
 
 ## Unreleased
 
+### Added
+- **The window draws its own controls** — minimise, maximise, close, in the
+  strip beside the launcher key. The OS frame is gone, because OpenKneeboard's
+  Window Capture takes the whole window and a Windows title bar was riding on
+  the pilot's knee for the entire flight. They appear on the Electron surface
+  only; as an OpenKneeboard web dashboard there is no window to control. The
+  window is dragged by the strip's status text, and note which way round that
+  is set up: the drag region is opted INTO by the non-interactive segments
+  rather than declared on the strip with exceptions for each control, because
+  anything inside a drag region silently stops receiving clicks. A test asserts
+  no control ever ends up in one.
+
 ### Changed
 - **A follower's view now belongs to the presenter.** While someone else is
   casting, this instance is held: paging, changing page and opening the
@@ -36,6 +48,14 @@ that entry.
   app. PRESENT (`Ctrl+Shift+P`) is unchanged, and a presenter is never locked.
 
 ### Fixed
+- **A host could not tell that sharing over the internet was a button.** It
+  was a flat panel the same tone as the status rows above it, on a page where
+  the recessed "primary" key treatment looked like the read-only PORT and
+  TOKEN wells. So the setup read as finished while the squad code never left
+  the LAN. The internet-link key now uses the app's one call-to-action
+  treatment — raised, filled `--go` — while a step is still owed, and drops
+  back to an ordinary key once sharing is on, so the colour keeps meaning
+  "your move" rather than becoming decoration.
 - **A presenter's page turns reached nobody.** PRESENT sent exactly one FOCUS
   — for whichever image the presenter happened to be on when they started —
   and every photo they moved to afterwards went unannounced. Followers sat on

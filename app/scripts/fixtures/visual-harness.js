@@ -167,8 +167,24 @@ app.whenReady().then(async () => {
     };
     const held = await controlsIn('following');
     const idle = await controlsIn('queue');
+
+    // Anything inside a -webkit-app-region: drag area stops receiving clicks
+    // — the OS takes the press to move the window instead. The drag handle is
+    // the strip's status text, so no control may sit inside one. A real drag
+    // cannot be tested here, but this is the failure it would cause, and it
+    // IS measurable.
+    const dragTrapped = await win.webContents.executeJavaScript(`(() => {
+      const region = (el) => getComputedStyle(el).getPropertyValue('-webkit-app-region').trim();
+      const bad = [];
+      for (const el of document.querySelectorAll('button, [role="switch"], input, select')) {
+        for (let n = el; n; n = n.parentElement) {
+          if (region(n) === 'drag') { bad.push((el.id || el.className) + ' inside ' + (n.id || n.className)); break; }
+        }
+      }
+      return { bad, handleIsDrag: region(document.getElementById('strip-net')) === 'drag' };
+    })()`);
     win.destroy();
-    console.log('VISUAL_CONTROLS ' + JSON.stringify({ held, idle }));
+    console.log('VISUAL_CONTROLS ' + JSON.stringify({ held, idle, dragTrapped }));
   } catch (err) {
     console.log(`VISUAL_ERROR ${err.message}`);
   }

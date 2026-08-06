@@ -25,8 +25,21 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* The window has no frame, so this is what you drag it by. Note which way
+     round this is: the DRAG region is opted into by the two non-interactive
+     status segments, rather than set on .strip with no-drag exceptions on
+     every control. Anything inside a drag region stops receiving clicks, and
+     a control in the strip that presses and does nothing is a bug this app
+     has already shipped once — with the opt-in, a control added here later is
+     clickable by default and cannot be broken by forgetting an exception. */
+  -webkit-app-region: drag;
 }
 .strip__seg--id { color: var(--lit); font-weight: 700; flex: none; }
+/* Fills the middle of the strip so there is a usable amount of window to
+   drag. Sized to its text it was a handle the width of "HOST · 4 ON NET",
+   and at boot — before the status has anything to say — it was nothing at
+   all, which on a frameless window means an unmovable one. */
+.strip__seg--grow { flex: 1; text-align: center; }
 /* Status and remedy as one unit, so the key sits against the word it fixes. */
 .strip__conn { display: flex; align-items: center; gap: var(--sp-2); flex: none; }
 .strip__seg--fault { color: var(--fault); font-weight: 700; }
@@ -243,6 +256,41 @@ body[data-mode="join"] [data-mode="host"] { display: none; }
 .menukey:active,
 .menukey.is-active { background: var(--dn); box-shadow: var(--bevel-dn); color: var(--lit); }
 .menukey__icon { width: .875rem; height: .875rem; stroke: currentColor; fill: none; stroke-width: 1.6; }
+
+/* --- window controls ------------------------------------------------------
+   Only on the Electron surface. Rendered as an OpenKneeboard web dashboard
+   (body[data-surface="okb"]) there is no window to minimise or close, and a
+   close key that does nothing on a pilot's knee is worse than no key.
+
+   Square at --touch-min, like .menukey beside them. These were 34px wide
+   first, on the reasoning that a window control is a desktop affordance and
+   the 44px floor exists for VR rays — but dev-ui-geometry-test failed them,
+   and it was right to: they sit in the flight strip, and the argument for
+   exempting the one control that can quit the app mid-flight is the weakest
+   place to spend an exemption.                                             */
+.wctl { display: none; }
+body[data-surface="window"] .wctl { display: flex; align-items: center; gap: 1px; margin-left: var(--sp-2); }
+.wctl__key {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--hi);
+  cursor: pointer;
+}
+.wctl__key:hover { background: var(--up); color: var(--ink); }
+.wctl__key:active { background: var(--dn); color: var(--lit); }
+/* Close is the one control here you cannot undo, so it is the one that says
+   so — and it borrows the fault hue only on approach, never at rest, because
+   red at rest would compete with a broken relay for meaning. */
+.wctl__key--close:hover { background: var(--fault); color: var(--lit); }
+.wctl__key--close:active { background: var(--fault-dk); color: var(--lit); }
+.wctl__icon { width: .75rem; height: .75rem; stroke: currentColor; fill: none; stroke-width: 1.4; }
 
 /* The offline affordance. Replaces a full-width bar: being offline does not
    lose the intel already received, so it never warranted a row of its own —
@@ -681,14 +729,20 @@ body[data-page="share"] .page.share { display: flex; }
   box-shadow: 0 -1px 0 var(--hi);
 }
 .savebar__state { flex: 1; }
+/* The one treatment in the app that says "press this". Raised and filled,
+   where every other surface here is either a recessed well or a flat panel of
+   the same tone — which is exactly why a host could not tell that sharing
+   over the internet was a button at all. Used by the savebar and by the
+   internet-link action; see the --go note in tokens.css. */
 .key--cta {
-  flex: 1.6;
-  min-height: var(--h-field);
   background: var(--go);
   color: var(--ink);
   text-shadow: none;
   box-shadow: var(--bevel-up);
 }
+/* Sizing belongs to the savebar's row, not to the treatment: elsewhere a CTA
+   is a full-width key in a stack. */
+.savebar .key--cta { flex: 1.6; min-height: var(--h-field); }
 .key--cta:active { background: var(--go-dn); box-shadow: var(--bevel-dn); }
 .key--cta[disabled] { background: var(--up); color: var(--muted); box-shadow: var(--bevel-dn); }
 

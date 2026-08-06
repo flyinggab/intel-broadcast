@@ -105,6 +105,12 @@ function renderFunnelAction(f) {
   let action;
   let label;
   let hint;
+  // Whether this key is a step still owed. Everything but "stop sharing" is:
+  // the host's squad code does not leave their LAN until they press it, and
+  // being a flat panel the same tone as the status rows above it, it did not
+  // read as a control at all — a host could sit on a finished-looking page
+  // with sharing off. --go says "your move"; see tokens.css.
+  let owed = true;
 
   if (!f.installed) {
     [action, label, hint] = ['open-download', 'ts.actInstall', 'ts.hintInstall'];
@@ -114,11 +120,14 @@ function renderFunnelAction(f) {
     [action, label, hint] = ['open-enable-url', 'ts.actEnable', 'ts.hintEnable'];
   } else if (f.funnelOn) {
     [action, label, hint] = ['toggle-funnel', 'ts.actStop', 'ts.hintOn'];
+    owed = false; // nothing is owed once the squad can reach you
   } else {
     [action, label, hint] = ['toggle-funnel', 'ts.actShare', f.funnelError ? 'ts.hintEnable' : 'ts.hintShare'];
   }
 
   net.funnelAction.dataset.action = action;
+  net.funnelAction.classList.toggle('key--cta', owed);
+  net.funnelAction.classList.toggle('key--primary', !owed);
   setText(net.funnelAction, t(label));
   setText(net.funnelHint, t(hint));
 }

@@ -114,8 +114,14 @@ for (const file of ['viewer.html']) {
   for (const m of html.matchAll(/data-i18n="([^"]+)"/g)) {
     if (!DICTS.en[m[1]]) fail(`${file} references unknown key "${m[1]}"`);
   }
+  // Icon-only controls name themselves in aria-label instead of textContent.
+  // Same contract, same failure if the key is a typo — it would just fail
+  // silently into a screen reader rather than visibly on screen.
+  for (const m of html.matchAll(/data-i18n-aria="([^"]+)"/g)) {
+    if (!DICTS.en[m[1]]) fail(`${file} references unknown aria key "${m[1]}"`);
+  }
 }
-console.log('[test] all data-i18n keys in the markup exist');
+console.log('[test] all data-i18n and data-i18n-aria keys in the markup exist');
 
 if (failures) {
   console.error(`\n[dev-i18n-test] FAIL — ${failures} problem(s)`);
