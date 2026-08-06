@@ -166,7 +166,17 @@ async function main() {
   // focus — which a window spawned by a test script does not reliably get.
   // Relying on that made this assertion pass or fail by luck.
   await runInViewer(`window.dispatchEvent(new MouseEvent('mousemove'))`);
-  await waitFor('chrome to auto-hide while idle on BRIEF', () => probe.chromeHidden === true, 15000);
+  // Focused and idle: the chrome must STAY. Both ways into the launcher live in
+  // the strip, so hiding it while someone is at the app removes the only way
+  // off the page — you click where the key was and nothing is there.
+  await runInViewer(`window.viewerAPI.send('focus', true)`);
+  await sleep(4000); // well past the idle window
+  if (probe.chromeHidden) throw new Error('chrome must not hide while the window has focus');
+  console.log('[e2e] focused and idle: chrome stays, the launcher stays reachable');
+
+  // Unfocused is when the capture matters, and nobody is clicking.
+  await runInViewer(`window.viewerAPI.send('focus', false)`);
+  await waitFor('chrome to hide once focus is elsewhere', () => probe.chromeHidden === true, 15000);
   const chromeVisible = await new Promise((resolve) => {
     fs.writeFileSync(
       EVAL_PATH,
@@ -195,8 +205,8 @@ async function main() {
   if (!chromeVisible.img) throw new Error('the photo must remain visible with chrome hidden');
   console.log('[e2e] HIDE CHROME shows the photo and nothing else');
   // ...and comes back the moment someone is at the machine again.
-  await runInViewer(`window.dispatchEvent(new MouseEvent('mousemove'))`);
-  await waitFor('chrome back on activity', () => probe.chromeHidden === false, 10000);
+  await runInViewer(`window.viewerAPI.send('focus', true)`);
+  await waitFor('chrome back when focus returns', () => probe.chromeHidden === false, 10000);
   console.log('[e2e] chrome auto-hides when idle and returns on activity');
 
   // --- tabs switch pages; SETUP does not ------------------------------------

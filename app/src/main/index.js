@@ -623,7 +623,16 @@ function scheduleChromeHide() {
   chromeTimer = null;
   // Only BRIEF auto-hides, and never while the launcher is open: hiding the
   // chrome out from under an open menu would blank the thing being read.
-  if (view.state.page !== 'brief' || view.state.launcherOpen) return setChromeHidden(false);
+  //
+  // And NEVER while this window has focus. Both ways into the launcher — the
+  // breadcrumb and the menu key — live in the strip, so hiding the strip while
+  // someone is sitting at the app removes the only way off the page: you click
+  // where the key was and nothing happens, because nothing is there. A focused
+  // window means a person is using it. The capture only matters when DCS has
+  // focus, and the blur handler already hides instantly for that.
+  if (view.state.page !== 'brief' || view.state.launcherOpen || view.state.focused) {
+    return setChromeHidden(false);
+  }
   chromeTimer = setTimeout(() => setChromeHidden(true), CHROME_IDLE_MS);
 }
 
