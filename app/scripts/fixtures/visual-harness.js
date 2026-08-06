@@ -1,0 +1,154 @@
+'use strict';
+
+// Renders the real viewer at chosen states and CAPTURES it, so a check can be
+// made against pixels rather than against the state that produced them.
+//
+// Why this exists: every other test in this repo asks main "what is the
+// state?" or asks the DOM "which classes are set?". Both were fully correct
+// while the launcher opened underneath the BRIEF stage and nobody could see
+// it — the class said is-hidden was gone, the state said launcherOpen, and
+// the pilot was looking at STANDBY. Only pixels disagreed.
+//
+// Nothing here compares against stored golden images. Golden files fail on
+// any machine whose font rasterisation differs, which on a project built on
+// macOS, tested in WSL and released from GitHub Actions means they fail
+// constantly for reasons nobody cares about. Instead each case renders the
+// SAME window twice and asserts the two frames differ where they must: if
+// opening a menu changes no pixels, the menu is not on screen, whatever the
+// class attribute claims.
+//
+// capturePage on a hidden (NOT offscreen) window is what works here.
+// Offscreen rendering really is unreliable in the WSLg sandbox — the caveat
+// PLAN.md records for capturePage itself is stale, and was measured before
+// this window shape was used.
+//
+// Usage: electron scripts/fixtures/visual-harness.js [--out <dir>]
+
+const fs = require('fs');
+const path = require('path');
+const { app, BrowserWindow } = require('electron');
+
+const APP_DIR = path.join(__dirname, '..', '..');
+const PREVIEW_STATE_SOURCE = fs.readFileSync(
+  path.join(APP_DIR, 'src', 'renderer', 'preview-state.js'),
+  'utf8',
+);
+
+const outIndex = process.argv.indexOf('--out');
+const OUT_DIR = outIndex !== -1 ? process.argv[outIndex + 1] : null;
+if (OUT_DIR) fs.mkdirSync(OUT_DIR, { recursive: true });
+
+const WIDTH = 900;
+const HEIGHT = 1100;
+
+// The pairs to render. `before` and `after` are snapshot expressions evaluated
+// against PreviewState; `region` is the fraction of the window that must
+// change, expressed as [x0, y0, x1, y1] in 0..1 — the launcher covers
+// everything below the strip, so its region excludes the strip itself.
+const CASES = [
+  {
+    name: 'launcher over an empty BRIEF',
+    // The state a pilot lands in: nothing revealed yet, so the opaque
+    // .stage__standby plate is up. This is the exact shipped bug.
+    before: `{ ...PreviewState.viewer.standby, launcherOpen: false }`,
+    after: `{ ...PreviewState.viewer.standby, launcherOpen: true }`,
+    region: [0, 0.1, 1, 0.9],
+    minChanged: 0.05,
+  },
+  {
+    name: 'launcher over a BRIEF holding a photo',
+    // The other half: with a photo up, .stage__standby is hidden but
+    // .stage__chrome is not — and being pointer-events: none it hides the
+    // menu from the eye while letting a hit test sail straight through.
+    before: `{ ...PreviewState.viewer.queue, launcherOpen: false }`,
+    after: `{ ...PreviewState.viewer.queue, launcherOpen: true }`,
+    region: [0, 0.1, 1, 0.9],
+    minChanged: 0.05,
+  },
+];
+
+/** Fraction of pixels that differ inside `region`, comparing raw BGRA. */
+function fractionChanged(a, b, region) {
+  const [x0, y0, x1, y1] = region;
+  const left = Math.floor(x0 * WIDTH);
+  const right = Math.floor(x1 * WIDTH);
+  const top = Math.floor(y0 * HEIGHT);
+  const bottom = Math.floor(y1 * HEIGHT);
+  let differing = 0;
+  let total = 0;
+  for (let y = top; y < bottom; y += 2) {
+    for (let x = left; x < right; x += 2) {
+      const i = (y * WIDTH + x) * 4;
+      if (i + 2 >= a.length || i + 2 >= b.length) continue;
+      total += 1;
+      // Any channel off by more than a rasterisation wobble counts.
+      if (
+        Math.abs(a[i] - b[i]) > 8 ||
+        Math.abs(a[i + 1] - b[i + 1]) > 8 ||
+        Math.abs(a[i + 2] - b[i + 2]) > 8
+      ) {
+        differing += 1;
+      }
+    }
+  }
+  return total ? differing / total : 0;
+}
+
+async function renderAndCapture(win, snapshot) {
+  await win.webContents.executeJavaScript(
+    `window.__preview.render({ ...${snapshot}, locale: 'en' })`,
+  );
+  await win.webContents.executeJavaScript('document.fonts.ready.then(() => true)');
+  await new Promise((r) => setTimeout(r, 350)); // let layout and fonts settle
+  const image = await win.webContents.capturePage();
+  return image;
+}
+
+app.on('window-all-closed', () => {});
+
+app.whenReady().then(async () => {
+  const results = [];
+  try {
+    for (const testCase of CASES) {
+      const win = new BrowserWindow({ width: WIDTH, height: HEIGHT, show: false });
+      win.webContents.on('did-fail-load', (_e, code, desc, url) =>
+        console.log(`VISUAL_LOADFAIL ${code} ${desc} ${url}`),
+      );
+      await win.loadFile(path.join(APP_DIR, 'src', 'renderer', 'viewer.html'));
+      await win.webContents.executeJavaScript(PREVIEW_STATE_SOURCE);
+
+      const before = await renderAndCapture(win, testCase.before);
+      const after = await renderAndCapture(win, testCase.after);
+
+      // The window may be laid out shorter than requested (frame chrome), so
+      // trust the captured size for the record but compare on the raw buffers.
+      const changed = fractionChanged(before.toBitmap(), after.toBitmap(), testCase.region);
+
+      if (OUT_DIR) {
+        const slug = testCase.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+        fs.writeFileSync(path.join(OUT_DIR, `${slug}-before.png`), before.toPNG());
+        fs.writeFileSync(path.join(OUT_DIR, `${slug}-after.png`), after.toPNG());
+      }
+
+      // Reported alongside, because when this test fails the ranking is
+      // almost always the reason and it saves a round trip.
+      const stack = await win.webContents.executeJavaScript(`(() => {
+        const z = (s) => { const n = document.querySelector(s); return n ? parseInt(getComputedStyle(n).zIndex, 10) || 0 : 0; };
+        return { launcher: z('#launcher'), chrome: z('.stage__chrome'), standby: z('.stage__standby') };
+      })()`);
+
+      results.push({
+        name: testCase.name,
+        changed: Number(changed.toFixed(4)),
+        minChanged: testCase.minChanged,
+        size: after.getSize(),
+        stack,
+      });
+      win.destroy();
+    }
+    console.log('VISUAL ' + JSON.stringify(results));
+  } catch (err) {
+    console.log(`VISUAL_ERROR ${err.message}`);
+  }
+  app.quit();
+});

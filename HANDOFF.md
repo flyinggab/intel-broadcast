@@ -315,11 +315,21 @@ node scripts/dev-viewstate-test.js       # and the other dev-*-test.js
 npm start                                # runs the app
 ```
 
-Plain `node`, no framework. 23 scripts. Most take no arguments; the exceptions:
+Plain `node`, no framework. 29 scripts. Most take no arguments; the exceptions:
 
 - `dev-e2e-test` and `dev-e2e-electron-test` need a photo folder:
   `node scripts/dev-e2e-test.js photos/roman-sead-joker1`
-- `dev-packaged-config-test` **currently fails** — see §7.
+- `dev-packaged-config-test` fails **on arm64 only** — see §7. It passes on
+  x64. (Verified passing in the WSL x64 sandbox, 2026-08-06.)
+- `dev-visual-test` takes an optional `--out <dir>` and writes the frames it
+  compared, which is what you want the moment it fails.
+
+`dev-visual-test` is the only one that asserts against **pixels**. Everything
+else asks main for state or the DOM for classes, and §6 records what that
+missed. Its rule needs no golden images: *opening the menu must visibly change
+the screen.* A control that claims to show something and moves no pixels is not
+on screen, whatever the state says — and unlike stored reference screenshots
+that survives font rasterisation differing between macOS, WSL and CI.
 
 Fast loop while working on the UI:
 
@@ -360,6 +370,55 @@ own labelling. `gh api repos/OWNER/REPO/releases/latest` is the authority and
 excludes pre-releases.
 
 ## 6. Environment and traps
+
+### The trap that cost the most: a green suite over a broken screen (2026-08-06)
+
+The launcher shipped opening **underneath** the BRIEF stage. `.launcher` was
+`z-index: 2`; `.stage__chrome` is 3 and the opaque `.stage__standby` is 4, and
+because `.stage` is `position: relative` with `z-index: auto` it creates no
+stacking context — so those layers are siblings of the launcher and painted
+over it. BRIEF is the landing page and the only page with a `.stage`, so the
+first thing a new pilot did was press the menu key and get nothing. The button
+depressed. The menu opened. It took the click. It was invisible.
+
+Every check passed throughout, and that is the part worth internalising:
+
+- `launcherOpen` was **true** — main's state was never wrong.
+- `is-hidden` was **absent** — the class contract was honoured.
+- `elementFromPoint` at the launcher's centre returned the **launcher** —
+  because `.stage__chrome` is `pointer-events: none`, so a hit test sails
+  through the very thing that is visually covering you. A synthetic click
+  sequence therefore "worked" on a build a human could not use.
+
+So three independent checks agreed with each other and disagreed with the
+screen. The suite was structured along the same axis as the architecture —
+main owns state, renderer is a pure function of it — which means it could only
+ever confirm the state machine, and the state machine was fine.
+
+**What to do instead.** `dev-visual-test.js` (§5) captures frames and asserts
+the picture changed. When touching anything that overlays anything:
+
+- Prove a UI test can fail. Reintroduce the bug and watch it go red. The
+  original assertion here said "open" on both the broken and the fixed build,
+  and no amount of re-running it would ever have said so.
+- Never conclude "works on my machine, so they must be on old code" from a
+  synthetic event. Observe the real instance. Launching the app with
+  `INTEL_BROADCAST_VIEWER_PANEL_PROBE=1` and reading `PANEL_PROBE` while the
+  user clicks settled in two minutes what three rounds of reasoning had not.
+- Read a bug report literally. *"It pushes but the menu does not open"*
+  precisely separates a click that lands from a screen that does not update.
+  It was read as a click problem, and the click was the half that worked.
+
+The probe now reports `launcherOnTop` (hit test) **and** `launcherStack` (the
+z-index ranking). Keep both: the negative control showed the hit test alone
+reports `true` on the broken build.
+
+One stale caveat cleared on the way: `PLAN.md` records `capturePage()` as
+unreliable. On a **hidden** (`show: false`) window it works fine, measured in
+the WSL x64 sandbox on 2026-08-06 — real pixels, correct fonts. It is
+**offscreen** rendering (`webPreferences.offscreen`) that is genuinely broken
+here, which is the same distinction `fixtures/geometry-harness.js` already
+made. Don't skip a screenshot check on the strength of that old note.
 
 ### Windows dev box (2026-07-31) — where Tailscale is actually real
 
