@@ -39,13 +39,20 @@
   .\dev-two-pcs.ps1
 .EXAMPLE
   .\dev-two-pcs.ps1 -Funnel
+.EXAMPLE
+  .\dev-two-pcs.ps1 -Funnel -Seconds 120
 #>
 
 [CmdletBinding()]
 param(
   [switch]$Funnel,
   [switch]$Manual,
-  [int]$Port = 8787
+  [int]$Port = 8787,
+  # Run unattended for N seconds then close both, instead of waiting on Enter.
+  # Also the safe way to run this where stdin is not a terminal: Read-Host
+  # returns instantly on EOF, which would tear the instances down before they
+  # had finished connecting.
+  [int]$Seconds = 0
 )
 
 $ErrorActionPreference = 'Stop'
@@ -179,8 +186,13 @@ Write-Host ''
 Write-Host "  Logs  $Root\PC-A\taclink.log"
 Write-Host "        $Root\PC-B\taclink.log"
 Write-Host ''
-Write-Host '  Press Enter to close both.' -ForegroundColor Yellow
-[void](Read-Host)
+if ($Seconds -gt 0) {
+  Write-Host "  Running for $Seconds seconds, then closing both." -ForegroundColor Yellow
+  Start-Sleep -Seconds $Seconds
+} else {
+  Write-Host '  Press Enter to close both.' -ForegroundColor Yellow
+  [void](Read-Host)
+}
 
 foreach ($p in @($procA, $procB)) {
   if ($p -and -not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
