@@ -169,33 +169,49 @@ constant; keep it that way.
   unsupported and likely to break a pilot's setup on update. The registry
   entry is the sanctioned path to the same outcome — use it and nothing else.
 
-## 3b. When OpenKneeboard notices — and the trap that looks like a reboot
+## 3b. When OpenKneeboard notices — and why a reboot really did seem necessary
 
 OpenKneeboard reads `…\Plugins\v1` **at startup** (`Loading plugin `{}` from
-registry...` in `OpenKneeboardApp.exe`). So:
+registry...` in `OpenKneeboardApp.exe`). So registering a plugin for the first
+time needs one genuinely fresh OpenKneeboard process. Nothing else does: the
+registry entry outlives Tac Link quitting, so the tab type stays in the list,
+and content flows over the socket (§5).
 
-- registering a plugin for the first time needs ONE full OpenKneeboard restart;
-- nothing else does. The registry entry outlives Tac Link quitting, so the tab
-  type stays in the list, and content flows over the socket (§5).
+**"Restarting OpenKneeboard" often is not one.** It is single-instance, and
+launching it while an instance is alive does not start a new one — it switches
+to the existing window. Its own strings say so:
 
-**The trap.** Registration is keyed by PATH, so before the exclusivity fix
-every instance with its own user-data directory added *another* entry for the
-same plugin ID — a dev checkout, a packaged install, and the two-PC script's
-temp dirs, which that script deletes on exit and which therefore pointed at
-nothing. OpenKneeboard sees several plugins claiming one ID, some unreadable,
-and stops offering the tab.
+```
+OpenKneeboard is already running, but can't find the existing window to switch to it.
+OpenKneeboard is already running, but unable to switch to the existing window.
+```
 
-That failure state **survives restarting OpenKneeboard**, because restarting is
-exactly what re-reads the broken list. It cost the owner two apparent
-"you must reboot the PC" cycles: both times the reboot was simply the first
-OpenKneeboard start after the registry happened to be in a good state, which
-timestamps proved (manifest written 18:12:41, boot 18:17:41, OKB start
-18:19:26 — every earlier OKB restart had read the broken list).
+It tracks the live instance in `%LOCALAPPDATA%\OpenKneeboard\instance.txt`
+(PID, HWND, mailslot), and it is not one process but `OpenKneeboardApp` plus
+about five `OpenKneeboard-Chromium` helpers. Close the window and relaunch
+promptly and you re-attach to the instance still tearing down — the plugin
+registry is never re-read, and the tab never appears. A reboot is the one thing
+that reliably produces a fresh process, which is why the owner hit "it only
+works after a reboot" twice and was right both times.
 
-**Diagnose it with timestamps before theorising.** Compare the manifest's mtime
-against `Get-Process OpenKneeboardApp | Select StartTime` and
-`(Get-CimInstance Win32_OperatingSystem).LastBootUpTime`. If OpenKneeboard
-started before the manifest was written, there is nothing else to explain.
+The procedure that works without rebooting: quit OpenKneeboard, wait until
+**no** process matching `OpenKneeboard*` remains, then start it.
+
+**A second, independent cause with the same symptom** — fixed, but worth
+knowing because it also survives restarting OpenKneeboard. Registration is
+keyed by PATH, so before the exclusivity fix every instance with its own
+user-data directory added *another* entry for the same plugin ID: a dev
+checkout, a packaged install, and the two-PC script's temp dirs, which that
+script deletes on exit and which therefore pointed at nothing. OpenKneeboard
+then sees several plugins claiming one ID, some unreadable, and stops offering
+the tab. `register()` is exclusive now; `dev-two-pcs` no longer registers at
+all.
+
+**Do not explain a symptom with a timeline you did not observe.** The first
+theory here was that the reboots were coincidence — the first OKB start after
+the registry happened to be clean. The timestamps were consistent with it and
+it was wrong, because the owner had restarted OpenKneeboard after the fix and
+said so. Their observation was the evidence; the inference was not.
 
 ## 4. The page-mapping decision — settled, and now confirmed
 
