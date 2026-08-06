@@ -169,6 +169,34 @@ constant; keep it that way.
   unsupported and likely to break a pilot's setup on update. The registry
   entry is the sanctioned path to the same outcome — use it and nothing else.
 
+## 3b. When OpenKneeboard notices — and the trap that looks like a reboot
+
+OpenKneeboard reads `…\Plugins\v1` **at startup** (`Loading plugin `{}` from
+registry...` in `OpenKneeboardApp.exe`). So:
+
+- registering a plugin for the first time needs ONE full OpenKneeboard restart;
+- nothing else does. The registry entry outlives Tac Link quitting, so the tab
+  type stays in the list, and content flows over the socket (§5).
+
+**The trap.** Registration is keyed by PATH, so before the exclusivity fix
+every instance with its own user-data directory added *another* entry for the
+same plugin ID — a dev checkout, a packaged install, and the two-PC script's
+temp dirs, which that script deletes on exit and which therefore pointed at
+nothing. OpenKneeboard sees several plugins claiming one ID, some unreadable,
+and stops offering the tab.
+
+That failure state **survives restarting OpenKneeboard**, because restarting is
+exactly what re-reads the broken list. It cost the owner two apparent
+"you must reboot the PC" cycles: both times the reboot was simply the first
+OpenKneeboard start after the registry happened to be in a good state, which
+timestamps proved (manifest written 18:12:41, boot 18:17:41, OKB start
+18:19:26 — every earlier OKB restart had read the broken list).
+
+**Diagnose it with timestamps before theorising.** Compare the manifest's mtime
+against `Get-Process OpenKneeboardApp | Select StartTime` and
+`(Get-CimInstance Win32_OperatingSystem).LastBootUpTime`. If OpenKneeboard
+started before the manifest was written, there is nothing else to explain.
+
 ## 4. The page-mapping decision — settled, and now confirmed
 
 **The problem.** Presenter-driven page turns are remote-driven by definition,
