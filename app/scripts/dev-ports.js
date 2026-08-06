@@ -23,6 +23,7 @@ module.exports = {
   hotkeyConfigLoad: 8804, // dev-hotkey-config-load-test.js
   panel: 8805, // dev-e2e-panel-test.js
   screenshotCheck: 8806, // dev-screenshot-check.js
+  okbPage: 8811, // dev-okb-page-test.js — the page as OpenKneeboard loads it
   okbTransport: 8810, // dev-okb-test.js — the dashboard transport
   settingsE2E: 8809, // dev-e2e-settings-test.js
   uiE2E: 8808, // dev-e2e-ui-test.js
