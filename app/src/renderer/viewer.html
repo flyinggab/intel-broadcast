@@ -252,6 +252,7 @@
         <nav class="rail">
           <button class="rail__item is-active" data-setup="net" data-i18n="rail.network">NETWORK</button>
           <button class="rail__item" data-setup="keys" data-i18n="rail.keybinds">KEYBINDS</button>
+          <button class="rail__item" data-setup="okb" data-i18n="rail.kneeboard">KNEEBOARD</button>
           <button class="rail__item" data-setup="log" data-i18n="rail.log">LOG</button>
           <div class="rail__spacer"></div>
           <div class="rail__lang">
@@ -401,6 +402,42 @@
 
 
             <div class="meta" data-i18n="bind.oneOwner">ONE APP OWNS A GLOBAL KEY AT A TIME</div>
+          </section>
+
+          <!-- ==================================== OPENKNEEBOARD ============ -->
+          <!-- The native path: OpenKneeboard renders the EFB itself in
+               WebView2 instead of capturing our window. The toggle is the
+               control; the rows under it are STATUS and are deliberately not
+               clickable — the same rule the NETWORK panel carries. -->
+          <section class="page page--pad stack" data-setup="okb">
+            <span class="cap" data-i18n="cap.okb">OpenKneeboard tab</span>
+
+            <div class="toggle" id="tg-okb" role="switch" aria-checked="false">
+              <span class="toggle__label">
+                <span data-i18n="okb.offer">OFFER A TAC LINK TAB TO OPENKNEEBOARD</span>
+                <span class="meta toggle__hint" id="okb-hint"></span>
+              </span>
+              <i class="switch"></i>
+            </div>
+
+            <div class="step" id="okb-step-found">
+              <i class="step__mark"></i><span class="step__n">01</span>
+              <span class="step__title" data-i18n="okb.stepFound">OPENKNEEBOARD</span>
+              <span class="step__state" id="okb-state-found"></span>
+            </div>
+            <div class="step" id="okb-step-registered">
+              <i class="step__mark"></i><span class="step__n">02</span>
+              <span class="step__title" data-i18n="okb.stepRegistered">PLUGIN</span>
+              <span class="step__state" id="okb-state-registered"></span>
+            </div>
+            <div class="step" id="okb-step-tab">
+              <i class="step__mark"></i><span class="step__n">03</span>
+              <span class="step__title" data-i18n="okb.stepTab">TAB</span>
+              <span class="step__state" id="okb-state-tab"></span>
+            </div>
+
+            <div class="meta" data-i18n="okb.addTab">RESTART OPENKNEEBOARD, THEN ADD A TAB &rarr; TAC LINK</div>
+            <div class="meta" data-i18n="okb.stillCaptures">WINDOW CAPTURE KEEPS WORKING EITHER WAY</div>
           </section>
 
           <!-- ============================================ LOG ============== -->

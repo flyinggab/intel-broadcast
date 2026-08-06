@@ -117,7 +117,8 @@ body[data-page="setup"]    .page[data-page="setup"] { display: block; }
 .page[data-setup] { display: none; }
 body[data-setup="net"]  .page[data-setup="net"],
 body[data-setup="keys"] .page[data-setup="keys"],
-body[data-setup="log"]  .page[data-setup="log"] { display: block; }
+body[data-setup="log"]  .page[data-setup="log"],
+body[data-setup="okb"]  .page[data-setup="okb"] { display: block; }
 
 .page--flush { padding: 0; height: 100%; }
 .page--pad   { padding: var(--sp-3); }

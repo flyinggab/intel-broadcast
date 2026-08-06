@@ -136,6 +136,39 @@ function currentPhotosFolder() {
 // OpenKneeboard web dashboard
 // ---------------------------------------------------------------------------
 
+// Last probe of the OpenKneeboard side. Held rather than probed per push:
+// settingsSnapshot runs on every state push, and shelling out to `reg` at that
+// rate would be absurd. Refreshed when SETUP opens and after a toggle.
+let okbState = {
+  enabled: false,
+  supported: process.platform === 'win32',
+  installed: false,
+  registered: false,
+  connected: false,
+  url: null,
+};
+
+async function refreshOkbState() {
+  const enabled = Boolean(config.okb && config.okb.enabled);
+  try {
+    const p = await okb.probe({ pluginPath: path.join(okbPluginDir(), 'okb-plugin.json') });
+    okbState = {
+      enabled,
+      supported: p.supported,
+      installed: p.installed,
+      registered: p.registered,
+      // Ground truth for "the pilot added the tab" needs a WebView2 talking
+      // back to us, which is the transport that does not exist yet
+      // (design/okb-integration §5). Reported as false rather than guessed.
+      connected: false,
+      url: okbServer ? okbServer.url : null,
+    };
+  } catch {
+    okbState = { ...okbState, enabled };
+  }
+  pushState();
+}
+
 function okbPluginDir() {
   // Our own LocalAppData, which is what OpenKneeboard's docs recommend for a
   // third party, and never anywhere under OpenKneeboard: writing into theirs
@@ -356,6 +389,7 @@ function settingsSnapshot(base) {
     tokenMasked: squad.maskToken(config.token),
     squadCode: hostSquadCode(),
     hotkeys: config.hotkeys,
+    okb: okbState,
     // The squad code is a password and must never appear here.
     logTail: recentLines(12),
   };
@@ -848,6 +882,12 @@ function applyNewConfig(newConfig) {
     console.log('[index] relay connection changed — reconnecting');
   }
 
+  const okbBefore = Boolean(old.okb && old.okb.enabled);
+  const okbNow = Boolean(config.okb && config.okb.enabled);
+  if (okbNow && !okbBefore) startOkb().then(refreshOkbState);
+  else if (!okbNow && okbBefore) stopOkb().then(refreshOkbState);
+  else refreshOkbState();
+
   const wantedBefore = old.relayHostEnabled === true && old.gm.funnelEnabled === true;
   lastFunnelAttempt = 0;
   if (wantedBefore && !wantFunnel()) {
@@ -874,6 +914,9 @@ function openSettings() {
   view.setPage('setup');
   noteActivity();
   pushState();
+  // Cheap registry reads, and only when the panel that shows them is on
+  // screen — same rule as the Tailscale polling below.
+  refreshOkbState();
   // Dev/test-only: hands the squad code to a harness through a FILE, never
   // through stdout — writing it to a log is exactly what must not happen.
   if (process.env.INTEL_BROADCAST_SQUAD_CODE_MARKER_PATH) {
@@ -1014,6 +1057,9 @@ async function handleSettingsIntent(intent, payload) {
       );
       return;
     }
+    case 'set-okb-enabled':
+      applyNewConfig(saveSettingsValues({ okb: { ...config.okb, enabled: Boolean(payload) } }));
+      return;
     case 'set-passthrough-keys':
       applyNewConfig(saveSettingsValues({ passthroughKeys: Boolean(payload) }));
       return;
@@ -1198,6 +1244,17 @@ function attachViewerProbe() {
              };
              return acc;
            }, {}),
+           okbPanel: (() => {
+             const tg = document.getElementById('tg-okb');
+             if (!tg) return null;
+             return {
+               on: tg.classList.contains('is-on'),
+               hint: document.getElementById('okb-hint').textContent,
+               steps: ['found', 'registered', 'tab'].map(
+                 (n) => document.getElementById('okb-state-' + n).textContent,
+               ),
+             };
+           })(),
            chromeHidden: document.body.classList.contains('is-chrome-hidden'),
            brief: {
              barShown: !document.getElementById('briefbar').classList.contains('is-hidden'),

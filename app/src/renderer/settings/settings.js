@@ -59,6 +59,16 @@ const log = {
 };
 
 const passthrough = { toggle: el('tg-passthrough'), hint: el('passthrough-hint') };
+const okb = {
+  toggle: el('tg-okb'),
+  hint: el('okb-hint'),
+  stepFound: el('okb-step-found'),
+  stateFound: el('okb-state-found'),
+  stepRegistered: el('okb-step-registered'),
+  stateRegistered: el('okb-state-registered'),
+  stepTab: el('okb-step-tab'),
+  stateTab: el('okb-state-tab'),
+};
 const savebar = { state: el('save-state'), save: el('btn-save') };
 const railVersion = el('rail-version');
 const langKeys = el('lang-keys');
@@ -132,6 +142,30 @@ function renderFunnelAction(f) {
   setText(net.funnelHint, t(hint));
 }
 
+/**
+ * The OpenKneeboard panel. Same division as the Tailscale one: the toggle is
+ * the only control, the numbered rows are status and are never clickable.
+ *
+ * Step 03 is honest about what it cannot see. "Tab added" is only knowable
+ * once a WebView2 running our page talks back to us, and that transport does
+ * not exist yet (design/okb-integration §5) — so it says what the pilot has
+ * to do rather than claiming to have detected it.
+ */
+function renderOkb(o) {
+  const on = Boolean(o.enabled);
+  okb.toggle.classList.toggle('is-on', on);
+  okb.toggle.setAttribute('aria-checked', on ? 'true' : 'false');
+  setText(okb.hint, t(!o.supported ? 'okb.notWindows' : on ? 'okb.onHint' : 'okb.offHint'));
+
+  const mark = (node, stateNode, done, label) => {
+    node.classList.toggle('is-done', done);
+    setText(stateNode, t(label));
+  };
+  mark(okb.stepFound, okb.stateFound, o.installed, o.installed ? 'okb.found' : 'okb.notFound');
+  mark(okb.stepRegistered, okb.stateRegistered, o.registered, o.registered ? 'okb.offered' : 'okb.notOffered');
+  mark(okb.stepTab, okb.stateTab, o.connected, o.connected ? 'okb.tabOpen' : 'okb.tabWaiting');
+}
+
 function isDirty() {
   if (modeDirty) return true;
   if (!lastSnapshot) return false;
@@ -201,6 +235,8 @@ function render(s) {
   else if (f.enableUrl) setStep(net.stepFunnel, 'running', t('ts.needsEnabling'));
   else if (f.funnelError || f.funnelStatusError) setStep(net.stepFunnel, 'running', t('ts.failed'));
   else setStep(net.stepFunnel, '', t('ts.off'));
+
+  renderOkb(s.okb || {});
 
   // Pilots on net. Callsigns are remote-supplied strings: textContent only.
   setText(net.count, String(s.peers.length));
@@ -378,6 +414,10 @@ el('btn-open-log').addEventListener('click', () => send('open-log'));
 el('btn-copy-path').addEventListener('click', () => send('copy-log-path'));
 
 // One visible control, whose action follows the step that needs doing.
+okb.toggle.addEventListener('click', () => {
+  send('set-okb-enabled', !okb.toggle.classList.contains('is-on'));
+});
+
 passthrough.toggle.addEventListener('click', () => {
   send('set-passthrough-keys', !passthrough.toggle.classList.contains('is-on'));
 });

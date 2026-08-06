@@ -34,6 +34,9 @@ function saveSettingsValues(values) {
     ...values,
     hotkeys: { ...(existing.hotkeys || {}), ...(values.hotkeys || {}) },
     gm: { ...(existing.gm || {}), ...(values.gm || {}) },
+    // Every nested object needs its own merge, or writing one key of it drops
+    // the rest: toggling okb.enabled would silently take okb.port with it.
+    okb: { ...(existing.okb || {}), ...(values.okb || {}) },
   };
   fs.writeFileSync(LOCAL_CONFIG_PATH, JSON.stringify(merged, null, 2));
   console.log(`[settings] saved to ${LOCAL_CONFIG_PATH}`);

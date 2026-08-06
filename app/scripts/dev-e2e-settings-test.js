@@ -242,6 +242,33 @@ async function main() {
   }
   console.log('[e2e] the pass-through toggle reaches main and persists');
 
+  // The OpenKneeboard toggle. Asserted through the RENDERED state rather than
+  // the config file: `okb` may be absent from a fresh local config while the
+  // effective value comes from config.default.json, so comparing file-to-file
+  // reads a toggle from true to false as "nothing changed". The panel flips
+  // only if the intent reached main and came back in a snapshot.
+  //
+  // The live hazard the port check guards is the nested merge: `okb` is an
+  // object, so writing `enabled` through a shallow merge drops `port` — caught
+  // here rather than when a pilot's dashboard silently moved off 8788.
+  await click('.rail__item[data-setup="okb"]');
+  await waitFor('KNEEBOARD section', () => probe.setup === 'okb');
+  if (!probe.okbPanel) throw new Error('the OpenKneeboard panel must render');
+  const okbOnBefore = probe.okbPanel.on;
+  await click('#tg-okb');
+  await waitFor('the OpenKneeboard toggle to flip', () => probe.okbPanel.on !== okbOnBefore, 8000);
+  const okbSaved = readConfig().okb || {};
+  if (Boolean(okbSaved.enabled) === okbOnBefore) {
+    throw new Error(`the toggle flipped on screen but config says enabled=${okbSaved.enabled}`);
+  }
+  if (okbSaved.port !== 8788) {
+    throw new Error(`toggling okb.enabled lost okb.port (got ${okbSaved.port}) — nested merge dropped a key`);
+  }
+  if (/unknown intent/.test(output)) {
+    throw new Error(`main rejected an intent: ${/unknown intent: \S+/.exec(output)[0]}`);
+  }
+  console.log('[e2e] the OpenKneeboard toggle reaches main, persists, and keeps its port');
+
   // --- everything applied live (no relaunch) -------------------------------
   if (child.exitCode !== null) throw new Error('the app must not restart to apply settings');
   await sleep(600);

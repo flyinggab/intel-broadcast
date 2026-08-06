@@ -153,6 +153,11 @@ function loadConfig() {
     ...local,
     hotkeys: { ...defaults.hotkeys, ...(local.hotkeys || {}) },
     gm: { ...defaults.gm, ...(local.gm || {}) },
+    // Every nested object needs naming here. A local file holding only
+    // `okb: { enabled: true }` was otherwise taking `okb.port` with it: the
+    // shallow spread replaces the whole object, so the default port vanished
+    // from the effective config the moment the toggle was used.
+    okb: { ...defaults.okb, ...(local.okb || {}) },
   };
   // Legacy: pre-unification configs used `gmModeEnabled` for what is now
   // `relayHostEnabled` (every instance shares AND receives; the old "GM"

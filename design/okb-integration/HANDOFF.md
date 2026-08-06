@@ -247,9 +247,17 @@ token would silently break the pilot's saved tab on the next flight.
 
 ## 6. Toggle and guided setup
 
-**Toggle.** SETUP · OPENKNEEBOARD, default **off**. Window capture keeps
-working untouched. Turning it on registers the plugin and serves the page;
-turning it off unregisters cleanly. A pilot must always be able to go back.
+**Toggle.** SETUP · KNEEBOARD, default **ON** *(changed 2026-08-06 by the
+owner; it shipped off)*. Window capture keeps working untouched either way, so
+"on" costs a pilot a loopback server and a registry value and gains them the
+tab in OpenKneeboard's own list without hunting for a setting. Turning it off
+unregisters cleanly and a pilot can always go back — that part is unchanged and
+is what makes defaulting to on defensible.
+
+Built, in `settings.js` `renderOkb()`: the toggle plus three status rows
+(OpenKneeboard found / plugin offered / tab). Row 03 does NOT claim to detect
+the tab — that needs a WebView2 talking back to us, i.e. §5 — so it says what
+the pilot must do instead of reporting a guess.
 
 **Guided steps — mirror `tailscale.js` + the NETWORK panel exactly.** Read
 `main/tailscale.js` and `renderer/settings/settings.js` first; copy the shape,

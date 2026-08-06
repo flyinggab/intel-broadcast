@@ -23,7 +23,7 @@
     "funnelEnabled": false
   },
   "okb": {
-    "enabled": false,
+    "enabled": true,
     "port": 8788
   }
 }
