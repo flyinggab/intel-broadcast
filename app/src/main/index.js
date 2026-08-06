@@ -1159,6 +1159,18 @@ function attachViewerProbe() {
              const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
              return Boolean(hit) && (hit === el || el.contains(hit));
            })(),
+           // The same question asked structurally, because the hit test alone
+           // is not enough: .stage__chrome is pointer-events: none, so it
+           // buries the launcher visually while letting the probe's click
+           // straight through. These layers share a stacking context, so the
+           // ranking IS the invariant.
+           launcherStack: (() => {
+             const z = (sel) => {
+               const n = document.querySelector(sel);
+               return n ? parseInt(getComputedStyle(n).zIndex, 10) || 0 : 0;
+             };
+             return { launcher: z('#launcher'), chrome: z('.stage__chrome'), standby: z('.stage__standby') };
+           })(),
            crumb: document.getElementById('crumb-page').textContent + ' ' + document.getElementById('crumb-pos').textContent,
            dests: [...document.querySelectorAll('.dest[data-dest]')].map((d) => d.dataset.dest),
            groups: [...document.querySelectorAll('.launcher__group')].map((g) => g.textContent),

@@ -230,7 +230,14 @@ async function main() {
       `the open launcher is buried on BRIEF (standby=${probe.standby}) — a pilot cannot navigate`,
     );
   }
-  console.log(`[e2e] launcher paints above the BRIEF stage (standby=${probe.standby})`);
+  const stack = probe.launcherStack;
+  if (stack.launcher <= stack.chrome || stack.launcher <= stack.standby) {
+    throw new Error(
+      `the launcher must outrank every stage layer, got ${JSON.stringify(stack)} — ` +
+        'on BRIEF the menu opens under the stage and the landing page becomes a dead end',
+    );
+  }
+  console.log(`[e2e] launcher paints above the BRIEF stage ${JSON.stringify(stack)}`);
   await runInViewer(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
   await waitFor('Escape to close the launcher', () => probe.launcherOpen === false);
 
