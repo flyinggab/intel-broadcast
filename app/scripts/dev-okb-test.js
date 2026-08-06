@@ -53,9 +53,12 @@ const okb = require('../src/main/okb');
   assert.strictEqual(m.TabTypes[0].ImplementationArgs.URI, 'http://127.0.0.1:8788/viewer.html');
 
   // Every brief-mode control is bindable, because a pilot inside VR cannot
-  // click one.
+  // click one. `follow` is deliberately absent: a follower is held in the
+  // presenter's brief until the presenter ends it, so there is nothing to
+  // bind — see viewState.isFollower().
   const actions = m.TabTypes[0].CustomActions.map((a) => a.ID.split('.').pop());
-  for (const need of ['present', 'follow', 'clearInk']) {
+  assert.ok(!actions.includes('follow'), 'follow is not a control any more');
+  for (const need of ['present', 'clearInk']) {
     assert.ok(actions.includes(need), `${need} must be bindable as a custom action`);
   }
   console.log('[test] manifest: namespaced id, one tab, every control bindable');

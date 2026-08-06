@@ -330,4 +330,80 @@ const cur = (view) => view.snapshot().queue.current;
   console.log('[test] FOCUS resolves by content hash across instances, never by batch id');
 }
 
+// --- a follower's view belongs to the presenter ------------------------------
+// A brief where each pilot can wander off is not a brief. While someone else
+// presents, every local control that would move the view is refused, and the
+// only ways out are the presenter stopping or vanishing.
+{
+  const pilot = createViewState();
+  pilot.addBatch({
+    sharedBy: 'GHOST',
+    items: [
+      { filename: 'a.jpg', url: 'u1', hash: 'h-a' },
+      { filename: 'b.jpg', url: 'u2', hash: 'h-b' },
+    ],
+  });
+
+  // Free to move before anyone presents.
+  pilot.step(1);
+  assert.strictEqual(pilot.snapshot().queue.current.filename, 'b.jpg', 'paging works when no brief is running');
+  pilot.setPage('share');
+  assert.strictEqual(pilot.snapshot().page, 'share');
+  pilot.setPage('brief');
+
+  pilot.setPresenter('GHOST');
+  assert.strictEqual(pilot.snapshot().brief.locked, true, 'a foreign presenter holds our controls');
+
+  const held = pilot.snapshot().queue.current.filename;
+  pilot.step(1);
+  assert.strictEqual(pilot.snapshot().queue.current.filename, held, 'paging is refused while following');
+  pilot.step(-1);
+  assert.strictEqual(pilot.snapshot().queue.current.filename, held, 'in both directions');
+
+  pilot.setPage('setup');
+  assert.strictEqual(pilot.snapshot().page, 'brief', 'the page is held too — no wandering into menus');
+  pilot.setLauncher(true);
+  assert.strictEqual(pilot.snapshot().launcherOpen, false, 'and the launcher will not open');
+
+  // The presenter still moves us. That is the entire point of the lock.
+  pilot.setFocus({ hash: 'h-a' });
+  assert.strictEqual(pilot.snapshot().queue.current.filename, 'a.jpg', 'the presenter moves the follower');
+  pilot.setFocus({ hash: 'h-b' });
+  assert.strictEqual(pilot.snapshot().queue.current.filename, 'b.jpg', 'every page turn, not just the first');
+
+  // Release 1: the presenter stops.
+  pilot.setPresenter(null);
+  assert.strictEqual(pilot.snapshot().brief.locked, false, 'stopping hands the controls back');
+  pilot.step(-1);
+  assert.strictEqual(pilot.snapshot().queue.current.filename, 'a.jpg', 'and paging works again');
+  pilot.setPage('setup');
+  assert.strictEqual(pilot.snapshot().page, 'setup', 'as does leaving the page');
+
+  // Release 2: the presenter vanished. main clears the presenter when our own
+  // link drops, which is the same call — assert it from a locked state, since
+  // being stuck behind a stale lock is the failure that would matter.
+  pilot.setPresenter('GHOST');
+  assert.strictEqual(pilot.snapshot().brief.locked, true);
+  pilot.setPresenter(null);
+  assert.strictEqual(pilot.snapshot().brief.locked, false, 'a vanished presenter must never hold a pilot');
+
+  // A presenter is never locked out of their own controls.
+  const boss = createViewState();
+  boss.addBatch({
+    sharedBy: 'ME',
+    items: [
+      { filename: 'x.jpg', url: 'u', hash: 'h-x' },
+      { filename: 'y.jpg', url: 'u2', hash: 'h-y' },
+    ],
+  });
+  boss.setPresenting(true, 'ME');
+  assert.strictEqual(boss.snapshot().brief.locked, false, 'presenting is not being followed');
+  const at = boss.snapshot().queue.current.filename;
+  boss.step(1);
+  assert.notStrictEqual(boss.snapshot().queue.current.filename, at, 'the presenter pages freely');
+  boss.setPage('share');
+  assert.strictEqual(boss.snapshot().page, 'share', 'and reaches every page');
+  console.log('[test] a follower is held in the brief; presenter stop or vanish releases them');
+}
+
 console.log('[dev-viewstate-test] PASS');

@@ -244,6 +244,49 @@ async function main() {
   if (!cleanView.__inkVisible) throw new Error('ink is image content and must reach the kneeboard');
   console.log('[e2e] under capture-clean the chrome goes, the ink and the marker stay');
 
+  // --- a page turn reaches the net -----------------------------------------
+  // The half that was missing: PRESENT sent exactly one FOCUS, for whichever
+  // image the presenter started on, and every photo they moved to afterwards
+  // went unannounced. Followers sat on the opening image watching ink appear
+  // on a picture they could not see. Asserted from a REAL socket on the relay,
+  // because the presenter's own state says nothing about what left the box.
+  const WebSocket = require('ws');
+  const focuses = [];
+  const follower = new WebSocket(`ws://127.0.0.1:${RELAY_PORT}/rt`);
+  await new Promise((resolve, reject) => {
+    follower.on('open', () => {
+      follower.send(JSON.stringify({ type: 'auth', token: TOKEN, role: 'viewer', callsign: 'JOKER 2-1' }));
+      resolve();
+    });
+    follower.on('error', reject);
+  });
+  follower.on('message', (data) => {
+    const msg = JSON.parse(data.toString());
+    if (msg.type === 'brief-focus') focuses.push(msg);
+  });
+
+  // A late joiner is told where the brief already is, without waiting for the
+  // presenter to move.
+  await sleep(1200);
+  if (!focuses.length) throw new Error('a client joining a live brief must be told which image it is on');
+  const opening = focuses[focuses.length - 1].hash;
+
+  await click('#stage-next');
+  await sleep(1200);
+  const latest = focuses[focuses.length - 1];
+  if (focuses.length < 2 || latest.hash === opening) {
+    throw new Error(
+      `the presenter turned a page and the net was not told (${focuses.length} FOCUS message(s), ` +
+        `still on ${String(opening).slice(0, 8)}) — every follower is now looking at the wrong photo`,
+    );
+  }
+  if (!/^[a-f0-9]{64}$/.test(latest.hash)) throw new Error(`FOCUS must carry a content hash, got ${latest.hash}`);
+  if (latest.presenter !== 'GHOSTRIDER 1-1') {
+    throw new Error(`the relay must stamp the presenter, got "${latest.presenter}"`);
+  }
+  console.log('[e2e] every page turn announces itself, hashed and attributed');
+  follower.close();
+
   // --- STOP ----------------------------------------------------------------
   await run(`document.body.classList.remove('is-chrome-hidden');`);
   await click('#briefbar-key');

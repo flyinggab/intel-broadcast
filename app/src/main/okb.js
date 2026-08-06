@@ -119,7 +119,6 @@ function pluginManifest({ version, url, tabName }) {
         Glyph: '',
         CustomActions: [
           { ID: `${PLUGIN_ID}.present`, Name: 'Present' },
-          { ID: `${PLUGIN_ID}.follow`, Name: 'Follow / break' },
           { ID: `${PLUGIN_ID}.clearInk`, Name: 'Clear ink' },
         ],
         Implementation: 'WebBrowser',

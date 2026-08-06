@@ -238,6 +238,41 @@ function originateBrief(msg) {
   if (relayServer) relayServer.broadcastBrief(withMe);
 }
 
+// The last image we told the net we were on. Compared against, so a FOCUS
+// goes out once per actual move rather than once per state push.
+let lastFocusSent = null;
+
+/**
+ * Announces where the presenter is now, if that changed.
+ *
+ * Called after anything that can move `current` while presenting, because a
+ * page turn is the one thing a brief cannot do without: PRESENT used to send
+ * exactly one FOCUS — the image the presenter happened to be on when they
+ * started — and every photo they moved to afterwards was seen by nobody.
+ *
+ * The queue moves for reasons other than the chevrons (intel arriving,
+ * curation restaging), and all of them are equally "the presenter is now
+ * looking at this", so this is driven off the resulting hash rather than off
+ * the navigation intents.
+ */
+function syncFocus() {
+  const s = view.snapshot();
+  if (!s.brief.presenting) {
+    lastFocusSent = null;
+    return;
+  }
+  const current = s.queue.current;
+  const hash = current && current.hash;
+  if (!hash || hash === lastFocusSent) return;
+  lastFocusSent = hash;
+  originateBrief({
+    type: 'brief-focus',
+    hash,
+    batchId: String(current.batchId),
+    filename: current.filename,
+  });
+}
+
 function handleBriefIntent(intent, payload) {
   const hash = currentHash();
   switch (intent) {
@@ -246,23 +281,15 @@ function handleBriefIntent(intent, payload) {
       view.setPresenting(on, config.callsign || '');
       if (on) {
         originateBrief({ type: 'brief-present-start' });
-        const q = view.snapshot().queue;
-        if (q.current && q.current.hash) {
-          originateBrief({
-            type: 'brief-focus',
-            hash: q.current.hash,
-            batchId: String(q.current.batchId),
-            filename: q.current.filename,
-          });
-        }
+        // Announce the opening image through the same path every later page
+        // turn uses, so there is one definition of "where the brief is".
+        lastFocusSent = null;
+        syncFocus();
       } else {
         originateBrief({ type: 'brief-present-stop' });
       }
       return true;
     }
-    case 'brief-follow':
-      view.setFollowing(Boolean(payload));
-      return true;
     case 'brief-tool':
       view.setTool(payload);
       return true;
@@ -474,6 +501,12 @@ function startClient() {
   });
   relayClient.on('disconnected', () => {
     view.setConnection({ connected: false, relayLabel: labelFor(effectiveRelayUrl()) });
+    // Losing the link releases the lock. A follower cannot page away by hand,
+    // so a presenter we can no longer hear from would otherwise hold this
+    // pilot's controls indefinitely — including the way to SETUP, i.e. the
+    // way to fix the connection. Re-locking is safe and automatic: the relay
+    // re-announces a live brief to every client that authenticates.
+    view.setPresenter(null);
     pushState();
   });
   relayClient.on('reconnecting', (info) => {
@@ -492,6 +525,10 @@ function startClient() {
       return { filename: item.filename, url: blobs.urlFor(hash), hash };
     });
     view.addBatch({ sharedBy: batch.sharedBy, items });
+    // Intel landing can move the presenter onto it; the net has to be told,
+    // or everyone else stays on the old photo watching them annotate a
+    // picture the followers cannot see.
+    syncFocus();
     pushState();
 
     if (process.env.INTEL_BROADCAST_RECEIVED_MARKER_PATH) {
@@ -553,9 +590,10 @@ function registerHotkey(name, accelerator, handler) {
   console.log(`[hotkeys] register ${name} "${accelerator}": ${ok ? 'OK' : 'FAILED (already taken by another app?)'}`);
 }
 
-/** Pages the photo queue. */
+/** Pages the photo queue. A no-op while following someone else's brief. */
 function pageBoth(delta) {
   view.step(delta);
+  syncFocus();
   pushState();
 }
 
@@ -577,10 +615,9 @@ function bindingActions() {
       handleBriefIntent('brief-present', !view.state.brief.presenting);
       pushState();
     },
-    follow: () => {
-      handleBriefIntent('brief-follow', !view.state.brief.following);
-      pushState();
-    },
+    // No FOLLOW binding: following is no longer something a pilot leaves or
+    // rejoins. While someone else presents you are in their brief, and it
+    // ends when they end it. See viewState.isFollower().
     clearInk: () => {
       handleBriefIntent('brief-clear');
       pushState();
@@ -660,7 +697,6 @@ function registerHotkeys() {
   registerHotkey('prev', config.hotkeys.prev, actions.prev);
   registerHotkey('reveal', config.hotkeys.reveal, actions.reveal);
   registerHotkey('present', config.hotkeys.present, actions.present);
-  registerHotkey('follow', config.hotkeys.follow, actions.follow);
   registerHotkey('clearInk', config.hotkeys.clearInk, actions.clearInk);
   // New in this build: blanks all chrome so the kneeboard capture is just the
   // photo. This is the state that matters most in the air.
@@ -871,12 +907,15 @@ function handleViewerIntent(intent, payload) {
       break;
     case 'step':
       view.step(payload);
+      syncFocus();
       break;
     case 'toggle-received':
       view.toggleItem(payload && payload.batchId, payload && payload.filename);
+      syncFocus();
       break;
     case 'set-batch':
       view.setBatchSelected(payload && payload.batchId, Boolean(payload && payload.on));
+      syncFocus();
       break;
     case 'focus':
       view.setFocused(Boolean(payload));

@@ -1,11 +1,11 @@
 # Brief mode — presenter, live ink, follow
 
-**Status** — **in progress.** Phase 2 (`/ROADMAP.md` §2), Tier A.
-Transport and ink model are built and tested (`inkStore.js`, the brief family
-in `protocol.js`, the `/rt` socket in `relayServer.js`, `dev-ink-test`,
-`dev-brief-relay-test`). **Not built yet:** the renderer — canvas overlay,
-tool strip, present/follow/paged-away states — and the main-process wiring:
-hotkeys, IPC deltas, `PANEL_PROBE` fields, i18n strings, preview state.
+**Status** — **built, and tested on two machines by the owner (2026-08-06).**
+Phase 2 (`/ROADMAP.md` §2), Tier A. Transport and ink model
+(`inkStore.js`, the brief family in `protocol.js`, the `/rt` socket in
+`relayServer.js`), the renderer, and the main-process wiring are all in.
+Covered by `dev-ink-test`, `dev-brief-relay-test`, `dev-viewstate-test` and
+`dev-e2e-brief-test`.
 **Files here** — `brief-mode.png` (five screens + interaction outline).
 **Depends on** — nothing from protocol v2; ships against the current wire with
 one additive message family. The realtime socket it introduces *becomes*
@@ -17,19 +17,54 @@ split from the start; it costs nothing now and is expensive to unpick later.
 
 The host looks at an image and presses PRESENT. Every EFB snaps to that image
 and stays synced as the host pages; strokes and the presenter's cursor render
-live on every client; each image keeps its ink for the session. Follow is the
-default; paging away leaves the brief; FOLLOW rejoins.
+live on every client; each image keeps its ink for the session. Following is
+not optional and not a flag: while someone presents, their brief **is** every
+other pilot's view, and it ends when they end it.
 
 ---
 
 ## 1. Decided — do not re-litigate
 
-**Follow is default-on, and every control has a global hotkey.** Many pilots
-view the EFB through OpenKneeboard and *cannot click anything*. A consent
-prompt they cannot accept is a wall, not a control. The mouse UI is the
-convenience path. Consequence: there is no invitation dialog, no BREAK button
-requirement — paging away (keys they already use) leaves the brief, FOLLOW
-(`Ctrl+Shift+F` default) rejoins, PRESENT (`Ctrl+Shift+P`) starts/stops.
+**A follower's view belongs to the presenter.** *(Revised 2026-08-06, by the
+owner, after testing casting on two machines. This replaces the original
+"paging away leaves the brief, FOLLOW rejoins".)*
+
+While someone else is presenting, this instance is locked: no paging, no
+changing page, no launcher. The presenter's FOCUS moves it, and nothing else
+does. `viewState.isFollower()` is the single test; the snapshot exposes it as
+`brief.locked`.
+
+The half of the original reasoning that survives is the important half: many
+pilots view the EFB through OpenKneeboard and *cannot click anything*, so
+there is still no invitation dialog and no consent prompt — a wall they cannot
+accept. What did not survive is treating paging as the way out. A brief where
+each pilot can quietly wander off is not a brief: the presenter says "look at
+this" and has no way to know who still is, which is precisely what the owner
+hit in testing.
+
+Consequences, all of them intended:
+- **FOLLOW is gone** — the `Ctrl+Shift+F` binding, the `brief-follow` intent,
+  the OKB custom action, and the BREAK/REJOIN key on the brief bar. A control
+  that can only ever refuse is worse than no control.
+- **PRESENT (`Ctrl+Shift+P`) still starts/stops**, and the presenter is never
+  locked out of anything.
+- The bar tells a follower who holds their controls. Chrome that silently
+  stops responding reads as a frozen app.
+
+**The lock releases automatically, and only automatically.** There is no
+manual escape, so these two are the entire safety story:
+1. the presenter stops — `brief-present-stop`, fanned out to everyone;
+2. the presenter vanishes — `relayServer.js` notices the socket close and
+   fans out the same stop on their behalf; and if it is *our* link that
+   dropped, `index.js` clears the presenter locally on `disconnected`.
+
+The second matters more than it looks: a follower cannot page away by hand, so
+a presenter we can no longer hear from would otherwise hold this pilot's
+controls indefinitely — including the route to SETUP, i.e. the route to fixing
+the connection. Re-locking after a blip is automatic, because the relay
+re-announces a live brief (and its current FOCUS) to every client that
+authenticates. **Never make a release conditional on a message that might have
+been missed.**
 
 **No ground/air split.** The EFB has no signal for it until phase 3 telemetry.
 One behaviour, always. Mitigation for a brief starting mid-flight: PRESENT is
@@ -86,8 +121,20 @@ arrow, ring · undo, clear. PRESENT is the cast icon in the stage foot. The
 inset cast icon + "PRESENTING" in the strip is the whole live indicator —
 **never use `--fault` for "live"**; red stays reserved for a broken relay.
 
-**Paging never leaves.** The chevrons and next/prev hotkeys stay live while
-presenting; they simply broadcast. A page turn = one FOCUS message.
+**Paging never leaves — and every page turn is announced.** For the presenter
+the chevrons and next/prev hotkeys stay live and simply broadcast: a page turn
+= one FOCUS message. For everyone else they do nothing (see the follower lock
+above).
+
+This is driven off the presenter's *resulting* image hash, not off the
+navigation intents — `syncFocus()` in `index.js`, called after anything that
+can move `current`. The queue moves for reasons other than the chevrons
+(intel arriving, curation restaging a hidden batch) and every one of them
+means "the presenter is now looking at this". The first implementation sent a
+FOCUS only from PRESENT itself, so followers were pinned to whichever image
+the brief opened on while the presenter annotated photos they never saw.
+`dev-e2e-brief-test` holds a real socket on the relay and fails if a page turn
+produces no second FOCUS.
 
 **Ephemeral by default; BURN IN is the escape.** Ink dies when its batch is
 replaced. BURN IN composites the annotated frame into a new content-addressed
@@ -144,8 +191,9 @@ Facts verified against `v0.7.0`; re-verify with `git log` first.
   GHOSTRIDER" label is a new element outside those classes — it is the only
   mark explaining why a no-input pilot's page turns by itself. Do not attach it
   to `.stage__chrome` or it vanishes exactly when it is needed.
-- **Keybinds:** three new entries in `config.default.json` `hotkeys` —
-  follow/break, present, clear-ink. They ride the existing dual backend
+- **Keybinds:** two entries in `config.default.json` `hotkeys` —
+  present, clear-ink. (`follow` was removed with the follower lock.)
+  They ride the existing dual backend
   (`globalShortcut` / `keyHook` passthrough). KEYBINDS page rows render the
   **live binding from config** — the "viewer prints no hotkey" invariant is
   deliberately bent here and only here; never hard-code a key string.

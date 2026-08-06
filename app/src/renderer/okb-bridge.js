@@ -105,8 +105,9 @@
     // exists only as a button.
     window.addEventListener('plugin/tab/customAction', (event) => {
       const id = (event.detail && event.detail.id) || '';
+      // No `.follow` action: a follower is held in the brief until the
+      // presenter ends it, so there is nothing left to rejoin.
       if (id.endsWith('.present')) sendIntent('brief-present', !isPresenting());
-      else if (id.endsWith('.follow')) sendIntent('brief-follow', true);
       else if (id.endsWith('.clearInk')) sendIntent('brief-clear');
     });
 

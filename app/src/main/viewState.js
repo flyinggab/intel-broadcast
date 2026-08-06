@@ -53,10 +53,13 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
 
     // Brief mode. See design/brief-mode/HANDOFF.md.
     //
-    // `following` is default-ON and is what makes this usable at all: many
-    // pilots see the EFB only through OpenKneeboard and cannot click
-    // anything, so a consent prompt would be a wall rather than a control.
-    // Paging away — keys they already use — leaves the brief; FOLLOW rejoins.
+    // Following is not a flag any more: while someone else presents you follow
+    // them, full stop, and `isFollower()` derives it. It used to be an opt-out
+    // a pilot left by paging away, on the reasoning that many see the EFB only
+    // through OpenKneeboard and cannot click a consent dialog. That reasoning
+    // was about not requiring a CLICK TO JOIN, and it survives — what did not
+    // is letting a follower drift: the presenter says "look at this" and had
+    // no way to know who still was.
     //
     // `tool` lives here rather than in the renderer for the same reason
     // everything else does: phase 4 drives a second surface from this same
@@ -66,7 +69,6 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
       presenting: false, // this instance is driving the brief
       presenter: null, // callsign driving it, ours or someone else's
       focusHash: null, // the image the presenter is on
-      following: true, // we snap to the presenter's page
       tool: 'pen', // pen | arrow | ring
       cursor: null, // { u, v, who } — the presenter's pointer, 20 Hz
       inkRevs: {}, // hash -> revision; the ONLY ink that rides the snapshot
@@ -203,31 +205,49 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
   function step(delta) {
     const q = queue();
     if (q.length === 0) return;
+    if (isFollower()) return; // the presenter owns the page — see isFollower
     noteInteraction();
     const at = indexOfCurrent(q);
     const from = at === -1 ? Math.min(state.lastIdx, q.length - 1) : at;
     const i = (from + delta + q.length) % q.length;
     state.current = { batchId: q[i].batchId, filename: q[i].filename };
     state.lastIdx = i;
-    // Paging away IS how you leave a brief. There is no BREAK requirement and
-    // no dialog, because a pilot watching through OpenKneeboard cannot click
-    // one — the chevrons and the next/prev hotkeys are controls they already
-    // have. A presenter paging is not leaving: they ARE the page.
-    if (state.brief.following && state.brief.presenter && !state.brief.presenting) {
-      state.brief.following = false;
-    }
   }
 
   // -------------------------------------------------------------------------
   // Brief mode
   // -------------------------------------------------------------------------
 
+  /**
+   * True when someone ELSE is presenting: this instance is a follower, and its
+   * view belongs to the presenter for the duration.
+   *
+   * While this holds, every local control that would move the view is refused
+   * — paging, changing page, opening the launcher. A brief where each pilot
+   * can wander off is not a brief: the presenter says "look at this" and has
+   * no way to know who actually is. Nothing here is a permission model; a
+   * follower simply has nothing to decide until the cast ends.
+   *
+   * There is deliberately NO manual escape, so the two automatic releases are
+   * the whole safety story and both must keep working:
+   *   1. the presenter stops — `brief-present-stop`, fanned out to everyone;
+   *   2. the presenter vanishes — the relay notices the socket close and fans
+   *      out the same stop on their behalf (relayServer.js), and if it is OUR
+   *      link that dropped, index.js clears the presenter locally. On
+   *      reconnect the relay re-announces the live brief, so a blip re-locks
+   *      rather than stranding anyone outside it.
+   * Being stuck behind a stale lock is the failure that would matter here, so
+   * a release is never conditional on a message we might have missed.
+   */
+  function isFollower() {
+    return Boolean(state.brief.presenter) && !state.brief.presenting;
+  }
+
   /** This instance starts or stops driving the brief. */
   function setPresenting(on, callsign = state.callsign) {
     state.brief.presenting = Boolean(on);
     if (on) {
       state.brief.presenter = callsign || '';
-      state.brief.following = true; // you cannot page away from yourself
     } else if (state.brief.presenter === (callsign || '')) {
       state.brief.presenter = null;
       state.brief.cursor = null;
@@ -236,19 +256,15 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
 
   /** Someone else started or stopped presenting. */
   function setPresenter(callsign) {
-    const had = state.brief.presenter;
     state.brief.presenter = callsign || null;
     if (!callsign) {
       state.brief.cursor = null;
       state.brief.focusHash = null;
       state.brief.presenting = false;
     }
-    // A NEW brief starts with you in it. Re-following on every FOCUS would
-    // undo a deliberate page-away on the presenter's next page turn.
-    if (callsign && callsign !== had) state.brief.following = true;
   }
 
-  /** The presenter moved to an image. Only moves us if we are following. */
+  /** The presenter moved to an image. Moves us unless we are the presenter. */
   /**
    * The presenter moved to an image. Resolved by CONTENT HASH, never by the
    * batchId and filename the message also carries.
@@ -263,7 +279,10 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
    */
   function setFocus({ hash }) {
     state.brief.focusHash = hash || null;
-    if (!state.brief.following || state.brief.presenting) return false;
+    // No `following` test any more: a follower cannot page away, so it could
+    // only ever be true. The presenter is the one instance that ignores this,
+    // because they are already on the image they just announced.
+    if (state.brief.presenting) return false;
     if (!hash) return false;
     const q = queue();
     const at = q.findIndex((p) => p.hash === hash);
@@ -275,12 +294,6 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     state.current = { batchId: q[at].batchId, filename: q[at].filename };
     state.lastIdx = at;
     return true;
-  }
-
-  /** FOLLOW / REJOIN. Deliberately does NOT note an interaction: rejoining is
-   *  asking to be moved, and the arrival grace would fight that. */
-  function setFollowing(on) {
-    state.brief.following = Boolean(on);
   }
 
   function setTool(tool) {
@@ -324,11 +337,16 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
   /** Switching page always closes the launcher: it is a way to get somewhere,
    *  never a thing you leave open over the page you just chose. */
   function setPage(page) {
+    if (isFollower()) return; // held on the presenter's page
     noteInteraction();
     state.page = page;
     state.launcherOpen = false;
   }
   function setLauncher(open) {
+    // Refused rather than merely hidden: a menu that opens over a brief is a
+    // menu whose destinations cannot be reached, and a key that visibly does
+    // nothing is the exact complaint this app already earned once.
+    if (isFollower()) return;
     noteInteraction();
     state.launcherOpen = Boolean(open);
   }
@@ -401,17 +419,19 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
       banner: state.banner,
       brief: {
         ...state.brief,
-        // A brief is live when someone is presenting AND we have not paged
-        // away from them. The renderer needs the distinction: "browsing on
-        // your own" still shows who is presenting and offers REJOIN.
-        live: Boolean(state.brief.presenter) && state.brief.following,
+        // A brief is live whenever anyone is presenting. There is no longer a
+        // "watching but browsing on my own" state to distinguish it from.
+        live: Boolean(state.brief.presenter),
+        // Our controls are held by the presenter. The renderer needs this to
+        // say so out loud — chrome that silently stops responding reads as a
+        // frozen app, which is worse than being told who has the stick.
+        locked: isFollower(),
         // Following, but the image they are on is not in our queue. Silently
         // showing a different photo from everyone else is the worst possible
         // outcome in a brief, so this is stated.
         focusMissing:
           Boolean(state.brief.focusHash) &&
-          !state.brief.presenting &&
-          state.brief.following &&
+          isFollower() &&
           !q.some((p) => p.hash === state.brief.focusHash),
       },
 
@@ -449,7 +469,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     setPresenting,
     setPresenter,
     setFocus,
-    setFollowing,
+    isFollower,
     setTool,
     setCursor,
     setInkRevs,

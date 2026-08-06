@@ -85,6 +85,36 @@ child.on('exit', () => {
     }
   }
 
+  // While a presenter holds a follower's controls, main refuses to act on
+  // them. Anything still on screen would press and do nothing, which is the
+  // exact experience this app has already shipped once.
+  const controlsMatch = /VISUAL_CONTROLS (\{.*\})/.exec(output);
+  if (!controlsMatch) {
+    console.error('[visual] FAIL: the held-controls probe never reported');
+    failed = true;
+  } else {
+    const { held, idle } = JSON.parse(controlsMatch[1]);
+    const stillShowing = Object.keys(held).filter((k) => held[k]);
+    if (stillShowing.length) {
+      console.error(
+        `[visual] FAIL: a follower whose controls are held can still see ${stillShowing.join(', ')} — ` +
+          'they press and nothing happens',
+      );
+      failed = true;
+    }
+    // The positive half: if the probe reported "hidden" for everything
+    // regardless, the check above would pass while measuring nothing.
+    const missingWhenIdle = ['menukey', 'prev', 'next'].filter((k) => !idle[k]);
+    if (missingWhenIdle.length) {
+      console.error(
+        `[visual] FAIL: ${missingWhenIdle.join(', ')} missing with no brief running — ` +
+          'either navigation is broken, or this probe is not measuring what it claims',
+      );
+      failed = true;
+    }
+    if (!failed) console.log('[visual] held follower shows no dead controls; idle shows them all');
+  }
+
   if (failed) return finish(1);
   console.log('[dev-visual-test] PASS');
   finish(0);

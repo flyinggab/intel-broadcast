@@ -162,6 +162,12 @@ function renderStrip(s) {
 
 function renderLauncher(s) {
   launcher.classList.toggle('is-hidden', !s.launcherOpen);
+  // The menu key goes while a presenter holds this pilot's controls, for the
+  // same reason the chevrons do: main refuses to open the launcher, so the
+  // key would press and do nothing. Same rule everywhere — a control that
+  // cannot act is not shown.
+  const held = Boolean(s.brief && s.brief.locked);
+  menukey.classList.toggle('is-hidden', held);
   menukey.classList.toggle('is-active', Boolean(s.launcherOpen));
   menukey.setAttribute('aria-expanded', s.launcherOpen ? 'true' : 'false');
   crumb.root.setAttribute('aria-expanded', s.launcherOpen ? 'true' : 'false');
@@ -574,44 +580,50 @@ function renderBrief(s) {
   presenterCursor = b.presenting ? null : b.cursor || null; // never draw our own
   const mine = b.presenting;
   const theirs = Boolean(b.presenter) && !mine;
-  const away = theirs && !b.following;
 
   stage.cast.classList.toggle('is-on', mine);
   brief.tools.classList.toggle('is-hidden', !mine);
   stage.ink.classList.toggle('is-live', mine);
 
+  // Held controls are REMOVED, not left sitting there inert. A chevron that
+  // depresses and does not turn the page is indistinguishable from a broken
+  // app — this project has already shipped that exact experience once. The
+  // cast key goes too: pressing PRESENT while someone else has the brief
+  // would take it off them, which is not a thing a follower should be able to
+  // do by accident.
+  const held = Boolean(b.locked);
+  stage.prev.classList.toggle('is-hidden', held);
+  stage.next.classList.toggle('is-hidden', held);
+  stage.cast.classList.toggle('is-hidden', held);
+
   for (const node of brief.tools.querySelectorAll('[data-tool]')) {
     node.classList.toggle('is-on', node.dataset.tool === b.tool);
   }
 
-  // The bar states what is happening and offers the one way out of it.
+  // The bar states what is happening. For a follower there is no longer an
+  // action on it: the controls are the presenter's until they stop, so the
+  // key would be a button that refuses. Saying who holds them is the whole
+  // job — chrome that quietly stops responding reads as a frozen app.
   const show = mine || theirs;
   brief.bar.classList.toggle('is-hidden', !show);
+  brief.key.classList.toggle('is-hidden', !mine);
   if (mine) {
     setText(brief.title, t('brief.youArePresenting'));
     setText(brief.meta, t('brief.withYou', { n: countFollowers(s) }));
     setText(brief.key, t('brief.stop'));
     brief.key.dataset.act = 'stop';
-  } else if (away) {
-    setText(brief.title, t('brief.onYourOwn'));
-    setText(brief.meta, t('brief.presenterIsOn', { who: (b.presenter || '').toUpperCase() }));
-    setText(brief.key, t('brief.rejoin'));
-    brief.key.dataset.act = 'rejoin';
   } else if (theirs) {
     setText(brief.title, t('brief.following', { who: (b.presenter || '').toUpperCase() }));
     // A pilot who does not have the presenter's photo is looking at a
     // different image from everyone else. Never let that be silent.
-    setText(brief.meta, t(b.focusMissing ? 'brief.notInYourBrief' : 'brief.pageAwayToLeave'));
-    setText(brief.key, t('brief.break'));
-    brief.key.dataset.act = 'break';
+    setText(brief.meta, t(b.focusMissing ? 'brief.notInYourBrief' : 'brief.heldByPresenter'));
+    delete brief.key.dataset.act;
   }
 
-  // The capture-clean marker. Only while FOLLOWING someone else: a presenter
-  // knows why their own page turned, and a pilot browsing on their own is not
-  // being moved by anyone.
-  const following = theirs && b.following;
-  brief.mark.classList.toggle('is-hidden', !following);
-  if (following) setText(brief.markLabel, t('brief.following', { who: (b.presenter || '').toUpperCase() }));
+  // The capture-clean marker. Only while watching someone else: a presenter
+  // knows why their own page turned.
+  brief.mark.classList.toggle('is-hidden', !theirs);
+  if (theirs) setText(brief.markLabel, t('brief.following', { who: (b.presenter || '').toUpperCase() }));
 
   // Ink follows the focused image. Which image that is comes from the queue,
   // not from FOCUS: a pilot browsing on their own annotates what THEY are
@@ -738,10 +750,9 @@ stage.next.addEventListener('click', () => send('step', 1));
 // needs — STOP, BREAK or REJOIN — so there is never more than one way out.
 stage.cast.addEventListener('click', () => send('brief-present', !isPresenting()));
 brief.key.addEventListener('click', () => {
-  const act = brief.key.dataset.act;
-  if (act === 'stop') send('brief-present', false);
-  else if (act === 'break') send('brief-follow', false);
-  else if (act === 'rejoin') send('brief-follow', true);
+  // STOP is the only action this key has ever needed since following stopped
+  // being something a pilot leaves.
+  if (brief.key.dataset.act === 'stop') send('brief-present', false);
 });
 brief.tools.addEventListener('click', (event) => {
   const tool = event.target.closest('[data-tool]');

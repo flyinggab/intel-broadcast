@@ -147,6 +147,28 @@ app.whenReady().then(async () => {
       win.destroy();
     }
     console.log('VISUAL ' + JSON.stringify(results));
+
+    // A held follower must show no control that main will refuse. Reported
+    // for the held state AND for an ordinary one, so the check cannot pass by
+    // the probe simply never seeing anything: idle has to show the controls
+    // that held hides, or the measurement is worthless.
+    const win = new BrowserWindow({ width: WIDTH, height: HEIGHT, show: false });
+    await win.loadFile(path.join(APP_DIR, 'src', 'renderer', 'viewer.html'));
+    await win.webContents.executeJavaScript(PREVIEW_STATE_SOURCE);
+    const controlsIn = async (scenario) => {
+      await win.webContents.executeJavaScript(
+        `window.__preview.render({ ...PreviewState.viewer[${JSON.stringify(scenario)}], locale: 'en' })`,
+      );
+      await new Promise((r) => setTimeout(r, 250));
+      return win.webContents.executeJavaScript(`(() => {
+        const vis = (id) => { const n = document.getElementById(id); return Boolean(n && n.offsetParent); };
+        return { menukey: vis('menukey'), prev: vis('stage-prev'), next: vis('stage-next'), cast: vis('brief-cast') };
+      })()`);
+    };
+    const held = await controlsIn('following');
+    const idle = await controlsIn('queue');
+    win.destroy();
+    console.log('VISUAL_CONTROLS ' + JSON.stringify({ held, idle }));
   } catch (err) {
     console.log(`VISUAL_ERROR ${err.message}`);
   }

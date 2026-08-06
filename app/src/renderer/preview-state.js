@@ -90,6 +90,22 @@
     queue: { total: queueItems.length, pos: 0, current: queueItems[0] },
     batches,
 
+    // Nobody is presenting in the default snapshot; the two brief scenarios
+    // below override it. Shaped exactly like viewState's snapshot, `locked`
+    // and `live` included, because those are derived there and the renderer
+    // must never compute them itself.
+    brief: {
+      presenting: false,
+      presenter: null,
+      focusHash: null,
+      tool: 'pen',
+      cursor: null,
+      inkRevs: {},
+      live: false,
+      locked: false,
+      focusMissing: false,
+    },
+
     folder: '/dcs/missions/roman-sead-joker1',
     photos,
     selectedCount: 4,
@@ -120,6 +136,15 @@
       'banner switched': scenario({ banner: { who: 'JOKER 2-1', count: 2, switched: true, at: T0 } }),
       'banner queued': scenario({ banner: { who: 'UZI 1-1', count: 3, switched: false, at: T0 } }),
       launcher: scenario({ launcherOpen: true }),
+      // The two halves of a live brief. "following" is the one to look at
+      // after touching the bar: a follower's controls are held, so the bar
+      // carries no key at all and has to say who has them.
+      presenting: scenario({
+        brief: { ...base.brief, presenting: true, presenter: 'GHOSTRIDER 1-1', live: true },
+      }),
+      following: scenario({
+        brief: { ...base.brief, presenter: 'JOKER 2-1', live: true, locked: true },
+      }),
       received: scenario({ page: 'received' }),
       share: scenario({ page: 'share' }),
       fault: scenario({

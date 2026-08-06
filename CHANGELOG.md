@@ -14,6 +14,39 @@ that entry.
 
 ---
 
+## Unreleased
+
+### Changed
+- **A follower's view now belongs to the presenter.** While someone else is
+  casting, this instance is held: paging, changing page and opening the
+  launcher are all refused, and the presenter's FOCUS is the only thing that
+  moves it. This replaces the previous model, where paging away quietly left
+  the brief and FOLLOW rejoined — a brief nobody could be sure anyone was
+  watching. The lock releases when the presenter stops, when the presenter
+  vanishes (the relay fans out a stop on their behalf), or if our own link to
+  the relay drops. There is no manual escape by design, so a stale lock is the
+  failure that mattered most: a follower cannot page away by hand, and a
+  presenter we can no longer hear from must never hold a pilot's controls —
+  including the route to SETUP. Re-locking after a blip is automatic, because
+  the relay re-announces a live brief to every client that authenticates.
+- **FOLLOW is gone** with the model it belonged to: the `Ctrl+Shift+F`
+  binding, the `brief-follow` intent, the OpenKneeboard custom action and the
+  BREAK/REJOIN key on the brief bar. The bar now names who holds your
+  controls instead — chrome that silently stops responding reads as a frozen
+  app. PRESENT (`Ctrl+Shift+P`) is unchanged, and a presenter is never locked.
+
+### Fixed
+- **A presenter's page turns reached nobody.** PRESENT sent exactly one FOCUS
+  — for whichever image the presenter happened to be on when they started —
+  and every photo they moved to afterwards went unannounced. Followers sat on
+  the opening image watching ink appear on a picture they could not see. FOCUS
+  is now driven off the presenter's resulting image hash after anything that
+  can move it (chevrons, hotkeys, intel arriving, curation restaging), not off
+  the navigation intents. `dev-e2e-brief-test` holds a real socket on the
+  relay and fails if a page turn produces no second FOCUS.
+
+---
+
 ## v0.8.3 — 2026-08-02
 
 ### Fixed
