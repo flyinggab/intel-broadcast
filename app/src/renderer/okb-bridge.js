@@ -51,6 +51,11 @@
   document.body.dataset.surface = 'okb';
 
   const state = { active: true, version, pages: [], cursorMode: null, errors: [] };
+  // Fixed, not crypto.randomUUID(): a page GUID identifies the page across
+  // reloads and across the two WebView2 instances a tab can have. Minting a
+  // fresh one each load makes the same stage look like a different page every
+  // time OpenKneeboard reopens the tab.
+  const STAGE_PAGE_GUID = 'b1f2d0c4-6a3e-4a1f-9c77-0d5e7a1c3b90';
   window.__okb = state;
 
   /** Everything below is behind experimental gates with dated version
@@ -69,19 +74,34 @@
   }
 
   async function init() {
-    // Pin the gates. Names and dates are from documentation, not from a run
-    // against a real build — see the honest gaps in the design handoff.
+    // The gates, as published. Lowercase `name`/`version`, and the versions
+    // are dates — the placeholders here were `Version: 2021` with capitalised
+    // keys, which is two ways wrong for something that fails silently.
     await enable([
-      { Name: 'PageBasedContent', Version: 2021 },
-      { Name: 'SetCursorEventsMode', Version: 2021 },
+      { name: 'PageBasedContent', version: 2024073001 },
+      { name: 'SetCursorEventsMode', version: 2024071801 },
     ]);
 
     // ONE page for the stage. When card pages arrive they are appended here,
     // and only they get real page identities.
+    //
+    // GetPages FIRST, and only claim the page set when nobody else has: the
+    // docs require it so that two WebView2 instances of the same tab cannot
+    // fight over the page list. pixelSize must be integers >= 1; it was null.
     try {
-      if (typeof api.SetPages === 'function') {
-        state.pages = [{ guid: crypto.randomUUID ? crypto.randomUUID() : 'stage', pixelSize: null }];
-        await api.SetPages(state.pages);
+      if (typeof api.SetPages === 'function' && typeof api.GetPages === 'function') {
+        const existing = await api.GetPages();
+        if (existing && existing.havePages) {
+          state.pages = existing.pages || [];
+        } else {
+          state.pages = [
+            {
+              guid: STAGE_PAGE_GUID,
+              pixelSize: { width: 1024, height: 1448 }, // A4 portrait, the kneeboard shape
+            },
+          ];
+          await api.SetPages(state.pages);
+        }
       }
     } catch (err) {
       state.errors.push(`SetPages: ${err && err.message}`);
@@ -107,8 +127,11 @@
       const id = (event.detail && event.detail.id) || '';
       // No `.follow` action: a follower is held in the brief until the
       // presenter ends it, so there is nothing left to rejoin.
-      if (id.endsWith('.present')) sendIntent('brief-present', !isPresenting());
-      else if (id.endsWith('.clearInk')) sendIntent('brief-clear');
+      // Action IDs are namespaced with SEMICOLONS: the tab type ID, then ';',
+      // then the action name — `net.flyinggab.taclink;efb;present`. Matching
+      // on '.present' never fired, because there is no dot before the action.
+      if (id.endsWith(';present')) sendIntent('brief-present', !isPresenting());
+      else if (id.endsWith(';clearInk')) sendIntent('brief-clear');
     });
 
     // Unknown, and it must be handled rather than discovered in the air: if

@@ -51,17 +51,33 @@ const okb = require('../src/main/okb');
   );
   assert.strictEqual(m.TabTypes.length, 1, 'one tab type: the EFB');
   assert.strictEqual(m.TabTypes[0].ImplementationArgs.URI, 'http://127.0.0.1:8788/viewer.html');
+  assert.strictEqual(m.TabTypes[0].Implementation, 'WebBrowser');
+
+  // THE NAMESPACE SEPARATOR IS A SEMICOLON. A tab type ID starts with the
+  // plugin ID plus ';', an action ID with its tab type ID plus ';'. This was
+  // written with dots, which OpenKneeboard would not accept — and the old
+  // version of this test split action IDs on '.' and took the last segment,
+  // so it read `net.flyinggab.taclink.present` as "present" and passed. It
+  // asserted our own mistake back at us.
+  assert.strictEqual(m.TabTypes[0].ID, 'net.flyinggab.taclink;efb');
+  const actionIds = m.TabTypes[0].CustomActions.map((a) => a.ID);
+  for (const id of actionIds) {
+    assert.ok(
+      id.startsWith('net.flyinggab.taclink;efb;'),
+      `an action ID must be prefixed with its tab type ID and a semicolon, got "${id}"`,
+    );
+  }
 
   // Every brief-mode control is bindable, because a pilot inside VR cannot
   // click one. `follow` is deliberately absent: a follower is held in the
   // presenter's brief until the presenter ends it, so there is nothing to
   // bind — see viewState.isFollower().
-  const actions = m.TabTypes[0].CustomActions.map((a) => a.ID.split('.').pop());
+  const actions = actionIds.map((id) => id.split(';').pop());
   assert.ok(!actions.includes('follow'), 'follow is not a control any more');
   for (const need of ['present', 'clearInk']) {
     assert.ok(actions.includes(need), `${need} must be bindable as a custom action`);
   }
-  console.log('[test] manifest: namespaced id, one tab, every control bindable');
+  console.log('[test] manifest: semicolon-namespaced tab and action ids, one tab, every control bindable');
 }
 
 // ---------------------------------------------------------------------------
@@ -89,7 +105,7 @@ const okb = require('../src/main/okb');
   }
   // Reads of their install location are fine and necessary; writes are not.
   // Call sites only — the `function regWrite(key, ...)` definition is not one.
-  const writes = (src.match(/(?<!function )\breg(?:Write|Delete)\([^)]*\)/g) || []).filter(
+  const writes = (src.match(/(?<!function )\breg(?:WriteDword|DeleteValue)\([^)]*\)/g) || []).filter(
     (w) => !/^\w+\(key[,)]/.test(w),
   );
   assert.ok(writes.length > 0, 'the test must actually find the write call sites it is policing');
@@ -100,6 +116,36 @@ const okb = require('../src/main/okb');
     );
   }
   console.log('[test] we read OpenKneeboard\'s install location and write only our own plugin key');
+}
+
+// ---------------------------------------------------------------------------
+// The registration contract itself. This is the one that was wrong, it failed
+// completely silently — the plugin is simply never discovered and no tab ever
+// appears — and nothing in this file noticed, because every assertion was
+// about our own shape rather than theirs.
+// ---------------------------------------------------------------------------
+{
+  assert.ok(
+    /\\Plugins\\v1$/.test(okb.PLUGIN_KEY),
+    'plugins are advertised under ...\\Plugins\\v1 — a SCHEMA version. ' +
+      `Not a key named after our plugin id. Got "${okb.PLUGIN_KEY}"`,
+  );
+  assert.ok(
+    !okb.PLUGIN_KEY.includes(okb.PLUGIN_ID),
+    'the plugin id belongs in the manifest, never in the registry key path',
+  );
+
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'okb.js'), 'utf8');
+  const code = src.replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(
+    /REG_DWORD/.test(code),
+    'the registration value is a REG_DWORD (1 = enabled). It was written as a REG_SZ path.',
+  );
+  assert.ok(
+    !/'Path'/.test(code) && !/"Path"/.test(code),
+    'there is no "Path" value: the value NAME is the full path to the manifest',
+  );
+  console.log('[test] registration contract: DWORD under Plugins\\v1, manifest path as the value name');
 }
 
 // ---------------------------------------------------------------------------

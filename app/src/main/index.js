@@ -136,6 +136,13 @@ function currentPhotosFolder() {
 // OpenKneeboard web dashboard
 // ---------------------------------------------------------------------------
 
+function okbPluginDir() {
+  // Our own LocalAppData, which is what OpenKneeboard's docs recommend for a
+  // third party, and never anywhere under OpenKneeboard: writing into theirs
+  // is unsupported and breaks pilots' setups on update.
+  return path.join(app.getPath('userData'), 'okb');
+}
+
 /** Serves the EFB on loopback and registers our plugin so OpenKneeboard
  *  offers "Tac Link" in its own tab list. Both halves are reversible. */
 async function startOkb() {
@@ -143,11 +150,15 @@ async function startOkb() {
   const port = (config.okb && config.okb.port) || 8788;
   okbServer = createOkbServer({ port, onLog: (msg) => console.log(`[okb] ${msg}`) });
   try {
-    // Our install directory, never OpenKneeboard's — writing into theirs is
-    // unsupported and breaks pilots' setups on update.
-    const dir = path.join(app.getPath('userData'), 'okb');
-    const { file, ok } = await okb.register({ dir, version: app.getVersion(), url: okbServer.url });
+    const { file, ok } = await okb.register({
+      dir: okbPluginDir(),
+      version: app.getVersion(),
+      url: okbServer.url,
+    });
     console.log(`[okb] plugin manifest ${file}${ok ? ' registered' : ' written (registry unavailable)'}`);
+    // Registration is only discovered when OpenKneeboard starts, so say so
+    // rather than letting a pilot conclude the toggle did nothing.
+    if (ok) console.log('[okb] restart OpenKneeboard, then Add Tab -> Tac Link');
   } catch (err) {
     console.log(`[okb] could not register the plugin: ${err.message}`);
   }
@@ -159,7 +170,7 @@ async function stopOkb() {
     okbServer = null;
   }
   try {
-    await okb.unregister();
+    await okb.unregister({ dir: okbPluginDir() });
   } catch {
     // nothing registered, or no registry — either way there is nothing to undo
   }

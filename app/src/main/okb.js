@@ -40,10 +40,29 @@ const MIN_OKB_VERSION = '1.9.0';
 // Must never collide with anyone else's plugin, ever.
 const PLUGIN_ID = 'net.flyinggab.taclink';
 
-// Where OpenKneeboard records its own install location, and where third-party
-// plugins are advertised. Reads only — see rule 2 above.
+// Where OpenKneeboard records its own install location. Reads only — rule 2.
 const OKB_KEY = 'HKCU\\Software\\Fred Emmott\\OpenKneeboard';
-const PLUGIN_KEY = `HKCU\\Software\\Fred Emmott\\OpenKneeboard\\Plugins\\${PLUGIN_ID}`;
+
+// Where third-party plugins are advertised, and the shape is unusual enough
+// to be worth spelling out, because getting it wrong is silent: the plugin is
+// simply never discovered and the tab never appears in OpenKneeboard's list.
+//
+//   key    …\OpenKneeboard\Plugins\v1     <- a SCHEMA version, not our ID
+//   name   C:\…\okb-plugin.json           <- the value NAME is the full path
+//   type   REG_DWORD
+//   data   1 = enabled, 0 = disabled
+//
+// This was first implemented as a REG_SZ "Path" under a key named after our
+// plugin ID, which is a location OpenKneeboard never reads.
+const PLUGIN_KEY = 'HKCU\\Software\\Fred Emmott\\OpenKneeboard\\Plugins\\v1';
+
+// Tab types and custom actions are namespaced with SEMICOLONS, not dots: a tab
+// type ID starts with the plugin ID plus ';', and an action ID starts with its
+// tab type ID plus ';'. The dots in PLUGIN_ID are part of the reverse-domain
+// name and carry no structure.
+const TAB_TYPE_ID = `${PLUGIN_ID};efb`;
+const ACTION_PRESENT = `${TAB_TYPE_ID};present`;
+const ACTION_CLEAR_INK = `${TAB_TYPE_ID};clearInk`;
 
 const isWindows = () => process.platform === 'win32';
 
@@ -62,19 +81,37 @@ function regQuery(key, valueName) {
   });
 }
 
-function regWrite(key, valueName, value) {
+function regWriteDword(key, valueName, value) {
   return new Promise((resolve) => {
     if (!isWindows()) return resolve(false);
-    execFile('reg', ['add', key, '/v', valueName, '/t', 'REG_SZ', '/d', value, '/f'], { windowsHide: true }, (err) =>
-      resolve(!err),
+    execFile(
+      'reg',
+      ['add', key, '/v', valueName, '/t', 'REG_DWORD', '/d', String(value), '/f'],
+      { windowsHide: true },
+      (err) => resolve(!err),
     );
   });
 }
 
-function regDelete(key) {
+/** Deletes one VALUE, not the key: `…\Plugins\v1` is shared with every other
+ *  third party's plugin, so removing the key would unregister theirs too. */
+function regDeleteValue(key, valueName) {
   return new Promise((resolve) => {
     if (!isWindows()) return resolve(false);
-    execFile('reg', ['delete', key, '/f'], { windowsHide: true }, (err) => resolve(!err));
+    execFile('reg', ['delete', key, '/v', valueName, '/f'], { windowsHide: true }, (err) => resolve(!err));
+  });
+}
+
+/** Whether `valueName` under `key` exists and is a non-zero DWORD. `reg query`
+ *  prints DWORDs as `0x1`, so parse rather than string-compare. */
+function regDwordIsSet(key, valueName) {
+  return new Promise((resolve) => {
+    if (!isWindows()) return resolve(false);
+    execFile('reg', ['query', key, '/v', valueName], { windowsHide: true }, (err, stdout) => {
+      if (err || !stdout) return resolve(false);
+      const m = /REG_DWORD\s+0x([0-9a-fA-F]+)/.exec(stdout);
+      resolve(Boolean(m) && parseInt(m[1], 16) !== 0);
+    });
   });
 }
 
@@ -114,14 +151,18 @@ function pluginManifest({ version, url, tabName }) {
     },
     TabTypes: [
       {
-        ID: `${PLUGIN_ID}.efb`,
+        ID: TAB_TYPE_ID,
         Name: tabName,
         Glyph: '',
         CustomActions: [
-          { ID: `${PLUGIN_ID}.present`, Name: 'Present' },
-          { ID: `${PLUGIN_ID}.clearInk`, Name: 'Clear ink' },
+          { ID: ACTION_PRESENT, Name: 'Present' },
+          { ID: ACTION_CLEAR_INK, Name: 'Clear ink' },
         ],
         Implementation: 'WebBrowser',
+        // No InitialSize yet: it is optional and its exact field shape has not
+        // been confirmed against a real build. An unknown key here risks the
+        // whole manifest being rejected, which looks exactly like the bug this
+        // change fixes.
         ImplementationArgs: { URI: url },
       },
     ],
@@ -150,18 +191,23 @@ async function probe({ pluginPath = null, connected = false } = {}) {
   }
 
   const binPath = await regQuery(OKB_KEY, 'InstallationBinPath');
-  const version = await regQuery(OKB_KEY, 'Version');
-  const registeredPath = await regQuery(PLUGIN_KEY, 'Path');
+  // Registered means OUR path is present as a value name, enabled. There is
+  // no path comparison to do any more: the path IS the name, so a stale entry
+  // from an older install location is simply a different value.
+  const registered = pluginPath ? await regDwordIsSet(PLUGIN_KEY, path.resolve(pluginPath)) : false;
 
   return {
     platform: 'win32',
     supported: true,
     installed: Boolean(binPath),
-    version,
-    versionOk: versionAtLeast(version, MIN_OKB_VERSION),
-    // Registered means the value is there AND points at the file we would
-    // write. A stale path from an older install is not registered.
-    registered: Boolean(registeredPath && pluginPath && path.resolve(registeredPath) === path.resolve(pluginPath)),
+    // Deliberately not read from the registry. There is no `Version` value on
+    // a real install — the nearest thing is `AppVersionAtLastBackup`, which is
+    // what its name says and would be a lie here. `OpenKneeboard.GetVersion()`
+    // from inside the page is the only reliable answer, so the version is
+    // unknown until a WebView2 has connected and told us.
+    version: null,
+    versionOk: null,
+    registered,
     connected,
   };
 }
@@ -172,17 +218,20 @@ async function probe({ pluginPath = null, connected = false } = {}) {
  * `dir` must be somewhere we own — never anywhere under OpenKneeboard.
  */
 async function register({ dir, version, url, tabName = 'Tac Link' }) {
-  const file = path.join(dir, 'okb-plugin.json');
+  const file = path.resolve(path.join(dir, 'okb-plugin.json'));
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(file, JSON.stringify(pluginManifest({ version, url, tabName }), null, 2));
-  const ok = await regWrite(PLUGIN_KEY, 'Path', file);
+  // The file's own path is the value NAME; the data is just the enabled flag.
+  const ok = await regWriteDword(PLUGIN_KEY, file, 1);
   return { file, ok };
 }
 
-/** Removes the registry entry. The JSON stays: it is ours, it is inert, and
- *  deleting files on a toggle-off is more surprising than leaving one. */
-async function unregister() {
-  return regDelete(PLUGIN_KEY);
+/** Removes our value from the shared plugin key. The JSON stays: it is ours,
+ *  it is inert, and deleting files on a toggle-off is more surprising than
+ *  leaving one. */
+async function unregister({ dir } = {}) {
+  if (!dir) return false;
+  return regDeleteValue(PLUGIN_KEY, path.resolve(path.join(dir, 'okb-plugin.json')));
 }
 
 module.exports = {
@@ -196,4 +245,7 @@ module.exports = {
   PLUGIN_ID,
   PLUGIN_KEY,
   OKB_KEY,
+  TAB_TYPE_ID,
+  ACTION_PRESENT,
+  ACTION_CLEAR_INK,
 };
