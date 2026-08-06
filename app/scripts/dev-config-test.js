@@ -74,6 +74,36 @@ try {
     fs.rmSync(appData, { recursive: true, force: true });
   }
 
+  // A settings file people edit by hand must never be fatal. A UTF-8 BOM is
+  // what Notepad and PowerShell 5.1 write, and parsing one threw during module
+  // load — an unrecoverable Electron crash dialog before the app could start.
+  fs.writeFileSync(TMP_CONFIG, '\uFEFF' + JSON.stringify({ callsign: 'BOM PILOT', relayHostEnabled: true }), 'utf8');
+  let cfg2 = loadConfig();
+  assert.strictEqual(cfg2.callsign, 'BOM PILOT', 'a BOM must be stripped, not fatal');
+  assert.strictEqual(cfg2.relayHostEnabled, true);
+  console.log('[test] UTF-8 BOM tolerated');
+
+  // Anything still unparseable falls back to defaults, and the file is moved
+  // aside rather than deleted — it is the only copy of the user's settings.
+  const dir = path.dirname(TMP_CONFIG);
+  for (const f of fs.readdirSync(dir)) if (f.includes('.broken-')) fs.rmSync(path.join(dir, f), { force: true });
+  fs.writeFileSync(TMP_CONFIG, '{ this is not json ');
+  cfg2 = loadConfig();
+  assert.strictEqual(cfg2.relayHostEnabled, false, 'falls back to defaults rather than throwing');
+  assert.ok(!fs.existsSync(TMP_CONFIG), 'the broken file is moved out of the way');
+  const salvaged = fs.readdirSync(dir).filter((f) => f.includes('.broken-'));
+  assert.strictEqual(salvaged.length, 1, 'the broken file is kept, not deleted');
+  for (const f of salvaged) fs.rmSync(path.join(dir, f), { force: true });
+  console.log('[test] malformed settings: defaults, and the file is preserved');
+
+  // Valid JSON that is not an object is not settings either.
+  for (const junk of ['null', '[]', '"hello"', '42']) {
+    fs.writeFileSync(TMP_CONFIG, junk);
+    assert.strictEqual(loadConfig().relayHostEnabled, false, `${junk} must not be treated as settings`);
+    for (const f of fs.readdirSync(dir)) if (f.includes('.broken-')) fs.rmSync(path.join(dir, f), { force: true });
+  }
+  console.log('[test] non-object JSON rejected');
+
   console.log('[dev-config-test] PASS');
 } finally {
   fs.rmSync(TMP_CONFIG, { force: true });

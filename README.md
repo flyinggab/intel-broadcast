@@ -120,6 +120,18 @@ What makes them independent rather than one app opened twice:
 - **`--user-data-dir`** gives each its own log, blob cache and Chromium profile, so the two
   aren't interleaving into one log file.
 
+On Windows, run it natively instead so the real Tailscale is in play:
+
+```powershell
+cd app\scripts
+.\dev-two-pcs.ps1 -Funnel
+```
+
+With `-Funnel` the host raises an actual funnel and the second instance joins over the **public**
+`wss://` address, so the pairing leaves the machine and comes back — the closest thing to a
+two-computer test without a second computer, and it proves the same code would work for a pilot
+on another network. Add `-Seconds 120` to run unattended, or `-Manual` to paste the code yourself.
+
 **Global keybinds cannot be separated.** Windows and macOS give a combination to exactly one
 process, so only whichever instance started first answers them — use the on-screen controls when
 testing this way. It stops mattering once the two are genuinely on different PCs.

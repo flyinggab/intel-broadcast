@@ -92,6 +92,52 @@ const LOCAL_CONFIG_PATH = resolveLocalConfigPath();
 adoptLegacyConfigOnce(LOCAL_CONFIG_PATH);
 
 /**
+ * Reads the user's settings file, or null when it cannot be used.
+ *
+ * A settings file is something people edit by hand, and two very ordinary ways
+ * of doing that produce something `JSON.parse` rejects: Notepad and PowerShell
+ * 5.1's `Set-Content -Encoding UTF8` both prepend a UTF-8 BOM. Parsing that
+ * threw during module load, which in Electron is an unrecoverable
+ * "A JavaScript error occurred in the main process" dialog — the app simply
+ * would not start, and nothing said why.
+ *
+ * So: strip the BOM, and treat anything still unparseable as "no settings"
+ * rather than as fatal. The broken file is moved aside instead of deleted,
+ * because it is the only copy of whatever the user had configured.
+ */
+function readLocalConfig() {
+  let text;
+  try {
+    text = fs.readFileSync(LOCAL_CONFIG_PATH, 'utf8');
+  } catch (err) {
+    console.error(`[config] cannot read ${LOCAL_CONFIG_PATH}: ${err.message} — using defaults`);
+    return null;
+  }
+
+  // U+FEFF at the start is a byte-order mark, not content.
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+
+  try {
+    const parsed = JSON.parse(text);
+    // A JSON file can be valid and still not be an object (`null`, `[]`, `"x"`).
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('settings must be a JSON object');
+    }
+    return parsed;
+  } catch (err) {
+    const spoiled = `${LOCAL_CONFIG_PATH}.broken-${Date.now()}`;
+    try {
+      fs.renameSync(LOCAL_CONFIG_PATH, spoiled);
+      console.error(`[config] ${LOCAL_CONFIG_PATH} is not valid JSON (${err.message})`);
+      console.error(`[config] moved it to ${spoiled} and started with defaults`);
+    } catch {
+      console.error(`[config] ${LOCAL_CONFIG_PATH} is not valid JSON (${err.message}) — using defaults`);
+    }
+    return null;
+  }
+}
+
+/**
  * Loads resources/config.default.json (committed, baked in per squad build)
  * and shallow-merges the user's config.local.json over it if present.
  */
@@ -100,7 +146,8 @@ function loadConfig() {
 
   if (!fs.existsSync(LOCAL_CONFIG_PATH)) return defaults;
 
-  const local = JSON.parse(fs.readFileSync(LOCAL_CONFIG_PATH, 'utf8'));
+  const local = readLocalConfig();
+  if (!local) return defaults;
   const merged = {
     ...defaults,
     ...local,

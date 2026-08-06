@@ -73,6 +73,13 @@ function Invoke-AppNode([string]$Script) {
   try { return (& node -e $Script 2>$null) } finally { Pop-Location }
 }
 
+function Write-JsonFile([string]$Path, $Object) {
+  # NOT Set-Content -Encoding UTF8: on Windows PowerShell 5.1 that writes a
+  # UTF-8 BOM, and a BOM makes JSON.parse fail. .NET writes UTF-8 without one
+  # on both editions.
+  [System.IO.File]::WriteAllText($Path, ($Object | ConvertTo-Json -Depth 5))
+}
+
 $Root = Join-Path $env:TEMP 'taclink-two-pcs'
 if (Test-Path $Root) { Remove-Item $Root -Recurse -Force }
 $pcADir = New-Item -ItemType Directory -Path (Join-Path $Root 'PC-A') -Force
@@ -83,13 +90,13 @@ $Token = "two-pc-$Token"
 
 # ---------------------------------------------------------------- PC-A -----
 $pcAConfig = Join-Path $pcADir 'config.json'
-@{
+Write-JsonFile $pcAConfig @{
   relayHostEnabled = $true
   token            = $Token
   callsign         = 'GHOSTRIDER 1-1'
   missionName      = 'roman-sead-joker1'
   gm               = @{ relayPort = $Port; funnelEnabled = [bool]$Funnel }
-} | ConvertTo-Json -Depth 5 | Set-Content -Path $pcAConfig -Encoding UTF8
+}
 
 function Start-Pc([string]$Name, [string]$ConfigPath, [string]$UserDataDir) {
   $env:INTEL_BROADCAST_LOCAL_CONFIG_PATH = $ConfigPath
@@ -156,7 +163,7 @@ if (-not $Manual) {
   $bSettings.relayUrl = $decoded.url
   $bSettings.token = $decoded.token
 }
-$bSettings | ConvertTo-Json -Depth 5 | Set-Content -Path $pcBConfig -Encoding UTF8
+Write-JsonFile $pcBConfig $bSettings
 
 Start-Sleep -Seconds 2   # let the host bind its port first
 $procB = Start-Pc 'PC-B' $pcBConfig $pcBDir
