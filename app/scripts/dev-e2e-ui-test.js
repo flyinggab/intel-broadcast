@@ -215,6 +215,25 @@ async function main() {
   await waitFor('Escape to close the launcher', () => probe.launcherOpen === false);
   console.log('[e2e] launcher lists every destination, grouped, and Escape closes it');
 
+  // ...and it must be VISIBLE, which is a different question from open. On
+  // BRIEF the page underneath owns a .stage whose chrome and standby plate are
+  // absolutely positioned siblings in the same stacking context; when they
+  // outranked the launcher it opened, took the click and stayed buried, so the
+  // landing page had no way out of it. Checking the class alone missed that
+  // entirely — ask which element is really on top.
+  await goTo('brief');
+  await waitFor('BRIEF page', () => probe.page === 'brief');
+  await click('#menukey');
+  await waitFor('the launcher to open over BRIEF', () => probe.launcherOpen === true);
+  if (probe.launcherOnTop !== true) {
+    throw new Error(
+      `the open launcher is buried on BRIEF (standby=${probe.standby}) — a pilot cannot navigate`,
+    );
+  }
+  console.log(`[e2e] launcher paints above the BRIEF stage (standby=${probe.standby})`);
+  await runInViewer(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await waitFor('Escape to close the launcher', () => probe.launcherOpen === false);
+
   // SETUP is a page of this window now — the EFB carries its own settings.
   await goTo('setup');
   await waitFor('SETUP page', () => probe.page === 'setup');

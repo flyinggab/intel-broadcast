@@ -1148,6 +1148,17 @@ function attachViewerProbe() {
              tool: (document.querySelector('#brief-tools [data-tool].is-on') || {}).id || '',
            },
            launcherOpen: !document.getElementById('launcher').classList.contains('is-hidden'),
+           // Not the same question as launcherOpen, and the difference is a
+           // shipped bug: the menu was open and taking clicks while the BRIEF
+           // stage painted over it, so the class said "open" and the pilot saw
+           // nothing. Ask the compositor who is actually on top.
+           launcherOnTop: (() => {
+             const el = document.getElementById('launcher');
+             if (el.classList.contains('is-hidden')) return null;
+             const r = el.getBoundingClientRect();
+             const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+             return Boolean(hit) && (hit === el || el.contains(hit));
+           })(),
            crumb: document.getElementById('crumb-page').textContent + ' ' + document.getElementById('crumb-pos').textContent,
            dests: [...document.querySelectorAll('.dest[data-dest]')].map((d) => d.dataset.dest),
            groups: [...document.querySelectorAll('.launcher__group')].map((g) => g.textContent),

@@ -272,7 +272,15 @@ body[data-mode="join"] [data-mode="host"] { display: none; }
 .launcher {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  /* Above EVERYTHING in the page underneath, which is why this is 10 and not
+     2. The launcher covers the current page rather than replacing it, and
+     .stage neither creates a stacking context (position: relative, z-index
+     auto) nor is a parent of this — so .stage__chrome (3) and the opaque
+     .stage__standby (4) are siblings in the same stacking context and used to
+     paint straight over the open menu. The menu was there and taking clicks,
+     just buried: on BRIEF, the landing page, that stranded pilots with no way
+     to navigate. Keep this above the highest z-index in components.css. */
+  z-index: 10;
   background: var(--bg);
   /* Extra room at the top: the grid sat flush under the strip, which read as
      cramped and made the first group heading look like part of the chrome. */
