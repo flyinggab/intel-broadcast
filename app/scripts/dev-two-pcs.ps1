@@ -92,6 +92,10 @@ $Token = "two-pc-$Token"
 $pcAConfig = Join-Path $pcADir 'config.json'
 Write-JsonFile $pcAConfig @{
   relayHostEnabled = $true
+  # okb OFF: this script deletes its temp directories on exit, and an instance
+  # that registered a plugin from one leaves a dangling registry entry behind
+  # for ever. Enough of those and the real tab stops appearing.
+  okb              = @{ enabled = $false }
   token            = $Token
   callsign         = 'GHOSTRIDER 1-1'
   missionName      = 'roman-sead-joker1'
@@ -155,6 +159,7 @@ console.log(require('./src/main/squadCode').encodeSquadCode(host, $Port, '$Token
 $pcBConfig = Join-Path $pcBDir 'config.json'
 $bSettings = @{
   relayHostEnabled = $false
+  okb              = @{ enabled = $false }
   callsign         = 'JOKER 2-1'
   missionName      = 'roman-sead-joker1'
 }

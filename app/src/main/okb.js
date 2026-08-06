@@ -108,6 +108,28 @@ function regDeleteValue(key, valueName) {
   });
 }
 
+/**
+ * Every value name under `key` — i.e. every registered plugin's manifest path.
+ *
+ * `reg query` prints `    <name>    REG_DWORD    0x1`, and a name here is a
+ * FILE PATH, which contains spaces. Split on the four-space separator rather
+ * than on whitespace.
+ */
+function regListValues(key) {
+  return new Promise((resolve) => {
+    if (!isWindows()) return resolve([]);
+    execFile('reg', ['query', key], { windowsHide: true }, (err, stdout) => {
+      if (err || !stdout) return resolve([]);
+      const names = [];
+      for (const line of stdout.split(/\r?\n/)) {
+        const m = /^\s{4}(.+?)\s{4}REG_\w+\s{4}/.exec(line);
+        if (m) names.push(m[1]);
+      }
+      resolve(names);
+    });
+  });
+}
+
 /** Whether `valueName` under `key` exists and is a non-zero DWORD. `reg query`
  *  prints DWORDs as `0x1`, so parse rather than string-compare. */
 function regDwordIsSet(key, valueName) {
@@ -217,7 +239,39 @@ async function probe({ pluginPath = null, connected = false } = {}) {
 }
 
 /**
+ * Is this registered path one of OURS, and not the one we are about to write?
+ *
+ * Ours by identity where we can read it — a manifest declaring our plugin ID —
+ * and by shape where we cannot, because a path whose file has been deleted
+ * cannot be read and is exactly the case that needs cleaning up. `okb/
+ * okb-plugin.json` is our own layout, so a dangling one is ours and is
+ * useless to anybody.
+ *
+ * Anything belonging to another vendor is never touched, on either branch.
+ */
+function isStaleOurs(registeredPath, ourFile) {
+  if (path.resolve(registeredPath) === path.resolve(ourFile)) return false;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(registeredPath, 'utf8'));
+    return parsed && parsed.ID === PLUGIN_ID;
+  } catch {
+    // Unreadable or gone. Only claim it if it is our filename in our layout.
+    return /[\\/]okb[\\/]okb-plugin\.json$/i.test(registeredPath);
+  }
+}
+
+/**
  * Writes the manifest into OUR directory and points the registry at it.
+ *
+ * EXCLUSIVE: any other entry for this plugin is removed first. Registration is
+ * keyed by PATH, so every instance with its own user-data directory — a dev
+ * checkout, a packaged install, the two-PC script's throwaway temp dirs —
+ * added another entry for the same plugin ID and nothing ever took one away.
+ * OpenKneeboard then reads several plugins all claiming
+ * `net.flyinggab.taclink`, some of them pointing at files that no longer
+ * exist, and the tab stops appearing at all. That is not a state a pilot can
+ * diagnose, and it survives an OpenKneeboard restart, which is what makes it
+ * look like a restart problem rather than a registration one.
  *
  * `dir` must be somewhere we own — never anywhere under OpenKneeboard.
  */
@@ -225,9 +279,16 @@ async function register({ dir, version, url, tabName = 'Tac Link' }) {
   const file = path.resolve(path.join(dir, 'okb-plugin.json'));
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(file, JSON.stringify(pluginManifest({ version, url, tabName }), null, 2));
+
+  const removed = [];
+  for (const registered of await regListValues(PLUGIN_KEY)) {
+    if (!isStaleOurs(registered, file)) continue;
+    if (await regDeleteValue(PLUGIN_KEY, registered)) removed.push(registered);
+  }
+
   // The file's own path is the value NAME; the data is just the enabled flag.
   const ok = await regWriteDword(PLUGIN_KEY, file, 1);
-  return { file, ok };
+  return { file, ok, removed };
 }
 
 /** Removes our value from the shared plugin key. The JSON stays: it is ours,
@@ -247,6 +308,7 @@ module.exports = {
   isWindows,
   MIN_OKB_VERSION,
   MAX_TESTED_OKB_VERSION,
+  isStaleOurs,
   PLUGIN_ID,
   PLUGIN_KEY,
   OKB_KEY,

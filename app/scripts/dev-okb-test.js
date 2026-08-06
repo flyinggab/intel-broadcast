@@ -152,6 +152,53 @@ const okb = require('../src/main/okb');
 }
 
 // ---------------------------------------------------------------------------
+// EXCLUSIVITY. Registration is keyed by PATH, so every instance with its own
+// user-data directory adds another entry for the same plugin ID: a dev
+// checkout, a packaged install, and the two-PC script's temp dirs — which that
+// script then deletes, leaving entries pointing at nothing. OpenKneeboard then
+// sees several plugins all claiming net.flyinggab.taclink and stops offering
+// the tab, which survives restarting it and therefore looks like anything
+// except a registration problem.
+// ---------------------------------------------------------------------------
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'okb-stale-'));
+  const ours = path.join(dir, 'current', 'okb-plugin.json');
+  fs.mkdirSync(path.dirname(ours), { recursive: true });
+  fs.writeFileSync(ours, JSON.stringify(okb.pluginManifest({ version: '0.8.3', url: 'http://x', tabName: 'Tac Link' })));
+
+  // An older instance of ours, still on disk. Identified BY ITS ID.
+  const oldOurs = path.join(dir, 'old', 'okb-plugin.json');
+  fs.mkdirSync(path.dirname(oldOurs), { recursive: true });
+  fs.writeFileSync(oldOurs, JSON.stringify(okb.pluginManifest({ version: '0.1.0', url: 'http://y', tabName: 'Tac Link' })));
+  assert.strictEqual(okb.isStaleOurs(oldOurs, ours), true, 'an older manifest of ours is stale');
+
+  // Somebody else's plugin, on disk. NEVER ours to remove.
+  const theirs = path.join(dir, 'them', 'their-plugin.json');
+  fs.mkdirSync(path.dirname(theirs), { recursive: true });
+  fs.writeFileSync(theirs, JSON.stringify({ ID: 'com.example.someone-else', TabTypes: [] }));
+  assert.strictEqual(okb.isStaleOurs(theirs, ours), false, 'another vendor is never touched');
+
+  // Dangling — the two-PC case. Unreadable, so identity cannot be checked and
+  // only our own layout may be claimed.
+  assert.strictEqual(
+    okb.isStaleOurs(path.join(dir, 'gone', 'okb', 'okb-plugin.json'), ours),
+    true,
+    'a dangling entry in our own layout is ours to clean up',
+  );
+  assert.strictEqual(
+    okb.isStaleOurs(path.join(dir, 'gone', 'someone-else', 'plugin.json'), ours),
+    false,
+    'a dangling entry that is not our layout is left alone',
+  );
+
+  // And we never delete the one we are about to write.
+  assert.strictEqual(okb.isStaleOurs(ours, ours), false, 'our current registration is not stale');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+  console.log('[test] registration is exclusive: our stale entries go, other vendors never do');
+}
+
+// ---------------------------------------------------------------------------
 // The one-page decision, asserted against the bridge source. This is the
 // cheapest possible guard on a choice that is expensive to unpick: if someone
 // later reaches for RequestPageChanged to sync the stage, this fails and says

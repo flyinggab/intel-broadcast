@@ -74,7 +74,11 @@ function makePc({ name, callsign, config }) {
 const pcA = makePc({
   name: 'PC-A',
   callsign: 'GHOSTRIDER 1-1',
-  config: { relayHostEnabled: true, token: TOKEN, gm: { relayPort: RELAY_PORT, funnelEnabled: false } },
+  // okb OFF: these are throwaway machines under the OS temp dir, and this
+  // script deletes them on exit. An instance that registers an OpenKneeboard
+  // plugin from a directory that is about to vanish leaves a dangling entry
+  // behind for ever, and enough of those stop the real tab appearing at all.
+  config: { relayHostEnabled: true, token: TOKEN, okb: { enabled: false }, gm: { relayPort: RELAY_PORT, funnelEnabled: false } },
 });
 
 const pcB = makePc({
@@ -83,7 +87,9 @@ const pcB = makePc({
   // --manual leaves this one unpaired on purpose: open SETUP → NETWORK →
   // I JOIN A SQUAD and paste the code printed below, which is the flow a real
   // pilot goes through.
-  config: manual ? { relayHostEnabled: false } : { relayHostEnabled: false, relayUrl: squad.relayUrlFor(squad.decodeSquadCode(CODE)), token: TOKEN },
+  config: manual
+    ? { relayHostEnabled: false, okb: { enabled: false } }
+    : { relayHostEnabled: false, okb: { enabled: false }, relayUrl: squad.relayUrlFor(squad.decodeSquadCode(CODE)), token: TOKEN },
 });
 
 const children = [];

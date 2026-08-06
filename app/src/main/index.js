@@ -221,11 +221,14 @@ async function startOkb() {
     return;
   }
   try {
-    const { file, ok } = await okb.register({
+    const { file, ok, removed } = await okb.register({
       dir: okbPluginDir(),
       version: app.getVersion(),
       url: okbServer.url,
     });
+    // Worth a line each: a stale registration is invisible until OpenKneeboard
+    // silently stops offering the tab, and then nothing on screen explains it.
+    for (const gone of removed || []) console.log(`[okb] removed a stale registration: ${gone}`);
     console.log(`[okb] plugin manifest ${file}${ok ? ' registered' : ' written (registry unavailable)'}`);
     // Registration is only discovered when OpenKneeboard starts, so say so
     // rather than letting a pilot conclude the toggle did nothing.
