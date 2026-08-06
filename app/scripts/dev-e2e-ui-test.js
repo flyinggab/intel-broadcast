@@ -104,6 +104,15 @@ async function runInViewer(js) {
   await sleep(600);
 }
 
+/** Evaluates an object literal in the viewer and returns it. */
+async function probeInViewer(objectLiteral) {
+  const marker = `PROBE_${Date.now()}`;
+  await runInViewer(`console.log('${marker} ' + JSON.stringify(${objectLiteral}))`);
+  const m = new RegExp(`${marker} (\\{.*\\})`).exec(output);
+  if (!m) throw new Error('viewer probe never reported');
+  return JSON.parse(m[1]);
+}
+
 const click = (selector) => runInViewer(`document.querySelector(${JSON.stringify(selector)}).click()`);
 
 // The tab bar is gone: navigation is the launcher. Open it from the strip,
@@ -166,48 +175,22 @@ async function main() {
   // focus — which a window spawned by a test script does not reliably get.
   // Relying on that made this assertion pass or fail by luck.
   await runInViewer(`window.dispatchEvent(new MouseEvent('mousemove'))`);
-  // Focused and idle: the chrome must STAY. Both ways into the launcher live in
-  // the strip, so hiding it while someone is at the app removes the only way
-  // off the page — you click where the key was and nothing is there.
-  await runInViewer(`window.viewerAPI.send('focus', true)`);
-  await sleep(4000); // well past the idle window
-  if (probe.chromeHidden) throw new Error('chrome must not hide while the window has focus');
-  console.log('[e2e] focused and idle: chrome stays, the launcher stays reachable');
-
-  // Unfocused is when the capture matters, and nobody is clicking.
-  await runInViewer(`window.viewerAPI.send('focus', false)`);
-  await waitFor('chrome to hide once focus is elsewhere', () => probe.chromeHidden === true, 15000);
-  const chromeVisible = await new Promise((resolve) => {
-    fs.writeFileSync(
-      EVAL_PATH,
-      `console.log('CHROME_PROBE ' + JSON.stringify({
-         strip: !!document.querySelector('.strip').offsetParent,
-         stageChrome: !!document.querySelector('.stage__chrome').offsetParent,
-         img: !!document.getElementById('stage-img').offsetParent,
-       }))`,
-    );
-    const watch = setInterval(() => {
-      const m = /CHROME_PROBE (\{.*\})/.exec(output);
-      if (m) {
-        clearInterval(watch);
-        resolve(JSON.parse(m[1]));
-      }
-    }, 200);
-    setTimeout(() => {
-      clearInterval(watch);
-      resolve(null);
-    }, 8000);
-  });
-  if (!chromeVisible) throw new Error('chrome probe never reported');
-  if (chromeVisible.strip || chromeVisible.stageChrome) {
-    throw new Error(`HIDE CHROME must blank all chrome, got ${JSON.stringify(chromeVisible)}`);
+  // The chrome must NEVER disappear on its own. Both ways into the launcher
+  // live in .strip, so hiding it strands the pilot on whatever page they are
+  // on. This asserts it while the window is UNFOCUSED — document.hasFocus() is
+  // false here, which is exactly the case that defeated an earlier fix that
+  // kept the chrome only while focused.
+  await sleep(4000);
+  const chrome = await probeInViewer(`{
+    hasFocus: document.hasFocus(),
+    strip: !!document.querySelector('.strip').offsetParent,
+    menukey: !!document.getElementById('menukey').offsetParent,
+  }`);
+  if (chrome.strip !== true || chrome.menukey !== true) {
+    throw new Error(`the launcher must stay reachable when idle, got ${JSON.stringify(chrome)}`);
   }
-  if (!chromeVisible.img) throw new Error('the photo must remain visible with chrome hidden');
-  console.log('[e2e] HIDE CHROME shows the photo and nothing else');
-  // ...and comes back the moment someone is at the machine again.
-  await runInViewer(`window.viewerAPI.send('focus', true)`);
-  await waitFor('chrome back when focus returns', () => probe.chromeHidden === false, 10000);
-  console.log('[e2e] chrome auto-hides when idle and returns on activity');
+  if (probe.chromeHidden) throw new Error('chrome must not hide itself');
+  console.log(`[e2e] idle with hasFocus=${chrome.hasFocus}: strip and launcher key still there`);
 
   // --- tabs switch pages; SETUP does not ------------------------------------
   await goTo('received');

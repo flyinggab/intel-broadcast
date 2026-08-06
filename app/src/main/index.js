@@ -601,45 +601,23 @@ function writeHotkeyMarker() {
   }
 }
 
-// The chrome auto-hides while you are looking at the photo, so the kneeboard
-// capture is just the photo without anyone having to remember a key. It only
-// applies on BRIEF: RECEIVED and SHARE are pages you interact with, and having
-// the tab bar vanish mid-curation would be hostile.
+// The chrome does NOT auto-hide.
 //
-// The renderer reports activity (throttled) and main owns the timer — the same
-// split as everything else, and the reason a second surface in phase 4 can
-// have its own idle behaviour without the DOM disagreeing.
-const CHROME_IDLE_MS = Number(process.env.INTEL_BROADCAST_CHROME_IDLE_MS) || 6000;
-let chromeTimer = null;
-
-function setChromeHidden(hidden) {
-  if (view.state.chromeHidden === hidden) return; // nothing to push
-  view.state.chromeHidden = hidden;
-  pushState();
-}
-
-function scheduleChromeHide() {
-  clearTimeout(chromeTimer);
-  chromeTimer = null;
-  // Only BRIEF auto-hides, and never while the launcher is open: hiding the
-  // chrome out from under an open menu would blank the thing being read.
-  //
-  // And NEVER while this window has focus. Both ways into the launcher — the
-  // breadcrumb and the menu key — live in the strip, so hiding the strip while
-  // someone is sitting at the app removes the only way off the page: you click
-  // where the key was and nothing happens, because nothing is there. A focused
-  // window means a person is using it. The capture only matters when DCS has
-  // focus, and the blur handler already hides instantly for that.
-  if (view.state.page !== 'brief' || view.state.launcherOpen || view.state.focused) {
-    return setChromeHidden(false);
-  }
-  chromeTimer = setTimeout(() => setChromeHidden(true), CHROME_IDLE_MS);
-}
-
-/** Someone is using the app: show the chrome and restart the idle countdown. */
+// It used to, after a few idle seconds on BRIEF. That hid `.strip`, and both
+// ways into the launcher — the breadcrumb and the menu key — live in the
+// strip. So sitting still on BRIEF removed the only way off the page: you
+// click where the key was and nothing is there to receive it.
+//
+// The first attempt at a fix kept the chrome while the window had focus, which
+// is wrong for a subtler reason: `document.hasFocus()` is false in perfectly
+// ordinary situations (the window is visible but was never clicked), so the
+// chrome still vanished. Gating the only exit from a page on a signal that can
+// be wrong is a bad trade for a slightly cleaner capture. If a
+// photo-and-nothing-else mode comes back, it needs a control that cannot
+// disappear with the thing it controls.
 function noteActivity() {
-  setChromeHidden(false);
-  scheduleChromeHide();
+  // Kept as the single place interaction is recorded, so callers read the same.
+  view.noteInteraction();
 }
 
 function stopKeyHook() {
@@ -900,19 +878,8 @@ function handleViewerIntent(intent, payload) {
     case 'set-batch':
       view.setBatchSelected(payload && payload.batchId, Boolean(payload && payload.on));
       break;
-    case 'activity':
-      noteActivity();
-      return;
     case 'focus':
       view.setFocused(Boolean(payload));
-      // Losing focus means DCS just took over — that is exactly when the
-      // capture should be clean, so do not wait out the timer.
-      if (payload) noteActivity();
-      else {
-        clearTimeout(chromeTimer);
-        chromeTimer = null;
-        if (view.state.page === 'brief') setChromeHidden(true);
-      }
       break;
     case 'banner-dismiss':
       view.clearBanner();
