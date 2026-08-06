@@ -37,6 +37,12 @@ const { execFile } = require('child_process');
 // panel should say which version is needed rather than failing obscurely.
 const MIN_OKB_VERSION = '1.9.0';
 
+// What we have ACTUALLY run against. OpenKneeboard parses this field, and it
+// is a promise, not a wish: raise it only after the app has been driven
+// against that build. 1.12.10 is the owner's machine, where the plugin was
+// confirmed to register and the dashboard page confirmed to serve.
+const MAX_TESTED_OKB_VERSION = '1.12.10';
+
 // Must never collide with anyone else's plugin, ever.
 const PLUGIN_ID = 'net.flyinggab.taclink';
 
@@ -145,9 +151,7 @@ function pluginManifest({ version, url, tabName }) {
       PluginReadableVersion: version,
       PluginSemanticVersion: version,
       OKBMinimumVersion: MIN_OKB_VERSION,
-      // Honest until a real OpenKneeboard has been tested against: the
-      // minimum IS the maximum tested, because nothing has been tested.
-      OKBMaximumTestedVersion: MIN_OKB_VERSION,
+      OKBMaximumTestedVersion: MAX_TESTED_OKB_VERSION,
     },
     TabTypes: [
       {
@@ -242,6 +246,7 @@ module.exports = {
   versionAtLeast,
   isWindows,
   MIN_OKB_VERSION,
+  MAX_TESTED_OKB_VERSION,
   PLUGIN_ID,
   PLUGIN_KEY,
   OKB_KEY,

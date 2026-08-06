@@ -43,11 +43,14 @@ const okb = require('../src/main/okb');
   assert.strictEqual(m.ID, 'net.flyinggab.taclink');
   assert.ok(m.ID.includes('.'), 'a plugin id must be namespaced so it cannot collide');
   assert.strictEqual(m.Metadata.OKBMinimumVersion, okb.MIN_OKB_VERSION);
-  // Honest until something has actually been run against a real build.
-  assert.strictEqual(
-    m.Metadata.OKBMaximumTestedVersion,
-    okb.MIN_OKB_VERSION,
-    'MaximumTested is a promise about what we ran against — do not raise it without running it',
+  // MaximumTested is a promise about what we ran against, and OpenKneeboard
+  // parses it. 1.12.10 is where the plugin was confirmed to register and the
+  // dashboard page confirmed to serve. Do not raise it any further without
+  // running against that build.
+  assert.strictEqual(m.Metadata.OKBMaximumTestedVersion, okb.MAX_TESTED_OKB_VERSION);
+  assert.ok(
+    okb.versionAtLeast(okb.MAX_TESTED_OKB_VERSION, okb.MIN_OKB_VERSION),
+    'the maximum tested version cannot be older than the minimum supported one',
   );
   assert.strictEqual(m.TabTypes.length, 1, 'one tab type: the EFB');
   assert.strictEqual(m.TabTypes[0].ImplementationArgs.URI, 'http://127.0.0.1:8788/viewer.html');
