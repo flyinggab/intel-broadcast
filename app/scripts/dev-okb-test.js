@@ -258,6 +258,81 @@ const okb = require('../src/main/okb');
     assert.strictEqual(resolveSafe('/viewer.exe'), null, 'unknown extensions are refused');
     console.log('[test] dashboard server: loopback-only, no traversal, no config, known types only');
 
+    // -----------------------------------------------------------------------
+    // THE TRANSPORT. Without it a dashboard tab renders the empty shipped
+    // markup and sits on STANDBY no matter what the app is doing — which is
+    // exactly what it did, because nothing here exercised it. WebView2 has no
+    // Electron preload, so state, intents and photos all have to cross on
+    // this server or they do not cross at all.
+    // -----------------------------------------------------------------------
+    const { createOkbServer } = require('../src/main/okbServer');
+    const WebSocket = require('ws');
+    const crypto = require('crypto');
+
+    const bytes = Buffer.from('not really a jpeg, but content-addressed all the same');
+    const hash = crypto.createHash('sha256').update(bytes).digest('hex');
+    const fakeBlobs = { get: (h) => (h === hash ? { buffer: bytes, mimeType: 'image/jpeg' } : null) };
+
+    const intents = [];
+    const PORT = require('./dev-ports').okbTransport || 8799;
+    const srv = createOkbServer({
+      port: PORT,
+      onLog: () => {},
+      blobs: fakeBlobs,
+      onIntent: (intent, payload) => intents.push({ intent, payload }),
+      getSnapshot: () => ({ page: 'brief', queue: { total: 1 } }),
+    });
+    await new Promise((r) => srv.server.once('listening', r));
+
+    const get = (p) =>
+      new Promise((resolve) => {
+        require('http').get({ host: '127.0.0.1', port: PORT, path: p }, (res) => {
+          const chunks = [];
+          res.on('data', (c) => chunks.push(c));
+          res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks), headers: res.headers }));
+        });
+      });
+
+    const blobRes = await get(`/blob/${hash}`);
+    assert.strictEqual(blobRes.status, 200, 'a photo must be reachable by content hash');
+    assert.ok(blobRes.body.equals(bytes), 'and the bytes must be the ones we stored');
+    assert.strictEqual(blobRes.headers['content-type'], 'image/jpeg');
+
+    assert.strictEqual((await get(`/blob/${'0'.repeat(64)}`)).status, 404, 'an unknown hash is 404, not an error');
+    // The blob route takes a HASH, never a path: there is nothing to traverse.
+    assert.strictEqual((await get('/blob/../../package.json')).status, 404);
+    assert.strictEqual((await get('/blob/short')).status, 404);
+
+    // State down.
+    const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`);
+    const opening = await new Promise((resolve, reject) => {
+      ws.once('message', (d) => resolve(JSON.parse(d.toString())));
+      ws.once('error', reject);
+      setTimeout(() => reject(new Error('no opening snapshot within 3s')), 3000);
+    });
+    assert.strictEqual(opening.type, 'state');
+    assert.strictEqual(opening.snapshot.page, 'brief', 'a tab added mid-flight is sent the CURRENT state');
+
+    // Intents up, into the same door the window uses.
+    ws.send(JSON.stringify({ type: 'intent', intent: 'step', payload: 1 }));
+    await new Promise((r) => setTimeout(r, 300));
+    assert.deepStrictEqual(intents, [{ intent: 'step', payload: 1 }], 'the tab must be able to drive the app');
+
+    // Garbage must not take the server down with it.
+    ws.send('not json');
+    ws.send(JSON.stringify({ type: 'nonsense' }));
+    await new Promise((r) => setTimeout(r, 200));
+    assert.strictEqual(intents.length, 1, 'unparseable and unknown frames are dropped, not dispatched');
+
+    // ...and later pushes reach an already-open tab.
+    const pushed = new Promise((resolve) => ws.once('message', (d) => resolve(JSON.parse(d.toString()))));
+    srv.pushState({ page: 'received' });
+    assert.strictEqual((await pushed).snapshot.page, 'received', 'state changes must reach an open tab');
+
+    ws.close();
+    await new Promise((r) => srv.close(r));
+    console.log('[test] transport: blobs by hash, state down, intents up, junk dropped');
+
     console.log('[dev-okb-test] PASS');
   })().catch((err) => {
     console.error(`[dev-okb-test] FAIL: ${err.message}`);

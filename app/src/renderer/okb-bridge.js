@@ -50,7 +50,79 @@
   // not ours, and the capture-clean idle timer makes no sense here.
   document.body.dataset.surface = 'okb';
 
-  const state = { active: true, version, pages: [], cursorMode: null, errors: [] };
+  const state = { active: true, version, pages: [], cursorMode: null, errors: [], socket: 'connecting' };
+
+  // THE TRANSPORT. There is no Electron preload here, so `window.viewerAPI`
+  // does not exist and viewer.js would render the empty shipped markup for
+  // ever — which is exactly what a freshly added tab used to do: STANDBY, no
+  // photos, no matter what the app was doing.
+  //
+  // Installing an API-compatible shim backed by a socket to the same server
+  // that served this page means viewer.js and settings.js need no knowledge of
+  // which surface they are on. This file must therefore load BEFORE viewer.js;
+  // see the script order in viewer.html.
+  (function installViewerApi() {
+    const stateHandlers = [];
+    const inkHandlers = [];
+    const inkSnapshotHandlers = [];
+    let socket = null;
+    let backoff = 500;
+
+    const fanOut = (handlers, arg) => {
+      for (const fn of handlers) {
+        try {
+          fn(arg);
+        } catch (err) {
+          state.errors.push(`handler: ${err && err.message}`);
+        }
+      }
+    };
+
+    function connect() {
+      socket = new WebSocket(`ws://${location.host}/ws`);
+      socket.addEventListener('open', () => {
+        state.socket = 'open';
+        backoff = 500;
+      });
+      socket.addEventListener('message', (event) => {
+        let msg;
+        try {
+          msg = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+        if (msg.type === 'state') fanOut(stateHandlers, msg.snapshot);
+        else if (msg.type === 'ink') fanOut(inkHandlers, msg.delta);
+        else if (msg.type === 'ink-snapshot') fanOut(inkSnapshotHandlers, msg.snapshot);
+      });
+      socket.addEventListener('close', () => {
+        state.socket = 'closed';
+        // The app can be restarted under a tab that stays open all flight, so
+        // reconnecting is not optional. Backs off to 5s and keeps trying.
+        setTimeout(connect, backoff);
+        backoff = Math.min(backoff * 2, 5000);
+      });
+      socket.addEventListener('error', () => {});
+    }
+    connect();
+
+    window.viewerAPI = {
+      onState: (cb) => stateHandlers.push(cb),
+      onInk: (cb) => inkHandlers.push(cb),
+      onInkSnapshot: (cb) => inkSnapshotHandlers.push(cb),
+      send: (intent, payload) => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: 'intent', intent, payload }));
+        }
+      },
+      // SETUP is reachable here too, and both of these are main's job in the
+      // window. Neither has a socket message yet: pasting a squad code onto a
+      // kneeboard is not a real flow, and WebView2's clipboard is not ours to
+      // read. They resolve rather than throw so settings.js renders.
+      decodeCode: async () => null,
+      readClipboard: async () => '',
+    };
+  })();
   // Fixed, not crypto.randomUUID(): a page GUID identifies the page across
   // reloads and across the two WebView2 instances a tab can have. Minting a
   // fresh one each load makes the same stage look like a different page every

@@ -176,12 +176,50 @@ function okbPluginDir() {
   return path.join(app.getPath('userData'), 'okb');
 }
 
+/**
+ * Rewrites `intel://blob/<hash>` to `/blob/<hash>` everywhere in a snapshot.
+ *
+ * Done HERE, per transport, rather than in the renderer: main is the only
+ * place that knows which surface a snapshot is going to, and `viewer.js` must
+ * stay a pure function of what it is handed (ROADMAP §5.2). The alternative —
+ * snapshots carrying bare hashes, each surface composing its own URL — is
+ * tidier in the abstract and touches every render path for one consumer.
+ */
+function forOkb(value) {
+  if (typeof value === 'string') {
+    return value.startsWith('intel://blob/') ? value.replace('intel://blob/', '/blob/') : value;
+  }
+  if (Array.isArray(value)) return value.map(forOkb);
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) out[k] = forOkb(v);
+    return out;
+  }
+  return value;
+}
+
 /** Serves the EFB on loopback and registers our plugin so OpenKneeboard
  *  offers "Tac Link" in its own tab list. Both halves are reversible. */
 async function startOkb() {
   if (okbServer) return;
   const port = (config.okb && config.okb.port) || 8788;
-  okbServer = createOkbServer({ port, onLog: (msg) => console.log(`[okb] ${msg}`) });
+  okbServer = createOkbServer({
+    port,
+    onLog: (msg) => console.log(`[okb] ${msg}`),
+    blobs,
+    // The dashboard's intents go through the SAME door as the window's, or
+    // the two surfaces drift.
+    onIntent: (intent, payload) => handleViewerIntent(intent, payload),
+    getSnapshot: () => forOkb(settingsSnapshot(view.snapshot())),
+  });
+  // Do not advertise a tab we are not the ones serving. If another instance
+  // already holds the port, its dashboard is the live one and registering
+  // over the top would just point OpenKneeboard at someone else's app.
+  if (!(await okbServer.ready)) {
+    okbServer.close();
+    okbServer = null;
+    return;
+  }
   try {
     const { file, ok } = await okb.register({
       dir: okbPluginDir(),
@@ -216,7 +254,12 @@ async function stopOkb() {
 
 /** Sends one ink delta to the renderer on its own channel. */
 function pushInk(delta) {
-  if (delta && viewer && !viewer.window.isDestroyed()) viewer.window.webContents.send('ink', delta);
+  if (!delta) return;
+  if (viewer && !viewer.window.isDestroyed()) viewer.window.webContents.send('ink', delta);
+  // Brief-mode ink reaches the dashboard tab on the same socket as state. It
+  // must not ride the snapshot — at 30 Hz that would be absurd — which is the
+  // same reason it has its own IPC channel in the window.
+  if (okbServer) okbServer.pushInk(delta);
 }
 
 /** The image the local pilot is looking at — what they annotate, and what a
@@ -360,11 +403,14 @@ function handleBriefIntent(intent, payload) {
       if (!hash) return true;
       originateBrief({ type: 'brief-clear', hash });
       return true;
-    case 'brief-snapshot-req':
-      if (viewer && !viewer.window.isDestroyed()) {
-        viewer.window.webContents.send('ink-snapshot', ink.snapshot(payload.hash));
-      }
+    case 'brief-snapshot-req': {
+      // Both surfaces ask for this, and both must be answered: a dashboard tab
+      // that woke up behind the ink has no other way to catch up.
+      const snap = ink.snapshot(payload.hash);
+      if (viewer && !viewer.window.isDestroyed()) viewer.window.webContents.send('ink-snapshot', snap);
+      if (okbServer) okbServer.pushInkSnapshot(snap);
       return true;
+    }
     default:
       return false;
   }
@@ -376,7 +422,11 @@ function handleBriefIntent(intent, payload) {
 
 function pushState() {
   // SETUP is a page of the viewer, so there is one snapshot and one window.
-  if (viewer) viewer.pushState(settingsSnapshot(view.snapshot()));
+  const snapshot = settingsSnapshot(view.snapshot());
+  if (viewer) viewer.pushState(snapshot);
+  // ...and the OpenKneeboard tab, if one is open. Same snapshot, photo URLs
+  // rewritten for a surface that has no intel:// protocol.
+  if (okbServer) okbServer.pushState(forOkb(snapshot));
 }
 
 /** The base snapshot plus the fields only the SETUP page renders. */

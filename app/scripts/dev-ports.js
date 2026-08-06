@@ -6,7 +6,10 @@
 // (this bit us with 8788, 8791, 8792 and 8797 all double-booked). Add new
 // tests here rather than picking a number by hand.
 module.exports = {
-  protocolE2E: 8788, // dev-e2e-test.js
+  // NOTE 8788 is the app's DEFAULT OpenKneeboard dashboard port
+  // (config.default.json okb.port). Every Electron instance a test spawns now
+  // binds it, so no test may reuse it for anything of its own.
+  protocolE2E: 8790, // dev-e2e-test.js
   auth: 8789, // dev-auth-test.js
   electronE2E: 8791, // dev-e2e-electron-test.js
   clientsList: 8794, // dev-e2e-clients-list-test.js
@@ -20,6 +23,7 @@ module.exports = {
   hotkeyConfigLoad: 8804, // dev-hotkey-config-load-test.js
   panel: 8805, // dev-e2e-panel-test.js
   screenshotCheck: 8806, // dev-screenshot-check.js
+  okbTransport: 8810, // dev-okb-test.js — the dashboard transport
   settingsE2E: 8809, // dev-e2e-settings-test.js
   uiE2E: 8808, // dev-e2e-ui-test.js
   hardening: 8807, // dev-hardening-test.js
