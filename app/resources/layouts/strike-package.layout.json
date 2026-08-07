@@ -46,7 +46,7 @@
         {
           "type": "stations",
           "band": "header",
-          "title": "LOADOUT {flight.stationOrder}",
+          "title": "LOADOUT",
           "when": "flight.stations",
           "repeat": "flight.stations",
           "wrap": 9,

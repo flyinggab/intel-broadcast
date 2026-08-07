@@ -48,7 +48,7 @@ pages:
 
       - type: stations
         band: header
-        title: "LOADOUT {flight.stationOrder}"
+        title: LOADOUT
         when: flight.stations
         repeat: flight.stations
         wrap: 9                    # one row across the band
