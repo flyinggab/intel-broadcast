@@ -586,7 +586,6 @@ function watchPhotosFolder() {
       folderWatchTimer = setTimeout(() => {
         console.log('[gallery] folder changed — rescanning');
         refreshGallery();
-  loadCard();
       }, 600);
     });
   } catch (err) {
@@ -1278,6 +1277,7 @@ app.whenReady().then(() => {
   registerHotkeys();
   refreshGallery();
   watchPhotosFolder();
+  loadCard();
   if (isHost()) startHost();
   startClient();
   cleanupLeftoverFunnel().then(() => refreshTailscaleState({ reconcile: true }));
