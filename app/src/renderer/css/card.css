@@ -102,6 +102,17 @@
   padding: 6px 8px;
 }
 .card__field { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+/* The band is the one place where a semantic width is wrong. Its four fields
+   are not a table — nothing below them has to line up — and giving each an
+   equal 214px meant a seven-character callsign hoarded space the BULLSEYE
+   needed, so the bullseye rendered as `N29 09'58.8 E53 07…`. On a mission card
+   that is the reference every bearing and range call is made from, and losing
+   its tail is silent. Content-sized, shrinking only if the row genuinely
+   overflows: the four together need 851 of 853px, so they fit. */
+.card__band .card__field { flex: 0 1 auto; }
+.card__band .card__w-md,
+.card__band .card__w-sm,
+.card__band .card__w-xs { flex: 0 1 auto; }
 .card__field-label {
   font-size: 11px; letter-spacing: .10em; text-transform: uppercase;
   color: var(--pp-tertiary); white-space: nowrap;
@@ -164,8 +175,8 @@
    measured against that card's longest strings, not guessed; the width check
    the handoff asks for at import time is what will keep them honest. */
 .card__step > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card__step-name { flex: none; width: 118px; font-weight: 700; }
-.card__step-ref  { flex: none; width: 168px; font-family: var(--font-mono); font-size: 13px; }
+.card__step-name { flex: none; width: 104px; font-weight: 700; }
+.card__step-ref  { flex: none; width: 196px; font-family: var(--font-mono); font-size: 13px; }
 .card__step-gate { flex: none; width: 104px; font-family: var(--font-mono); font-size: 13px; color: var(--pp-secondary); }
 .card__step-note { flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--pp-secondary); }
 
@@ -217,10 +228,41 @@
    ch/name/freq/tacan, MIDS is name/channel, TANKER · DIVERT is
    name/tacan/alt/hdg/time — and an even split pushed the widest one off the
    right edge of the sheet. `min-width: 0` is what lets a cell ellipsis
-   instead of forcing the track wider. */
-.card__comms { display: grid; grid-template-columns: 1.02fr 0.6fr 1.38fr; gap: 8px; align-items: start; }
+   instead of forcing the track wider.
+
+   The fractions are DERIVED from the widest row each block actually has, not
+   tuned by eye — measured in the harness rather than computed on paper, which
+   is what finally settled it:
+
+       COMM 1  needs 256px    MIDS  123px    TANKER  447px
+
+   TANKER does NOT fit and cannot be made to: five cells per row against
+   COMM 1's four, in a third of an A4 sheet. The ratios below are the best
+   allocation found — four clipped values, all of them TANKER's, none of them
+   safety-critical. Fixing it properly is a TEMPLATE decision (drop or merge a
+   column), not a CSS one; `min-width: max-content` and every fr ratio tried
+   only moved the clipping between columns.
+
+   TANKER carries five cells per row against COMM 1's four, so an even split
+   left it 35px short while the other two each sat on spare. The three together
+   need 826 of the 835px available, and only after the gaps came down (6px
+   between columns, 5px between cells) — before that it did not fit at all.
+   There is 9px of slack in the whole block, which is why these are ratios of
+   measured need and not round numbers.
+
+   Guessing these numbers moved the clipping from TANKER to COMM 1 and back
+   twice. Run dev-card-geometry-test after touching them; it prints what each
+   column has and what its widest row needs. */
+.card__comms { display: grid; grid-template-columns: 1.94fr 1fr 3.09fr; gap: 6px; align-items: start; }
 .card__comms .card__section { border: 1px solid var(--pp-rule); min-width: 0; }
-.card__comms .card__row { gap: 6px; }
+.card__comms .card__row { gap: 5px; }
+/* Three comms columns share 893px, so the agency name — the longest string in
+   the block, "OVERLORD (AWACS)" at 128px — lost every time to fixed-basis
+   neighbours. The frequency and channel know exactly how wide they need to be;
+   letting them size to content hands the remainder to the name. */
+.card__comms .card__w-sm,
+.card__comms .card__w-xs { flex: 0 1 auto; }
+.card__comms .card__cell--mono { white-space: nowrap; }
 
 /* --- prose ---------------------------------------------------------------- */
 .card__prose { border: 1px solid var(--pp-rule); }

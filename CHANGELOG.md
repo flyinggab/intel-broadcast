@@ -67,6 +67,31 @@ that entry.
 
 ---
 
+## Unreleased
+
+### Fixed
+- **The mission card was silently truncating 16 values, including the
+  bullseye.** Card cells carry `text-overflow: ellipsis`, so a value too long
+  for its column renders as a shorter one that still looks like a value:
+  `N29 09'58.8 E53 07'38.6` became `N29 09'58.8 E53 07…`. Nothing errored and
+  nothing looked broken — the pilot simply read a bullseye missing its
+  eastings, which is the reference every bearing and range call is made from.
+  The S-A threat list lost MANPAD the same way, and five route legs lost their
+  tails. All 16 now render in full.
+- The TANKER · DIVERT row lost its time column. Five cells needed 447px in a
+  429px column and no allocation fitted all three comms blocks at once; the
+  time is available from the ATO and the game plan, the on-station geometry is
+  not.
+
+### Added
+- **`dev-card-geometry-test`** renders the real card in Electron with the real
+  B612 and fails on any value wider than the box it lands in, naming it:
+  `"N29 09'58.8 E53 07'38.6" needs 254px, has 214px`. This is the string-width
+  check `design/kneeboard/HANDOFF.md` §5 asked for, and the answer to its §7
+  admission that nobody had looked at the card rendered. A deliberately
+  over-long fixture is kept and asserted to still overflow, so the check cannot
+  quietly stop proving anything.
+
 ## v0.8.3 — 2026-08-02
 
 ### Fixed

@@ -123,7 +123,6 @@ pages:
           - { value: "{tacan|dash}", width: xs, style: mono }
           - { value: "{alt|dash}",   width: flex, style: mono }
           - { value: "{hdg|dash}",   width: sm,  style: mono }
-          - { value: "{time|blank}", width: sm,  style: mono, emphasis: strong }
 
       # --- game plan ------------------------------------------------------
       - type: prose

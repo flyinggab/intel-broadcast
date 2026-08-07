@@ -1,6 +1,16 @@
 # Kneeboard cards
 
-**Status** — designed, not started. Phase 2 (`/ROADMAP.md` §2).
+**Status** — **built and rendering.** Phase 2 (`/ROADMAP.md` §2).
+The card renders at 893 × 1263 with the paper palette, the four-column route,
+current-step emphasis and click-to-tick. `dev-card-geometry-test` measures the
+real render: **0 clipped values** on both the example card and a deliberately
+full one.
+
+Two things remain, both recorded in §7:
+- the **height budget is not enforced at import**; `card.js` carries the
+  measured model but it comes out ~132px light, so it is documented and
+  disabled rather than wrong;
+- the **TANKER time column was dropped** to make the row fit (see §7).
 **Supersedes** the earlier version of this file. Two decisions in it were wrong
 and are corrected in §1: the legibility floor, and the PLAN / CARD page split.
 
@@ -239,10 +249,36 @@ must never trap a pilot, and the route to SETUP must always survive.
 
 ## 7. Honest gaps
 
-- **Nothing here has been seen rendered by a human.** Layout is verified by
-  measuring every string against its container with real B612 metrics, and
-  contrast by computing WCAG ratios — but nobody has looked at it in the app,
-  let alone in a headset. Trust your eyes over these numbers.
+- **It has now been seen rendered, and it was clipping 16 values.** The claim
+  below — that layout was "verified by measuring every string against its
+  container" — was not true of the built card. `dev-card-geometry-test` renders
+  it in Electron with the real B612 and reports every string wider than the box
+  it landed in. On the first run: 16, on both cards, including the **BULLSEYE**
+  (`N29 09'58.8 E53 07'38.6` needed 254px in 214) and the **S-A threat list**
+  (losing MANPAD). Cells carry `text-overflow: ellipsis`, so each one rendered
+  as a shorter, entirely plausible value — no error, nothing visibly broken,
+  and a pilot reading a bullseye missing its eastings.
+
+  Fixed: the header band sizes to content rather than equal quarters; the route
+  gave 14px of name to its ref; the comms columns are allocated from measured
+  need rather than thirds; and the **TANKER time column was dropped**, because
+  five cells per row needed 447px in a 429px column and no allocation fitted
+  all three blocks at once. That was the owner's call between merging
+  altitude/heading, dropping the time, and giving TANKER a full-width row.
+
+- **The height budget is not enforced.** `card.js` has `pageHeight()` with
+  constants measured off the real render, but it totals ~132px less than the
+  browser produces — consistently on both cards, so something structural is
+  missing rather than a row height being off. It is deliberately NOT wired into
+  the refusal: a model wrong in the safe direction passes cards that then render
+  off the bottom of the sheet, which is the exact failure it exists to prevent.
+  The harness already reports per-block measured heights; put them beside
+  `pageHeight()`'s breakdown and the 132px will name itself.
+  `scripts/fixtures/card-full.card.json` is deliberately over-long and the
+  geometry test asserts it still overflows, so the check cannot rot.
+
+- **Nothing here has been seen in a headset.** Contrast is computed WCAG
+  ratios and the arcminute figures are arithmetic. Trust your eyes over them.
 - **The mockup is an SVG, not app code.** It does not exercise flex, wrapping,
   or the real font stack.
 - **The example card is one mission.** A second real card from a different

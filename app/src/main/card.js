@@ -260,6 +260,84 @@ function resolveBlock(block, card, where, errors) {
  * no partial render, because a card missing its tanker row still looks like
  * the mission.
  */
+
+// ---------------------------------------------------------------------------
+// Height budget
+//
+// The sheet is a fixed 893 x 1263 and there is nowhere for a block to go if it
+// does not fit: anything past the bottom edge is simply unreachable in flight,
+// with no scrollbar and no second page. So a card that is too long is REFUSED
+// at import, the same as one with a broken binding — the pilot finds out on
+// the ground, with a message saying which block pushed it over.
+//
+// NOT YET WIRED INTO THE REFUSAL, deliberately. The constants below are
+// measured, but the model they feed comes out ~132px light against what the
+// browser actually renders — consistently, on both the design card and the
+// full one, so something structural is missing rather than a row height being
+// off. A refusal built on a model that is wrong in the safe direction passes
+// cards that then render off the bottom of the sheet, which is exactly the
+// failure it exists to prevent. dev-card-geometry-test measures the real
+// overflow in the meantime and fails on it.
+//
+// To finish: print pageHeight()'s per-block breakdown beside the harness's
+// measured per-block heights (it already reports them) and find the 132px.
+// ---------------------------------------------------------------------------
+
+const SHEET_BODY_PX = 1227; // 1263 sheet less 18px padding top and bottom
+const BLOCK_GAP_PX = 6;
+const HEIGHTS = {
+  head: 22, // a section's dark title band
+  step: 33, // a route row — taller than a table row, it carries the tick lane
+  row: 31, // a table row (targets, comms)
+  band: 47, // the header band, one line of label over value
+  stations: 63, // the loadout strip
+  proseLine: 19,
+  prosePad: 12,
+};
+
+/** Predicted rendered height of one block, in sheet pixels. */
+function blockHeight(block) {
+  switch (block.type) {
+    case 'fields':
+      return HEIGHTS.band;
+    case 'stations':
+      return HEIGHTS.stations;
+    case 'steps':
+      return HEIGHTS.head + (block.rows || []).length * HEIGHTS.step;
+    case 'table':
+      return HEIGHTS.head + (block.rows || []).length * HEIGHTS.row;
+    case 'prose':
+      return HEIGHTS.head + (block.lines || []).length * HEIGHTS.proseLine + HEIGHTS.prosePad;
+    case 'image':
+      return 0; // the map is its own page and sizes to what is left
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Predicted height of a page, and the per-block breakdown behind it.
+ *
+ * Comms blocks sit side by side in one grid row, so they cost the height of
+ * the TALLEST of them once, not the sum — getting that wrong would refuse
+ * perfectly good cards.
+ */
+function pageHeight(page) {
+  const blocks = (page.blocks || []).filter((b) => b.type !== 'image');
+  const banded = new Map();
+  const plain = [];
+  for (const block of blocks) {
+    if (block.band) banded.set(block.band, Math.max(banded.get(block.band) || 0, blockHeight(block)));
+    else plain.push({ block, h: blockHeight(block) });
+  }
+  const parts = [
+    ...plain.map((p) => ({ title: p.block.title || p.block.type, h: p.h })),
+    ...[...banded].map(([band, h]) => ({ title: band, h })),
+  ];
+  const total = parts.reduce((sum, p) => sum + p.h, 0) + Math.max(0, parts.length - 1) * BLOCK_GAP_PX;
+  return { total, parts };
+}
+
 function resolveCard({ layout, card }) {
   const errors = [];
 
@@ -304,4 +382,4 @@ function resolveCard({ layout, card }) {
   };
 }
 
-module.exports = { resolveCard, BLOCK_TYPES, WIDTHS, EMPHASES, STYLES, get, present };
+module.exports = { resolveCard, BLOCK_TYPES, WIDTHS, EMPHASES, STYLES, get, present, pageHeight, SHEET_BODY_PX };
