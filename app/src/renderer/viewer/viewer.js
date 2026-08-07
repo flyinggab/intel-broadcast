@@ -773,11 +773,23 @@ function cardBlock(block) {
 const CARD_W = 893;
 const CARD_H = 1263;
 
+// A few px of clearance, and it is not a fudge. `zoom` scales the layout box
+// but the two ways of measuring it disagree by a pixel or two — offsetHeight
+// comes back UNZOOMED (1263) while getBoundingClientRect is zoomed (1259) —
+// and the container's scroll area follows the larger one. Fitting to the last
+// pixel therefore left a scrollbar around a sheet that visibly fitted. Sizing
+// to slightly less than the room available costs nothing anyone can see and
+// removes the whole class of rounding argument.
+const CARD_CLEARANCE = 6;
+
 function sizeCard() {
   if (!card.root || card.root.offsetParent === null) return;
-  const box = card.root.getBoundingClientRect();
-  if (!box.width || !box.height) return;
-  const fit = Math.min(box.width / CARD_W, box.height / CARD_H);
+  // clientWidth/Height, not getBoundingClientRect: these already exclude a
+  // scrollbar, so the fit cannot oscillate between "scrollbar" and "none".
+  const width = card.root.clientWidth - CARD_CLEARANCE;
+  const height = card.root.clientHeight - CARD_CLEARANCE;
+  if (width <= 0 || height <= 0) return;
+  const fit = Math.min(width / CARD_W, height / CARD_H);
   card.root.style.setProperty('--card-fit', String(fit));
 }
 

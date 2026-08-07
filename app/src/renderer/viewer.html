@@ -194,7 +194,14 @@
          textContent; a card is untrusted content. -->
     <section class="page page--flush" data-page="card">
       <div class="card" id="card">
-        <div class="card__sheet" id="card-sheet"></div>
+        <!-- The fit box carries the SCALED size as its layout box; the sheet
+             inside it is the fixed 893x1263 and is transformed. Scaling the
+             sheet alone is not enough — neither `transform` nor `zoom` shrinks
+             what the scroll container measures, so a sheet that visibly fitted
+             still produced a scrollbar. -->
+        <div class="card__fit">
+          <div class="card__sheet" id="card-sheet"></div>
+        </div>
       </div>
     </section>
 

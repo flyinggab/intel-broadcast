@@ -49,12 +49,29 @@
    viewer.js writes --card-fit from the space available; the transform is what
    makes one card render identically in this window and in an OpenKneeboard
    tab, where we get to pick the pixel size outright.                        */
+/* The layout box. Its size IS the scaled size, so the scroll container
+   measures what is actually on screen. `transform` is paint-only and `zoom`
+   did not shrink the parent's scroll area either — both left a scrollbar
+   around a sheet that visibly fitted. viewer.js sets only --card-fit; the
+   arithmetic lives here so the renderer still writes no inline styles. */
+.card__fit {
+  flex: none;
+  width: calc(893px * var(--card-fit, 1));
+  height: calc(1263px * var(--card-fit, 1));
+  /* The sheet inside still OCCUPIES its untransformed 893x1263 — a transform
+     never changes layout — so without this the parent's scroll area keeps
+     measuring the full size and the scrollbar survives every other fix.
+     Painted output is unaffected: the transform is scale <= 1 from the top
+     left, so everything visible is already inside this box. */
+  overflow: hidden;
+}
+
 .card__sheet {
   flex: none;
   width: 893px;
   height: 1263px;
   transform: scale(var(--card-fit, 1));
-  transform-origin: top center;
+  transform-origin: top left;
   background: var(--pp-paper);
   color: var(--pp-ink);
   padding: 18px 20px;
@@ -86,11 +103,11 @@
 }
 .card__field { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
 .card__field-label {
-  font-size: 9px; letter-spacing: .10em; text-transform: uppercase;
+  font-size: 11px; letter-spacing: .10em; text-transform: uppercase;
   color: var(--pp-tertiary); white-space: nowrap;
 }
 .card__field-value {
-  font-size: 15px; font-weight: 700; line-height: 1.15;
+  font-size: 17px; font-weight: 700; line-height: 1.15;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .card__field--threat .card__field-value { color: var(--pp-threat); }
@@ -112,7 +129,7 @@
 /* --- stations ------------------------------------------------------------- */
 .card__stations { border: 1px solid var(--pp-rule); background: var(--pp-raised); padding: 5px 7px; }
 .card__stations-title {
-  font-size: 9px; letter-spacing: .10em; text-transform: uppercase;
+  font-size: 11px; letter-spacing: .10em; text-transform: uppercase;
   color: var(--pp-tertiary); margin-bottom: 3px;
 }
 .card__stations-row { display: flex; gap: 5px; }
@@ -120,8 +137,8 @@
   flex: 1 1 0; min-width: 0; text-align: center;
   border: 1px solid var(--pp-rule); padding: 2px 3px;
 }
-.card__station-value { font-size: 11px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card__station-label { font-size: 8px; color: var(--pp-tertiary); }
+.card__station-value { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card__station-label { font-size: 10px; color: var(--pp-tertiary); }
 
 /* --- section heads: dark bands, the way printed cards do it --------------- */
 .card__section { display: flex; flex-direction: column; }
@@ -130,16 +147,16 @@
   background: var(--pp-band); color: var(--pp-band-ink);
   padding: 3px 8px;
 }
-.card__head-title { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.card__head-sub { font-size: 9px; letter-spacing: .06em; opacity: .85; margin-left: auto; }
+.card__head-title { font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.card__head-sub { font-size: 11px; letter-spacing: .06em; opacity: .85; margin-left: auto; }
 
 /* --- route ---------------------------------------------------------------- */
 .card__step {
   display: flex; align-items: center; gap: 8px;
-  height: 29px;                     /* the measured row height at this density */
+  height: 33px;                     /* grows with the type, or the row clips */
   padding: 0 8px;
   border-bottom: 1px solid var(--pp-rule);
-  font-size: 12px;
+  font-size: 14px;
 }
 /* EVERY cell clips. The row is a fixed 29px and a wrapping cell does not
    make itself taller — it overlaps the row below, which is what a real
@@ -148,9 +165,9 @@
    the handoff asks for at import time is what will keep them honest. */
 .card__step > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card__step-name { flex: none; width: 118px; font-weight: 700; }
-.card__step-ref  { flex: none; width: 168px; font-family: var(--font-mono); font-size: 11px; }
-.card__step-gate { flex: none; width: 104px; font-family: var(--font-mono); font-size: 11px; color: var(--pp-secondary); }
-.card__step-note { flex: 1 1 auto; min-width: 0; font-size: 11px; color: var(--pp-secondary); }
+.card__step-ref  { flex: none; width: 168px; font-family: var(--font-mono); font-size: 13px; }
+.card__step-gate { flex: none; width: 104px; font-family: var(--font-mono); font-size: 13px; color: var(--pp-secondary); }
+.card__step-note { flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--pp-secondary); }
 
 /* Current step is EMPHASIS, not expansion — raised, go bar, reading NOW.
    Nothing collapses at this width; that was a 625px compromise. */
@@ -162,7 +179,7 @@
    the ring fills while held. A wrongly ticked step reads as progress, which
    is worse than an unticked one, so the commit is deliberate. */
 .card__tick {
-  flex: none; width: 44px; height: 29px;
+  flex: none; width: 44px; height: 33px;
   display: flex; align-items: center; justify-content: center;
   background: none; border: 0; padding: 0; cursor: pointer;
 }
@@ -187,9 +204,9 @@
 /* --- tables (targets, comms) ---------------------------------------------- */
 .card__row {
   display: flex; align-items: center; gap: 8px;
-  height: 27px; padding: 0 8px;
+  height: 31px; padding: 0 8px;
   border-bottom: 1px solid var(--pp-rule);
-  font-size: 11px;
+  font-size: 13px;
 }
 .card__row:last-child { border-bottom: 0; }
 .card__row--marked { background: var(--pp-raised); box-shadow: inset 3px 0 0 var(--pp-go); }
@@ -211,15 +228,15 @@
 
 /* --- prose ---------------------------------------------------------------- */
 .card__prose { border: 1px solid var(--pp-rule); }
-.card__prose-list { margin: 0; padding: 5px 8px 6px 22px; font-size: 11px; line-height: 1.45; }
+.card__prose-list { margin: 0; padding: 5px 8px 6px 22px; font-size: 13px; line-height: 1.45; }
 .card__badge {
-  margin-left: auto; font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  margin-left: auto; font-family: var(--font-mono); font-size: 12px; font-weight: 700;
   background: var(--pp-band-ink); color: var(--pp-band); padding: 0 5px;
 }
 
 /* --- map ------------------------------------------------------------------ */
 .card__image { width: 100%; height: 100%; object-fit: contain; display: block; background: var(--pp-recessed); }
 .card__caption {
-  font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
   color: var(--pp-tertiary); padding: 4px 8px;
 }
