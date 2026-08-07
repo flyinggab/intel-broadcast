@@ -29,40 +29,67 @@ requires: [flight, threats, route, comms]     # import fails loudly if absent
 
 pages:
   # ---------------------------------------------------------------- CARD
+  # ONE page. Paging to find your bullseye mid-flight is the failure a
+  # kneeboard exists to prevent — see HANDOFF.md §1. Only MAP is separate,
+  # because it is an image.
   - id: card
     label: CARD
-    layout: two-column
-    split: 0.6                     # left column's share of the body width
+    layout: single
 
     blocks:
+      # --- header band: what you need before you read the route -----------
+      - type: fields
+        band: header
+        items:
+          - { label: CALLSIGN,   value: "{flight.callsign}", width: sm }
+          - { label: BULLSEYE,   value: "{flight.bullseye}", width: md, style: mono }
+          - { label: S-A THREAT, value: "{threats.surface}", width: md, emphasis: threat }
+          - { label: A-A THREAT, value: "{threats.air}",     width: flex, emphasis: threat }
+
+      - type: stations
+        band: header
+        title: "LOADOUT {flight.stationOrder}"
+        when: flight.stations
+        repeat: flight.stations
+        wrap: 9                    # one row across the band
+        cell:
+          value: "{load}"
+          label: "{station}"
+          state: "{kind|none}"
+
       # --- route ----------------------------------------------------------
+      # Four real columns, every note visible on every row. `steps` no longer
+      # collapses: at 893 wide the table needs 561px and nothing has to hide.
+      # `state` drives emphasis only — current is raised, done ticks and dims.
       - type: steps
-        column: left
-        title: "ROUTE — {flight.callsign}"
+        title: ROUTE
+        subtitle: "TOT {plan.tot|blank} · HOLD THE RING TO TICK A STEP"
         repeat: route.steps
+        complete: done             # per-row boolean the hold-target writes
         row:
           name:  "{name}"
           ref:   "{ref}"
           gate:  "{alt} / {speed}"
           note:  "{note|blank}"
-          state: "{state|none}"     # done | current | none — drives the tick,
-                                    # the open row and the go bar
+          state: "{state|none}"
 
       # --- targets --------------------------------------------------------
       - type: table
-        column: left
         title: TARGETS
         when: route.targets
         repeat: route.targets
         columns:
-          - { value: "{name}",   width: sm,   emphasis: strong }
-          - { value: "{wp}",     width: xs,   style: mono }
-          - { value: "{desc}",   width: flex }
-          - { value: "{laser|dash}", width: xs, style: mono, emphasis: strong }
+          - { value: "{name}",       width: sm,   emphasis: strong }
+          - { value: "{wp}",         width: xs,   style: mono }
+          - { value: "{coord|dash}", width: md,   style: mono }
+          - { value: "{desc}",       width: flex }
+          - { value: "{weapon|dash}", width: sm,  emphasis: muted }
+          - { value: "{laser|dash}", width: xs,   style: mono, emphasis: strong }
 
       # --- primary radio --------------------------------------------------
       - type: table
-        column: right
+        band: comms
+        column: 1
         title: COMM 1
         repeat: comms.primary
         columns:
@@ -73,7 +100,8 @@ pages:
 
       # --- datalink -------------------------------------------------------
       - type: table
-        column: right
+        band: comms
+        column: 2
         title: MIDS
         when: comms.mids
         repeat: comms.mids
@@ -86,7 +114,8 @@ pages:
       # I go and on what channel. `mark` raises the go bar on the row the
       # content flags — the template does not know which row that is.
       - type: table
-        column: right
+        band: comms
+        column: 3
         title: TANKER · DIVERT
         repeat: comms.fields
         mark: next                 # per-row boolean path, like `when`
@@ -97,43 +126,12 @@ pages:
           - { value: "{hdg|dash}",   width: sm,  style: mono }
           - { value: "{time|blank}", width: sm,  style: mono, emphasis: strong }
 
-  # ---------------------------------------------------------------- PLAN
-  # Everything on this page comes from the card JSON. Nothing is hard-coded in
-  # the renderer — including the threat lines, which live here rather than on
-  # CARD because they are briefing material, not something you read mid-route.
-  - id: plan
-    label: PLAN
-    layout: single
-
-    blocks:
-      - type: fields
-        bind: threats
-        items:
-          - { label: S-A THREAT, value: "{surface}", emphasis: threat }
-          - { label: A-A THREAT, value: "{air}",     emphasis: threat }
-
-      - type: fields
-        bind: flight
-        items:
-          - { label: CALLSIGN, value: "{callsign}", style: mono }
-          - { label: BULLSEYE, value: "{bullseye}", style: mono }
-
-      - type: stations
-        title: "LOADOUT — STATION {flight.stationOrder}"
-        when: flight.stations
-        repeat: flight.stations
-        wrap: 5                    # rows of five; the EFB decides the cell size
-        cell:
-          label: "{station}"
-          value: "{load}"
-          state: "{kind|none}"     # fuel | none — recessed vs raised
-
+      # --- game plan ------------------------------------------------------
       - type: prose
         title: GAME PLAN
         bind: plan
-        badge: "{bingo}"           # the chip beside the title
-        lead:  "{takeoff}"         # one line, full weight
-        list:  flow                # bare path — an array of strings
+        badge: "{bingo}"
+        list:  flow
 
   # ---------------------------------------------------------------- MAP
   - id: map

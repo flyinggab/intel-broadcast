@@ -30,7 +30,7 @@ the file tidiness is now — move the *status* to shipped and note the release.
 
 | feature | status | phase |
 |---|---|---|
-| `kneeboard/` | designed, not started | 2 |
+| `kneeboard/` | designed, not started | 2 — paper density, revised |
 | `brief-mode/` | designed, not started | 2 (Tier A) |
 | `okb-integration/` | researched, not started | 2/3 — pairs with brief-mode |
 | `xr-layer/` | researched, not started | 4 |

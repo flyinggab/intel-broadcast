@@ -141,25 +141,31 @@
         "name": "ALPHA",
         "wp": "WP10",
         "desc": "MIG-31 / HANGARS",
-        "laser": "1735"
+        "laser": "1735",
+        "coord": "N29 21.4 E52 58.1",
+        "weapon": "GBU-12 x2"
       },
       {
         "name": "BRAVO",
         "wp": "WP11",
         "desc": "SU-24 PARKING",
-        "laser": "1673"
+        "laser": "1673",
+        "coord": "N29 21.9 E52 57.3",
+        "weapon": "GBU-12 x2"
       },
       {
         "name": "CHARLIE",
         "wp": "WP12",
         "desc": "RWY NORTH",
-        "laser": "1536"
+        "laser": "1536",
+        "coord": "N29 22.6 E52 56.8"
       },
       {
         "name": "DELTA",
         "wp": "WP13",
         "desc": "RWY SOUTH",
-        "laser": "1711"
+        "laser": "1711",
+        "coord": "N29 20.8 E52 57.9"
       }
     ]
   },
@@ -264,7 +270,8 @@
       "Push 07:22L through FENCE at WP4.",
       "NOE, TAC card, pop-up gate WP6.",
       "IP CENTURION (WP7) — laze at WP8 / FAO3, confirm shack, escape RTB."
-    ]
+    ],
+    "tot": "07:40L"
   },
   "map": {
     "blob": "sha256:2f1c9e…",
