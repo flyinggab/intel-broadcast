@@ -21,6 +21,7 @@ const i18n = require('../renderer/i18n');
 const { initFileLogging, getLogFilePath, recentLines } = require('./logger');
 const tailscale = require('./tailscale');
 const okb = require('./okb');
+const { resolveCard } = require('./card');
 const { createOkbServer } = require('./okbServer');
 // SETUP is a page of the viewer, so there is no settings window module any
 // more: what survived is the config writer and the folder dialog.
@@ -131,6 +132,60 @@ function currentPhotosFolder() {
   return config.photosFolder || path.join(BUNDLED_PHOTOS_DIR, config.missionName);
 }
 
+
+// ---------------------------------------------------------------------------
+// Kneeboard cards
+// ---------------------------------------------------------------------------
+
+// The resolved card, or null. Resolved ONCE at load, not per push: a card is
+// static until a new one is imported, and re-validating untrusted content on
+// every state push would be both wasteful and a nice way to make a hostile
+// card expensive.
+let cardModel = null;
+
+/**
+ * Loads the card named in config and resolves it against its layout.
+ *
+ * Rejects loudly and completely — `card.js` returns every error it found and
+ * none of them are recoverable, because a half-rendered card still looks like
+ * the mission. The pilot sees CARD REFUSED and the log says why.
+ */
+function loadCard() {
+  cardModel = null;
+  const cardPath = process.env.INTEL_BROADCAST_CARD_PATH || config.cardPath;
+  if (!cardPath) return;
+  try {
+    const card = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
+    const layoutPath = path.join(__dirname, '..', '..', 'resources', 'layouts', `${card.layout}.layout.json`);
+    if (!fs.existsSync(layoutPath)) {
+      console.log(`[card] ${cardPath}: no layout named "${card.layout}"`);
+      cardModel = { error: true, pages: [] };
+      return;
+    }
+    const layout = JSON.parse(fs.readFileSync(layoutPath, 'utf8'));
+    const { ok, errors, card: resolved } = resolveCard({ layout, card });
+    if (!ok) {
+      console.log(`[card] ${cardPath} REFUSED, ${errors.length} problem(s):`);
+      for (const err of errors.slice(0, 12)) console.log(`[card]   ${err}`);
+      cardModel = { error: true, pages: [] };
+      return;
+    }
+    // Image blocks carry a bare content hash out of the resolver; the URL is
+    // main's to build, because only main knows which surface it is bound for
+    // (forOkb rewrites intel:// for the dashboard).
+    for (const page of resolved.pages) {
+      for (const block of page.blocks) {
+        if (block.type === 'image') block.url = `intel://blob/${block.blob}`;
+      }
+    }
+    cardModel = resolved;
+    const pages = resolved.pages.map((p) => p.id).join(', ');
+    console.log(`[card] loaded ${cardPath} (${resolved.pages.length} page(s): ${pages})`);
+  } catch (err) {
+    console.log(`[card] could not read ${cardPath}: ${err.message}`);
+    cardModel = { error: true, pages: [] };
+  }
+}
 
 // ---------------------------------------------------------------------------
 // OpenKneeboard web dashboard
@@ -442,6 +497,7 @@ function settingsSnapshot(base) {
     tokenMasked: squad.maskToken(config.token),
     squadCode: hostSquadCode(),
     hotkeys: config.hotkeys,
+    card: cardModel,
     okb: okbState,
     // The squad code is a password and must never appear here.
     logTail: recentLines(12),
@@ -530,6 +586,7 @@ function watchPhotosFolder() {
       folderWatchTimer = setTimeout(() => {
         console.log('[gallery] folder changed — rescanning');
         refreshGallery();
+  loadCard();
       }, 600);
     });
   } catch (err) {

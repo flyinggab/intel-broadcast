@@ -35,6 +35,18 @@ const DESTINATIONS = [
     icon: [['rect', { x: 3, y: 2, width: 14, height: 16 }], ['path', { d: 'M6 7h8M6 11h8M6 15h5' }]],
   },
   {
+    // The mission card. `mission` is a group GROUPS already declares and
+    // nothing rendered into until now — see design/kneeboard/HANDOFF.md §5.
+    // CARD and MAP are two entries, not a rail.
+    id: 'card',
+    group: 'mission',
+    label: 'tab.card',
+    icon: [
+      ['rect', { x: 3, y: 2, width: 14, height: 16 }],
+      ['path', { d: 'M6 6h8M6 9h8M6 12h8M6 15h4' }],
+    ],
+  },
+  {
     id: 'received',
     group: 'intel',
     label: 'tab.received',
@@ -391,6 +403,7 @@ function render(s) {
   renderBanner(s);
   renderStage(s);
   renderBrief(s);
+  renderCard(s);
   renderReceived(s);
   renderShare(s);
 }
@@ -575,6 +588,233 @@ function loadInk(snap) {
   if (snap.hash === inkHash) drawInk();
 }
 
+// --- kneeboard card ---------------------------------------------------------
+// The model arrives FINISHED from main (src/main/card.js): every binding is
+// already resolved to a plain string, so nothing here interprets card content.
+// That is the point — a card is a file a pilot picked today and a file another
+// pilot sent tomorrow. Everything below writes textContent.
+
+const card = { root: el('card'), sheet: el('card-sheet') };
+
+/** One `.card__cell` from a resolved cell. */
+function cardCell(cell) {
+  const node = document.createElement('span');
+  node.className = `card__cell card__w-${cell.width}`;
+  if (cell.style === 'mono') node.classList.add('card__cell--mono');
+  if (cell.emphasis) node.classList.add(`card__cell--${cell.emphasis}`);
+  node.textContent = cell.value;
+  return node;
+}
+
+function cardHead(title, subtitle, badge) {
+  const head = document.createElement('div');
+  head.className = 'card__head';
+  const name = document.createElement('span');
+  name.className = 'card__head-title';
+  name.textContent = title;
+  head.append(name);
+  if (subtitle) {
+    const sub = document.createElement('span');
+    sub.className = 'card__head-sub';
+    sub.textContent = subtitle;
+    head.append(sub);
+  }
+  if (badge) {
+    const chip = document.createElement('span');
+    chip.className = 'card__badge';
+    chip.textContent = badge;
+    head.append(chip);
+  }
+  return head;
+}
+
+function cardBlock(block) {
+  const section = document.createElement('section');
+  section.className = 'card__section';
+
+  if (block.type === 'fields') {
+    const band = document.createElement('div');
+    band.className = 'card__band';
+    for (const item of block.items) {
+      const field = document.createElement('div');
+      field.className = `card__field card__w-${item.width}`;
+      if (item.emphasis === 'threat') field.classList.add('card__field--threat');
+      const label = document.createElement('span');
+      label.className = 'card__field-label';
+      label.textContent = item.label;
+      const value = document.createElement('span');
+      value.className = 'card__field-value';
+      if (item.style === 'mono') value.classList.add('card__cell--mono');
+      value.textContent = item.value;
+      field.append(label, value);
+      band.append(field);
+    }
+    return band;
+  }
+
+  if (block.type === 'stations') {
+    const wrap = document.createElement('div');
+    wrap.className = 'card__stations';
+    if (block.title) {
+      const title = document.createElement('div');
+      title.className = 'card__stations-title';
+      title.textContent = block.title;
+      wrap.append(title);
+    }
+    const row = document.createElement('div');
+    row.className = 'card__stations-row';
+    for (const cell of block.cells) {
+      const station = document.createElement('div');
+      station.className = 'card__station';
+      const value = document.createElement('div');
+      value.className = 'card__station-value';
+      value.textContent = cell.value;
+      const label = document.createElement('div');
+      label.className = 'card__station-label';
+      label.textContent = cell.label;
+      station.append(value, label);
+      row.append(station);
+    }
+    wrap.append(row);
+    return wrap;
+  }
+
+  if (block.type === 'steps') {
+    section.append(cardHead(block.title, block.subtitle));
+    block.rows.forEach((step, index) => {
+      const row = document.createElement('div');
+      row.className = 'card__step';
+      if (step.state === 'current') row.classList.add('card__step--current');
+      if (step.done || step.state === 'done') row.classList.add('card__step--done');
+      for (const [cls, text] of [
+        ['card__step-name', step.name],
+        ['card__step-ref', step.ref],
+        ['card__step-gate', step.gate],
+        ['card__step-note', step.note],
+      ]) {
+        const cell = document.createElement('span');
+        cell.className = cls;
+        cell.textContent = text;
+        row.append(cell);
+      }
+      // Hold, do not tap. A stray tap under turbulence must never mark a step
+      // flown: a wrongly ticked step reads as progress, which is worse than an
+      // unticked one. The commit happens on hold-complete, in the handler.
+      const tick = document.createElement('button');
+      tick.className = 'card__tick';
+      tick.dataset.step = String(index);
+      tick.setAttribute('aria-label', t('card.tick'));
+      const ring = document.createElement('i');
+      ring.className = 'card__ring';
+      const fill = document.createElement('i');
+      fill.className = 'card__ring-fill';
+      ring.append(fill);
+      tick.append(ring);
+      row.append(tick);
+      section.append(row);
+    });
+    return section;
+  }
+
+  if (block.type === 'table') {
+    section.append(cardHead(block.title));
+    for (const row of block.rows) {
+      const line = document.createElement('div');
+      line.className = 'card__row';
+      if (row.marked) line.classList.add('card__row--marked');
+      for (const cell of row.cells) line.append(cardCell(cell));
+      section.append(line);
+    }
+    return section;
+  }
+
+  if (block.type === 'prose') {
+    section.className = 'card__section card__prose';
+    section.append(cardHead(block.title, '', block.badge));
+    const list = document.createElement('ul');
+    list.className = 'card__prose-list';
+    for (const entry of block.items) {
+      const item = document.createElement('li');
+      item.textContent = entry;
+      list.append(item);
+    }
+    section.append(list);
+    return section;
+  }
+
+  if (block.type === 'image') {
+    const img = document.createElement('img');
+    img.className = 'card__image';
+    // Already an intel:// or /blob/ URL — main decides which, per surface.
+    img.src = block.url;
+    img.alt = '';
+    img.draggable = false;
+    section.append(img);
+    if (block.caption) {
+      const caption = document.createElement('div');
+      caption.className = 'card__caption';
+      caption.textContent = block.caption;
+      section.append(caption);
+    }
+    return section;
+  }
+
+  return section;
+}
+
+/**
+ * Scales the fixed 893x1263 sheet to whatever room the surface gives it.
+ *
+ * The sheet does NOT reflow. Every legibility number in design/kneeboard/ is
+ * measured against those dimensions, so the density is fixed and the surface
+ * scales — which is also what makes one card render identically here and in an
+ * OpenKneeboard tab.
+ */
+const CARD_W = 893;
+const CARD_H = 1263;
+
+function sizeCard() {
+  if (!card.root || card.root.offsetParent === null) return;
+  const box = card.root.getBoundingClientRect();
+  if (!box.width || !box.height) return;
+  const fit = Math.min(box.width / CARD_W, box.height / CARD_H);
+  card.root.style.setProperty('--card-fit', String(fit));
+}
+
+function renderCard(s) {
+  if (!card.sheet) return;
+  const model = s.card;
+  card.sheet.textContent = '';
+
+  if (!model || !model.pages || !model.pages.length) {
+    const empty = document.createElement('p');
+    empty.className = 'card__empty';
+    empty.textContent = t(model && model.error ? 'card.rejected' : 'card.none');
+    card.sheet.append(empty);
+    sizeCard();
+    return;
+  }
+
+  // CARD and MAP are two destinations, not a rail — the launcher pages
+  // between them. This renders whichever one the snapshot selects.
+  const page = model.pages.find((p) => p.id === (s.cardPage || 'card')) || model.pages[0];
+  const comms = [];
+  for (const block of page.blocks) {
+    if (block.band === 'comms') {
+      comms.push(cardBlock(block));
+      continue;
+    }
+    card.sheet.append(cardBlock(block));
+  }
+  if (comms.length) {
+    const row = document.createElement('div');
+    row.className = 'card__comms';
+    row.append(...comms);
+    card.sheet.append(row);
+  }
+  sizeCard();
+}
+
 function renderBrief(s) {
   const b = s.brief || {};
   presenterCursor = b.presenting ? null : b.cursor || null; // never draw our own
@@ -714,6 +954,8 @@ if (stage.ink) {
 // the geometry has to re-run it: a new photo, a resize, a scale change.
 if (stage.img) stage.img.addEventListener('load', drawInk);
 window.addEventListener('resize', drawInk);
+// The sheet is a fixed 893x1263; only its scale follows the surface.
+window.addEventListener('resize', sizeCard);
 
 // --- intents ----------------------------------------------------------------
 // Every handler sends; none of them mutate. Main decides and pushes back.

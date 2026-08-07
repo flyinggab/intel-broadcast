@@ -26,6 +26,7 @@
     'tab.brief': 'BRIEF',
     'tab.received': 'RECEIVED',
     'tab.share': 'SHARE',
+    'tab.card': 'CARD',
     'tab.setup': 'SETUP',
     // launcher group headings. Listed for every group the roadmap will add,
     // so a new page needs no new heading — GROUPS in viewer.js skips empties.
@@ -67,6 +68,12 @@
     'win.minimize': 'MINIMISE',
     'win.maximize': 'MAXIMISE',
     'win.close': 'CLOSE',
+    // Kneeboard card. Block TITLES come from the card and are the author's
+    // words — untouched. Only what the app itself says goes through here.
+    'card.none': 'NO CARD LOADED',
+    'card.rejected': 'CARD REFUSED — SEE LOG',
+    'card.tick': 'HOLD TO TICK THIS STEP',
+
 
     // OpenKneeboard panel. The native path: OpenKneeboard renders the EFB
     // itself instead of capturing the window.
@@ -230,6 +237,7 @@
     'tab.brief': 'BRIEF',
     'tab.received': 'RICEVUTE',
     'tab.share': 'CONDIVIDI',
+    'tab.card': 'CARD',
     'tab.setup': 'SETUP',
     'group.intel': 'INTEL',
     'group.mission': 'MISSIONE',
@@ -281,6 +289,10 @@
     'win.minimize': 'RIDUCI A ICONA',
     'win.maximize': 'INGRANDISCI',
     'win.close': 'CHIUDI',
+    'card.none': 'NESSUNA CARD CARICATA',
+    'card.rejected': 'CARD RIFIUTATA — VEDI LOG',
+    'card.tick': 'TIENI PREMUTO PER SPUNTARE',
+
     'brief.present': 'PRESENTA',
     'brief.pen': 'PENNA',
     'brief.arrow': 'FRECCIA',

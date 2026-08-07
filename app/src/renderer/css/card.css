@@ -1,0 +1,225 @@
+/* ==========================================================================
+   Kneeboard cards — the PAPER surface.
+
+   This file is a documented exception to tokens.css, and the exception is the
+   whole point. See design/kneeboard/HANDOFF.md §2.
+
+   The mid-tones exist so a recon photo does not blow out against its surround:
+   a photo needs a neutral frame, and the 4.2:1 contrast ceiling that follows
+   is an accepted cost. A dense text card is the OPPOSITE problem — it wants
+   maximum contrast at small sizes, which is exactly what paper has and what a
+   mid-tone ground structurally cannot give. So the card carries its own token
+   set, scoped to .card, and the stage and photo chrome keep the mid-tones
+   untouched. Do not "fix" this back, and do not paste the shipped --fault and
+   --go in: they measure 2.95:1 and 4.04:1 on this ground and were rejected.
+
+   Two structural consequences follow from a light ground: bevels INVERT
+   (raised is lighter, recessed darker, a 1px rule replaces the two-tone edge),
+   and section headers become dark bands with paper text, the way printed
+   cards do it.
+   ========================================================================== */
+
+.card {
+  /* Measured, all AA or better on paper — ratios in the handoff §2. */
+  --pp-paper:     #E9E5DA;   /* the sheet */
+  --pp-raised:    #F2EFE6;   /* raised face — LIGHTER than the sheet */
+  --pp-recessed:  #D9D4C6;   /* recessed face, and field bands */
+  --pp-rule:      #BFB9A8;   /* 1px rule, replacing the two-tone bevel */
+  --pp-ink:       #1F1C16;   /* 13.50:1 */
+  --pp-secondary: #6A6255;   /* 4.78:1 */
+  --pp-tertiary:  #5E584C;   /* 5.61:1 */
+  --pp-threat:    #A33224;   /* 5.49:1 — re-picked for a light ground */
+  --pp-go:        #3F6B22;   /* 5.00:1 — likewise */
+  --pp-band:      #3A362D;   /* dark section band */
+  --pp-band-ink:  #EDE9DE;   /* 9.92:1 on the band */
+
+  height: 100%;
+  overflow: auto;
+  background: var(--pp-recessed);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* --- the sheet ------------------------------------------------------------
+   FIXED at 893 x 1263 — A4 proportion at density 0.7, the size the whole
+   layout is measured against (handoff §1). It is not responsive and must not
+   become so: every legibility number in the design assumes these dimensions,
+   so the card keeps its internal density and the SURFACE scales instead.
+   viewer.js writes --card-fit from the space available; the transform is what
+   makes one card render identically in this window and in an OpenKneeboard
+   tab, where we get to pick the pixel size outright.                        */
+.card__sheet {
+  flex: none;
+  width: 893px;
+  height: 1263px;
+  transform: scale(var(--card-fit, 1));
+  transform-origin: top center;
+  background: var(--pp-paper);
+  color: var(--pp-ink);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* Not --font-mono/--font-ui by accident: the card is B612 like the rest of
+     the EFB. Only the COLOUR system is the exception, not the type. */
+  font-family: var(--font-ui);
+}
+
+.card__empty {
+  margin: auto;
+  text-align: center;
+  color: var(--pp-secondary);
+  font-size: 15px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+/* --- header band ---------------------------------------------------------- */
+.card__band {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  background: var(--pp-recessed);
+  border: 1px solid var(--pp-rule);
+  padding: 6px 8px;
+}
+.card__field { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.card__field-label {
+  font-size: 9px; letter-spacing: .10em; text-transform: uppercase;
+  color: var(--pp-tertiary); white-space: nowrap;
+}
+.card__field-value {
+  font-size: 15px; font-weight: 700; line-height: 1.15;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.card__field--threat .card__field-value { color: var(--pp-threat); }
+
+/* Semantic widths. The template says `badge|xs|sm|md|flex`; what each one
+   MEANS in pixels is decided here, and phase 4 will decide differently for a
+   VR quad without the template changing. */
+/* PREFERRED widths, not fixed ones: `flex: 0 1 N` may shrink, `min-width: 0`
+   lets the text ellipsis rather than force the track wider. Fixed widths put
+   the TANKER column's cells past the right edge of the sheet, because the same
+   semantic `md` has to work both across the full 893 and inside a third of it.
+   A badge is the exception — a channel number that shrinks is unreadable. */
+.card__w-badge { flex: 0 0 34px; }
+.card__w-xs    { flex: 0 1 58px;  min-width: 0; }
+.card__w-sm    { flex: 0 1 104px; min-width: 0; }
+.card__w-md    { flex: 0 1 214px; min-width: 0; }
+.card__w-flex  { flex: 1 1 auto;  min-width: 0; }
+
+/* --- stations ------------------------------------------------------------- */
+.card__stations { border: 1px solid var(--pp-rule); background: var(--pp-raised); padding: 5px 7px; }
+.card__stations-title {
+  font-size: 9px; letter-spacing: .10em; text-transform: uppercase;
+  color: var(--pp-tertiary); margin-bottom: 3px;
+}
+.card__stations-row { display: flex; gap: 5px; }
+.card__station {
+  flex: 1 1 0; min-width: 0; text-align: center;
+  border: 1px solid var(--pp-rule); padding: 2px 3px;
+}
+.card__station-value { font-size: 11px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card__station-label { font-size: 8px; color: var(--pp-tertiary); }
+
+/* --- section heads: dark bands, the way printed cards do it --------------- */
+.card__section { display: flex; flex-direction: column; }
+.card__head {
+  display: flex; align-items: baseline; gap: 10px;
+  background: var(--pp-band); color: var(--pp-band-ink);
+  padding: 3px 8px;
+}
+.card__head-title { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.card__head-sub { font-size: 9px; letter-spacing: .06em; opacity: .85; margin-left: auto; }
+
+/* --- route ---------------------------------------------------------------- */
+.card__step {
+  display: flex; align-items: center; gap: 8px;
+  height: 29px;                     /* the measured row height at this density */
+  padding: 0 8px;
+  border-bottom: 1px solid var(--pp-rule);
+  font-size: 12px;
+}
+/* EVERY cell clips. The row is a fixed 29px and a wrapping cell does not
+   make itself taller — it overlaps the row below, which is what a real
+   route ("FENCE > WP4 > FEET DRY") did here on the first render. Widths are
+   measured against that card's longest strings, not guessed; the width check
+   the handoff asks for at import time is what will keep them honest. */
+.card__step > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card__step-name { flex: none; width: 118px; font-weight: 700; }
+.card__step-ref  { flex: none; width: 168px; font-family: var(--font-mono); font-size: 11px; }
+.card__step-gate { flex: none; width: 104px; font-family: var(--font-mono); font-size: 11px; color: var(--pp-secondary); }
+.card__step-note { flex: 1 1 auto; min-width: 0; font-size: 11px; color: var(--pp-secondary); }
+
+/* Current step is EMPHASIS, not expansion — raised, go bar, reading NOW.
+   Nothing collapses at this width; that was a 625px compromise. */
+.card__step--current { background: var(--pp-raised); box-shadow: inset 3px 0 0 var(--pp-go); }
+.card__step--current .card__step-note { color: var(--pp-ink); }
+.card__step--done { opacity: .55; }
+
+/* The hold-to-tick lane. 44px, one 22px ring per row — a tap does NOTHING,
+   the ring fills while held. A wrongly ticked step reads as progress, which
+   is worse than an unticked one, so the commit is deliberate. */
+.card__tick {
+  flex: none; width: 44px; height: 29px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: 0; padding: 0; cursor: pointer;
+}
+.card__ring {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1.5px solid var(--pp-rule);
+  display: block; position: relative;
+}
+.card__step--done .card__ring { border-color: var(--pp-ink); background: var(--pp-ink); }
+.card__step--done .card__ring::after {
+  content: ""; position: absolute; left: 6px; top: 3px;
+  width: 6px; height: 11px;
+  border: solid var(--pp-paper); border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+/* Filling while held. The width comes from JS as a percentage. */
+.card__ring-fill {
+  position: absolute; inset: 2px; border-radius: 50%;
+  background: conic-gradient(var(--pp-go) calc(var(--held, 0) * 1%), transparent 0);
+}
+
+/* --- tables (targets, comms) ---------------------------------------------- */
+.card__row {
+  display: flex; align-items: center; gap: 8px;
+  height: 27px; padding: 0 8px;
+  border-bottom: 1px solid var(--pp-rule);
+  font-size: 11px;
+}
+.card__row:last-child { border-bottom: 0; }
+.card__row--marked { background: var(--pp-raised); box-shadow: inset 3px 0 0 var(--pp-go); }
+.card__cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card__cell--mono { font-family: var(--font-mono); }
+.card__cell--strong { font-weight: 700; }
+.card__cell--muted { color: var(--pp-secondary); }
+.card__cell--threat { color: var(--pp-threat); font-weight: 700; }
+
+/* --- comms: three columns across one band --------------------------------- */
+/* NOT equal thirds. The three carry very different content — COMM 1 is
+   ch/name/freq/tacan, MIDS is name/channel, TANKER · DIVERT is
+   name/tacan/alt/hdg/time — and an even split pushed the widest one off the
+   right edge of the sheet. `min-width: 0` is what lets a cell ellipsis
+   instead of forcing the track wider. */
+.card__comms { display: grid; grid-template-columns: 1.02fr 0.6fr 1.38fr; gap: 8px; align-items: start; }
+.card__comms .card__section { border: 1px solid var(--pp-rule); min-width: 0; }
+.card__comms .card__row { gap: 6px; }
+
+/* --- prose ---------------------------------------------------------------- */
+.card__prose { border: 1px solid var(--pp-rule); }
+.card__prose-list { margin: 0; padding: 5px 8px 6px 22px; font-size: 11px; line-height: 1.45; }
+.card__badge {
+  margin-left: auto; font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  background: var(--pp-band-ink); color: var(--pp-band); padding: 0 5px;
+}
+
+/* --- map ------------------------------------------------------------------ */
+.card__image { width: 100%; height: 100%; object-fit: contain; display: block; background: var(--pp-recessed); }
+.card__caption {
+  font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--pp-tertiary); padding: 4px 8px;
+}

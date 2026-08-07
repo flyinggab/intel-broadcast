@@ -109,6 +109,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 body[data-page="brief"]    .page[data-page="brief"],
 body[data-page="received"] .page[data-page="received"],
 body[data-page="share"]    .page[data-page="share"],
+body[data-page="card"]     .page[data-page="card"],
 body[data-page="setup"]    .page[data-page="setup"] { display: block; }
 
 /* SETUP's own sub-navigation, on a SECOND attribute: settings is a page in
