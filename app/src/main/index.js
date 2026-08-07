@@ -143,6 +143,17 @@ function currentPhotosFolder() {
 // card expensive.
 let cardModel = null;
 
+// Which route steps the pilot has ticked, as OVERRIDES on what the card says:
+// index -> true/false. An override rather than a set, because a card may ship
+// steps already marked done and un-ticking one has to be expressible.
+//
+// Deliberately not persisted and deliberately local. The handoff is explicit
+// that whether a lead ticking a step pushes to the flight is the same question
+// as brief mode's FOCUS and gets the same machinery — so this stays in memory
+// until that answer exists, rather than inventing a second mechanism or
+// writing into a pilot's card file.
+let cardTicks = new Map();
+
 /**
  * Loads the card named in config and resolves it against its layout.
  *
@@ -152,6 +163,7 @@ let cardModel = null;
  */
 function loadCard() {
   cardModel = null;
+  cardTicks = new Map();
   const cardPath = process.env.INTEL_BROADCAST_CARD_PATH || config.cardPath;
   if (!cardPath) return;
   try {
@@ -229,6 +241,26 @@ function okbPluginDir() {
   // third party, and never anywhere under OpenKneeboard: writing into theirs
   // is unsupported and breaks pilots' setups on update.
   return path.join(app.getPath('userData'), 'okb');
+}
+
+/** The card as the renderer should see it: what the card said, with the
+ *  pilot's ticks laid over the top. */
+function cardForSnapshot() {
+  if (!cardModel || !cardModel.pages || !cardTicks.size) return cardModel;
+  return {
+    ...cardModel,
+    pages: cardModel.pages.map((page) => ({
+      ...page,
+      blocks: page.blocks.map((block) =>
+        block.type === 'steps'
+          ? {
+              ...block,
+              rows: block.rows.map((row, i) => (cardTicks.has(i) ? { ...row, done: cardTicks.get(i) } : row)),
+            }
+          : block,
+      ),
+    })),
+  };
 }
 
 /**
@@ -497,7 +529,7 @@ function settingsSnapshot(base) {
     tokenMasked: squad.maskToken(config.token),
     squadCode: hostSquadCode(),
     hotkeys: config.hotkeys,
-    card: cardModel,
+    card: cardForSnapshot(),
     okb: okbState,
     // The squad code is a password and must never appear here.
     logTail: recentLines(12),
@@ -1072,6 +1104,20 @@ function handleViewerIntent(intent, payload) {
         } else if (payload === 'close') viewer.window.close();
       }
       break;
+    case 'card-tick': {
+      const step = Number(payload);
+      if (Number.isInteger(step) && step >= 0) {
+        // A toggle: clicking a ticked step unticks it, which is what makes a
+        // plain click safe enough to replace the hold the design asked for.
+        const page = cardModel && cardModel.pages ? cardModel.pages.find((p) => p.id === 'card') : null;
+        const steps = page ? page.blocks.find((b) => b.type === 'steps') : null;
+        const said = steps && steps.rows[step] ? Boolean(steps.rows[step].done) : false;
+        const now = cardTicks.has(step) ? cardTicks.get(step) : said;
+        cardTicks.set(step, !now);
+      }
+      noteActivity();
+      break;
+    }
     case 'toggle-launcher':
       view.toggleLauncher();
       noteActivity();

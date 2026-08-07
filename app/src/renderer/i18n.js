@@ -72,7 +72,7 @@
     // words — untouched. Only what the app itself says goes through here.
     'card.none': 'NO CARD LOADED',
     'card.rejected': 'CARD REFUSED — SEE LOG',
-    'card.tick': 'HOLD TO TICK THIS STEP',
+    'card.tick': 'MARK THIS STEP COMPLETE',
 
 
     // OpenKneeboard panel. The native path: OpenKneeboard renders the EFB
@@ -291,7 +291,7 @@
     'win.close': 'CHIUDI',
     'card.none': 'NESSUNA CARD CARICATA',
     'card.rejected': 'CARD RIFIUTATA — VEDI LOG',
-    'card.tick': 'TIENI PREMUTO PER SPUNTARE',
+    'card.tick': 'SEGNA QUESTO STEP COME FATTO',
 
     'brief.present': 'PRESENTA',
     'brief.pen': 'PENNA',

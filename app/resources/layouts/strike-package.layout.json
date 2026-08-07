@@ -59,7 +59,6 @@
         {
           "type": "steps",
           "title": "ROUTE",
-          "subtitle": "TOT {plan.tot|blank} · HOLD THE RING TO TICK A STEP",
           "repeat": "route.steps",
           "complete": "done",
           "row": {

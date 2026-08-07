@@ -175,9 +175,9 @@
 .card__step--current .card__step-note { color: var(--pp-ink); }
 .card__step--done { opacity: .55; }
 
-/* The hold-to-tick lane. 44px, one 22px ring per row — a tap does NOTHING,
-   the ring fills while held. A wrongly ticked step reads as progress, which
-   is worse than an unticked one, so the commit is deliberate. */
+/* The tick lane. 44px, one 22px ring per row. The design asked for hold-to-
+   commit so a stray tap could never mark a step flown; the owner chose a
+   plain click, and clicking again unticks — which is what makes it safe. */
 .card__tick {
   flex: none; width: 44px; height: 33px;
   display: flex; align-items: center; justify-content: center;
@@ -195,11 +195,7 @@
   border: solid var(--pp-paper); border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
-/* Filling while held. The width comes from JS as a percentage. */
-.card__ring-fill {
-  position: absolute; inset: 2px; border-radius: 50%;
-  background: conic-gradient(var(--pp-go) calc(var(--held, 0) * 1%), transparent 0);
-}
+.card__tick:hover .card__ring { border-color: var(--pp-ink); }
 
 /* --- tables (targets, comms) ---------------------------------------------- */
 .card__row {

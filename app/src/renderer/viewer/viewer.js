@@ -697,18 +697,16 @@ function cardBlock(block) {
         cell.textContent = text;
         row.append(cell);
       }
-      // Hold, do not tap. A stray tap under turbulence must never mark a step
-      // flown: a wrongly ticked step reads as progress, which is worse than an
-      // unticked one. The commit happens on hold-complete, in the handler.
+      // A plain click marks the step. The design called for hold-to-commit,
+      // on the reasoning that a stray tap under turbulence must never mark a
+      // step flown — the owner chose the simpler control for now, and a tick
+      // is reversible by clicking again, which is what makes that safe.
       const tick = document.createElement('button');
       tick.className = 'card__tick';
       tick.dataset.step = String(index);
       tick.setAttribute('aria-label', t('card.tick'));
       const ring = document.createElement('i');
       ring.className = 'card__ring';
-      const fill = document.createElement('i');
-      fill.className = 'card__ring-fill';
-      ring.append(fill);
       tick.append(ring);
       row.append(tick);
       section.append(row);
@@ -1008,6 +1006,14 @@ stage.cast.addEventListener('click', () => send('brief-present', !isPresenting()
 el('wctl').addEventListener('click', (event) => {
   const key = event.target.closest('[data-window]');
   if (key) send('window-control', key.dataset.window);
+});
+
+// Ticking a route step. Local to this instance — whether a lead ticking a
+// step pushes to the flight is the same question as brief mode's FOCUS and
+// gets the same machinery, not a second one.
+card.sheet.addEventListener('click', (event) => {
+  const tick = event.target.closest('.card__tick');
+  if (tick) send('card-tick', Number(tick.dataset.step));
 });
 
 brief.key.addEventListener('click', () => {
