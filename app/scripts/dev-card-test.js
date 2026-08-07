@@ -183,4 +183,38 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
   console.log('[test] `when` omits cleanly: no map page, no MIDS block, no empty TARGETS heading');
 }
 
+// ---------------------------------------------------------------------------
+// The FULL fixture. The shipped example card stops at RTB; this one carries
+// the 17 steps §1 calls for, including the recovery — feet wet, marshal, push,
+// Case I, trap, bolter-to-divert — and deliberately drops three values so the
+// declared fallbacks are exercised rather than merely parsed.
+//
+// Its mission data is fictional and it says so in its own title. It exists to
+// prove the template survives a card that fills the sheet.
+// ---------------------------------------------------------------------------
+{
+  const full = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'card-full.card.json'), 'utf8'));
+  const { ok, errors, card } = resolveCard({ layout: LAYOUT, card: full });
+  assert.deepStrictEqual(errors, [], 'the full fixture must resolve cleanly');
+  assert.strictEqual(ok, true);
+
+  const steps = card.pages[0].blocks.find((b) => b.type === 'steps');
+  assert.strictEqual(steps.rows.length, 17, '§1 calls for seventeen steps, recovery included');
+  const names = steps.rows.map((r) => r.name);
+  for (const needed of ['FEET WET', 'MARSHAL', 'PUSH', 'CASE I', 'TRAP', 'BOLTER']) {
+    assert.ok(names.includes(needed), `the recovery must include ${needed} — it is the part you need when it is going wrong`);
+  }
+
+  // The fallbacks, actually rendering. `blank` is empty, `dash` is an em dash;
+  // both are how a card says "not applicable" without failing the import.
+  assert.strictEqual(steps.rows[12].note, '', '{note|blank} renders empty');
+  const tables = card.pages[0].blocks.filter((b) => b.type === 'table');
+  const targets = tables.find((b) => b.title === 'TARGETS');
+  assert.ok(targets.rows[3].cells.some((c) => c.value === '—'), '{coord|dash} renders an em dash');
+  const tankers = tables.find((b) => b.title.includes('TANKER'));
+  assert.ok(tankers.rows[3].cells.some((c) => c.value === '—'), '{tacan|dash} likewise');
+
+  console.log(`[test] the full fixture: ${steps.rows.length} steps through the trap, fallbacks rendering`);
+}
+
 console.log('[dev-card-test] PASS');

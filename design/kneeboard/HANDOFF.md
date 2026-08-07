@@ -258,11 +258,18 @@ must never trap a pilot, and the route to SETUP must always survive.
   placeholders. If a future mockup and the template disagree, the template and
   this handoff win; the image is stale.
 - **The example card supplies 11 route steps, not the 17 §1 calls for.** It
-  still stops at RTB; the recovery — feet wet, marshal, push, Case I, trap,
-  bolter-to-divert — is missing from the CONTENT, not the template. Writing it
-  means inventing marshal stacks and Case I numbers for a real mission, so it
-  needs a pilot, not a guess. `dev-card-test` prints the shortfall rather than
-  asserting either number.
+  still stops at RTB. `app/scripts/fixtures/card-full.card.json` is a TEST
+  card that carries all 17, recovery included, with fictional numbers — it
+  exists to prove the template survives a card that fills the sheet, and says
+  so in its own title. The real `foxhunt2-roman1.card.json` still needs a
+  pilot's numbers; `dev-card-test` prints the shortfall rather than asserting
+  either count.
+- **Measured against the real render, the full card leaves 152px spare**, not
+  the 90 §1 predicts, and its content is 1071px rather than 1129. The
+  difference is block heights: the estimate was made from the mockup, this is
+  the app laying out B612 at these widths. There is more room than the design
+  thought, which is the direction to be wrong in — the emergency-procedures
+  and divert-ladder blocks §6 wants have somewhere to go.
 - **Its map blob was `sha256:2f1c9e…`** — an ellipsis, which can never resolve
   to a blob. Replaced with a real digest so the example validates. Watch for
   the same in any card converted by hand.

@@ -137,7 +137,7 @@ function resolveBlock(block, card, where, errors) {
           emphasis: item.emphasis || null,
         };
       });
-      return { type: 'fields', band: block.band || null, items };
+      return { type: 'fields', band: block.band || null, title: '', items };
     }
 
     case 'stations': {
