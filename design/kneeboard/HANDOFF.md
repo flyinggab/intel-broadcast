@@ -257,6 +257,20 @@ must never trap a pilot, and the route to SETUP must always survive.
   targets carrying coordinates and weapon. `verify-bindings.js` is green at 155
   placeholders. If a future mockup and the template disagree, the template and
   this handoff win; the image is stale.
+- **The example card supplies 11 route steps, not the 17 §1 calls for.** It
+  still stops at RTB; the recovery — feet wet, marshal, push, Case I, trap,
+  bolter-to-divert — is missing from the CONTENT, not the template. Writing it
+  means inventing marshal stacks and Case I numbers for a real mission, so it
+  needs a pilot, not a guess. `dev-card-test` prints the shortfall rather than
+  asserting either number.
+- **Its map blob was `sha256:2f1c9e…`** — an ellipsis, which can never resolve
+  to a blob. Replaced with a real digest so the example validates. Watch for
+  the same in any card converted by hand.
+- **The template uses three filters, not the two §4 documents:** `dash`,
+  `blank` and `none`. `none` is different in kind — it is the literal enum
+  value for "no state" (`{state|none}`, `{kind|none}`), so every row reaches
+  the renderer with a state string rather than an absent one. Implemented as
+  such in `main/card.js`.
 - One real clip was found by measurement in the previous mockup — status text
   right-aligned over the CARD / MAP keys, a 30 px overlap. Measure the strip
   lanes; do not eyeball them.
