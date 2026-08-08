@@ -17,6 +17,13 @@ that entry.
 ## Unreleased
 
 ### Added
+- **`dev-card-geometry-test`** renders the real card in Electron with the real
+  B612 and fails on any value wider than the box it lands in, naming it:
+  `"N29 09'58.8 E53 07'38.6" needs 254px, has 214px`. This is the string-width
+  check `design/kneeboard/HANDOFF.md` §5 asked for, and the answer to its §7
+  admission that nobody had looked at the card rendered. A deliberately
+  over-long fixture is kept and asserted to still overflow, so the check cannot
+  quietly stop proving anything.
 - **The window draws its own controls** — minimise, maximise, close, in the
   strip beside the launcher key. The OS frame is gone, because OpenKneeboard's
   Window Capture takes the whole window and a Windows title bar was riding on
@@ -48,28 +55,6 @@ that entry.
   app. PRESENT (`Ctrl+Shift+P`) is unchanged, and a presenter is never locked.
 
 ### Fixed
-- **A host could not tell that sharing over the internet was a button.** It
-  was a flat panel the same tone as the status rows above it, on a page where
-  the recessed "primary" key treatment looked like the read-only PORT and
-  TOKEN wells. So the setup read as finished while the squad code never left
-  the LAN. The internet-link key now uses the app's one call-to-action
-  treatment — raised, filled `--go` — while a step is still owed, and drops
-  back to an ordinary key once sharing is on, so the colour keeps meaning
-  "your move" rather than becoming decoration.
-- **A presenter's page turns reached nobody.** PRESENT sent exactly one FOCUS
-  — for whichever image the presenter happened to be on when they started —
-  and every photo they moved to afterwards went unannounced. Followers sat on
-  the opening image watching ink appear on a picture they could not see. FOCUS
-  is now driven off the presenter's resulting image hash after anything that
-  can move it (chevrons, hotkeys, intel arriving, curation restaging), not off
-  the navigation intents. `dev-e2e-brief-test` holds a real socket on the
-  relay and fails if a page turn produces no second FOCUS.
-
----
-
-## Unreleased
-
-### Fixed
 - **The mission card was silently truncating 16 values, including the
   bullseye.** Card cells carry `text-overflow: ellipsis`, so a value too long
   for its column renders as a shorter one that still looks like a value:
@@ -90,15 +75,22 @@ that entry.
 - Comms agency names are one word — MOTHER, not MOTHER (CVN-71); SHELL, not
   SHELL KC-135. On a kneeboard the agency is the callsign and the parenthetical
   is explanatory text charging the column for it.
-
-### Added
-- **`dev-card-geometry-test`** renders the real card in Electron with the real
-  B612 and fails on any value wider than the box it lands in, naming it:
-  `"N29 09'58.8 E53 07'38.6" needs 254px, has 214px`. This is the string-width
-  check `design/kneeboard/HANDOFF.md` §5 asked for, and the answer to its §7
-  admission that nobody had looked at the card rendered. A deliberately
-  over-long fixture is kept and asserted to still overflow, so the check cannot
-  quietly stop proving anything.
+- **A host could not tell that sharing over the internet was a button.** It
+  was a flat panel the same tone as the status rows above it, on a page where
+  the recessed "primary" key treatment looked like the read-only PORT and
+  TOKEN wells. So the setup read as finished while the squad code never left
+  the LAN. The internet-link key now uses the app's one call-to-action
+  treatment — raised, filled `--go` — while a step is still owed, and drops
+  back to an ordinary key once sharing is on, so the colour keeps meaning
+  "your move" rather than becoming decoration.
+- **A presenter's page turns reached nobody.** PRESENT sent exactly one FOCUS
+  — for whichever image the presenter happened to be on when they started —
+  and every photo they moved to afterwards went unannounced. Followers sat on
+  the opening image watching ink appear on a picture they could not see. FOCUS
+  is now driven off the presenter's resulting image hash after anything that
+  can move it (chevrons, hotkeys, intel arriving, curation restaging), not off
+  the navigation intents. `dev-e2e-brief-test` holds a real socket on the
+  relay and fails if a page turn produces no second FOCUS.
 
 ## v0.8.3 — 2026-08-02
 
