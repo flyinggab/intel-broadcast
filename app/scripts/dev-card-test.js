@@ -12,7 +12,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { resolveCard } = require('../src/main/card');
+const { resolveCard, markCurrentStep } = require('../src/main/card');
 
 const LAYOUT = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', 'resources', 'layouts', 'strike-package.layout.json'), 'utf8'),
@@ -215,6 +215,64 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
   assert.ok(tankers.rows[3].cells.some((c) => c.value === '—'), '{tacan|dash} likewise');
 
   console.log(`[test] the full fixture: ${steps.rows.length} steps through the trap, fallbacks rendering`);
+}
+
+// ---------------------------------------------------------------------------
+// WHERE THE FLIGHT IS. Derived from the ticks, never read off the card.
+// ---------------------------------------------------------------------------
+{
+  const { card } = resolveCard({ layout: LAYOUT, card: CARD });
+  const stepsOf = (m) => m.pages.find((p) => p.id === 'card').blocks.find((b) => b.type === 'steps').rows;
+  const currentOf = (m) => stepsOf(m).findIndex((r) => r.current);
+
+  const rows = stepsOf(card);
+  const firstUnflown = rows.findIndex((r) => !r.done);
+  assert.ok(firstUnflown > 0, 'the example card opens with legs already flown — otherwise this proves nothing');
+
+  const marked = markCurrentStep(card);
+  assert.strictEqual(currentOf(marked), firstUnflown, 'current is the first step not yet flown');
+  assert.strictEqual(
+    stepsOf(marked).filter((r) => r.current).length,
+    1,
+    'exactly one step is current',
+  );
+
+  // THE POINT: it MOVES. A card that declares its own current step is right
+  // until the first leg is flown, after which the highlight sits on something
+  // already behind the flight.
+  const flown = {
+    ...card,
+    pages: card.pages.map((p) => ({
+      ...p,
+      blocks: p.blocks.map((b) =>
+        b.type === 'steps' ? { ...b, rows: b.rows.map((r, i) => (i <= firstUnflown ? { ...r, done: true } : r)) } : b,
+      ),
+    })),
+  };
+  assert.strictEqual(currentOf(markCurrentStep(flown)), firstUnflown + 1, 'ticking a step moves current on');
+
+  // And un-ticking moves it BACK, which is what makes a plain click safe.
+  const undone = {
+    ...card,
+    pages: card.pages.map((p) => ({
+      ...p,
+      blocks: p.blocks.map((b) => (b.type === 'steps' ? { ...b, rows: b.rows.map((r) => ({ ...r, done: false })) } : b)),
+    })),
+  };
+  assert.strictEqual(currentOf(markCurrentStep(undone)), 0, 'nothing flown means the first step is current');
+
+  // Every step flown means NO current step. Highlighting the last row would
+  // claim there is still one to fly.
+  const all = {
+    ...card,
+    pages: card.pages.map((p) => ({
+      ...p,
+      blocks: p.blocks.map((b) => (b.type === 'steps' ? { ...b, rows: b.rows.map((r) => ({ ...r, done: true })) } : b)),
+    })),
+  };
+  assert.strictEqual(currentOf(markCurrentStep(all)), -1, 'a finished mission has no current step');
+
+  console.log(`[test] current is derived: step ${firstUnflown} now, moves with every tick, gone when all are flown`);
 }
 
 console.log('[dev-card-test] PASS');

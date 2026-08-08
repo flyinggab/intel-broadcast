@@ -393,4 +393,50 @@ function resolveCard({ layout, card }) {
   };
 }
 
-module.exports = { resolveCard, BLOCK_TYPES, WIDTHS, EMPHASES, STYLES, get, present, pageHeight, SHEET_BODY_PX };
+/**
+ * Marks WHERE THE FLIGHT IS: the first step not yet flown.
+ *
+ * Derived, never declared. A card may say `state: "current"` on a row, but a
+ * fixed marker is only true at the moment the card was written — the pilot
+ * ticks off DEPART and the highlight is still sitting on DEPART, pointing at
+ * something already behind them. The first unflown step is the only answer
+ * that stays right for the whole mission.
+ *
+ * It also settles the harder question for free. Ticks travel between pilots,
+ * so anything derived from them travels too, and two pilots cannot end up
+ * looking at different current steps while holding the same ticks. Sending
+ * "current" as its own field would make that possible — one more thing on the
+ * wire that can disagree with the thing it was computed from.
+ *
+ * Applied to the SNAPSHOT rather than at resolve time, because the ticks are
+ * an override laid on afterwards and this has to see them.
+ */
+function markCurrentStep(model) {
+  if (!model || !model.pages) return model;
+  return {
+    ...model,
+    pages: model.pages.map((page) => ({
+      ...page,
+      blocks: page.blocks.map((block) => {
+        if (block.type !== 'steps') return block;
+        // Every step flown means no current step — the mission is done, and
+        // highlighting the last row would claim there is still one to fly.
+        const at = block.rows.findIndex((row) => !row.done);
+        return { ...block, rows: block.rows.map((row, i) => ({ ...row, current: i === at })) };
+      }),
+    })),
+  };
+}
+
+module.exports = {
+  resolveCard,
+  markCurrentStep,
+  BLOCK_TYPES,
+  WIDTHS,
+  EMPHASES,
+  STYLES,
+  get,
+  present,
+  pageHeight,
+  SHEET_BODY_PX,
+};

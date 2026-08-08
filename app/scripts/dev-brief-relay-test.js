@@ -268,6 +268,40 @@ async function main() {
     assert.ok(resolved.ok, `a received card must resolve locally: ${resolved.errors.join('; ')}`);
     assert.ok(JSON.stringify(got.card).length < 64 * 1024, 'a card is small — if this grows, something became an image');
 
+    // THE STEPS ALREADY FLOWN RIDE WITH IT. Casting mid-mission is the normal
+    // case, and a card arriving as though nothing had happened yet is worse
+    // than no card: it is a confident wrong answer about where the flight is.
+    wing.inbox.length = 0;
+    send(lead, { type: 'brief-card', card, ticks: { 0: true, 4: false } });
+    await settle(200);
+    const withTicks = wing.inbox.find((m) => m.type === 'brief-card');
+    assert.deepStrictEqual(withTicks.ticks, { 0: true, 4: false }, 'the flown steps cross with the card');
+
+    // One step flown, on its own. Not presenter-only: a route card is a shared
+    // checklist, not a performance, so any pilot may mark a leg off.
+    wing.inbox.length = 0;
+    const cardId = 'a'.repeat(64);
+    send(lead, { type: 'brief-card-tick', hash: cardId, index: 4, done: true });
+    await settle(200);
+    const tick = wing.inbox.find((m) => m.type === 'brief-card-tick');
+    assert.ok(tick, 'a tick reaches the other pilot');
+    assert.strictEqual(tick.index, 4);
+    assert.strictEqual(tick.done, true);
+    assert.strictEqual(tick.hash, cardId, 'addressed by the CARD, so a pilot holding another one ignores it');
+    assert.strictEqual(tick.presenter, 'LEAD', 'stamped from the authenticated socket');
+
+    // A tick naming no card, or a nonsense index, must not cross — a receiver
+    // would have nothing to match it against, or would tick a row at random.
+    wing.inbox.length = 0;
+    send(lead, { type: 'brief-card-tick', index: 4, done: true });
+    send(lead, { type: 'brief-card-tick', hash: cardId, index: -1, done: true });
+    send(lead, { type: 'brief-card-tick', hash: cardId, index: 1.5, done: true });
+    send(lead, { type: 'brief-card-tick', hash: cardId, index: 4, done: 'yes' });
+    send(lead, { type: 'brief-card', card, ticks: { 0: 'yes' } });
+    send(lead, { type: 'brief-card', card, ticks: { notAnIndex: true } });
+    await settle();
+    assert.strictEqual(wing.inbox.length, 0, 'a malformed tick dies at the relay');
+
     // A card with no layout name, or one this build has never heard of, must
     // not cross: the receiver would have nothing to render it with.
     wing.inbox.length = 0;
@@ -279,6 +313,7 @@ async function main() {
     console.log(
       `[test] a card crosses as ${JSON.stringify(got.card).length} bytes of DATA and resolves on the far side`,
     );
+    console.log('[test] flown steps ride with the card, and a single tick crosses on its own');
     lead.ws.close();
     wing.ws.close();
     await settle();

@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -21,7 +22,7 @@ const i18n = require('../renderer/i18n');
 const { initFileLogging, getLogFilePath, recentLines } = require('./logger');
 const tailscale = require('./tailscale');
 const okb = require('./okb');
-const { resolveCard } = require('./card');
+const { resolveCard, markCurrentStep } = require('./card');
 const { createOkbServer } = require('./okbServer');
 // SETUP is a page of the viewer, so there is no settings window module any
 // more: what survived is the config writer and the folder dialog.
@@ -256,21 +257,37 @@ function okbPluginDir() {
 /** The card as the renderer should see it: what the card said, with the
  *  pilot's ticks laid over the top. */
 function cardForSnapshot() {
-  if (!cardModel || !cardModel.pages || !cardTicks.size) return cardModel;
-  return {
-    ...cardModel,
-    pages: cardModel.pages.map((page) => ({
-      ...page,
-      blocks: page.blocks.map((block) =>
-        block.type === 'steps'
-          ? {
-              ...block,
-              rows: block.rows.map((row, i) => (cardTicks.has(i) ? { ...row, done: cardTicks.get(i) } : row)),
-            }
-          : block,
-      ),
-    })),
-  };
+  if (!cardModel || !cardModel.pages) return cardModel;
+  const ticked = !cardTicks.size
+    ? cardModel
+    : {
+        ...cardModel,
+        pages: cardModel.pages.map((page) => ({
+          ...page,
+          blocks: page.blocks.map((block) =>
+            block.type === 'steps'
+              ? {
+                  ...block,
+                  rows: block.rows.map((row, i) => (cardTicks.has(i) ? { ...row, done: cardTicks.get(i) } : row)),
+                }
+              : block,
+          ),
+        })),
+      };
+  // AFTER the ticks, never before: where the flight has got to is the first
+  // step not yet flown, and that moves every time one is marked off.
+  return markCurrentStep(ticked);
+}
+
+/**
+ * WHICH card, as a content hash — the same rule the photos use, and for the
+ * same reason: nothing else means anything across two instances. A tick names
+ * it so a pilot holding a different card, or none, ignores the message rather
+ * than ticking whatever sits at that index on theirs.
+ */
+function cardHash() {
+  if (!cardSource) return null;
+  return crypto.createHash('sha256').update(JSON.stringify(cardSource)).digest('hex');
 }
 
 /**
@@ -437,8 +454,27 @@ function applyBriefMessage(msg) {
       // card. The only mark is the line of provenance the sheet carries.
       cardModel = { ...resolved, from: msg.presenter || '' };
       cardSource = msg.card;
-      cardTicks = new Map();
-      console.log(`[card] took a card from ${msg.presenter || 'someone'}`);
+      // The steps already flown come WITH it. A lead casting mid-mission is
+      // the normal case, and a card that arrives claiming nothing has happened
+      // yet is worse than no card: it is a confident wrong answer about where
+      // the flight is.
+      cardTicks = new Map(Object.entries(msg.ticks || {}).map(([k, v]) => [Number(k), v]));
+      console.log(
+        `[card] took a card from ${msg.presenter || 'someone'}` +
+          (cardTicks.size ? `, ${cardTicks.size} step(s) already marked` : ''),
+      );
+      break;
+    }
+
+    case 'brief-card-tick': {
+      // Ours, already applied when the pilot pressed it.
+      if (msg.local) return;
+      // For a card we do not have. Applying it by index would tick whatever
+      // happens to sit at that row of a DIFFERENT mission — the failure that
+      // content-hash addressing exists to make impossible.
+      const mine = cardHash();
+      if (!mine || mine !== msg.hash) return;
+      cardTicks.set(msg.index, msg.done);
       break;
     }
     default:
@@ -552,7 +588,9 @@ function handleBriefIntent(intent, payload) {
           console.log('[card] nothing to send — no card loaded');
           return true;
         }
-        originateBrief({ type: 'brief-card', card: raw });
+        // With the steps already flown. Casting mid-mission is the normal
+        // case, and the raw card on its own says nothing has been done yet.
+        originateBrief({ type: 'brief-card', card: raw, ticks: Object.fromEntries(cardTicks) });
         const reached = Math.max(0, (view.state.peers || []).length - 1);
         console.log(`[card] sent to ${reached} pilot(s) on net`);
         noteCardSent(reached);
@@ -1218,6 +1256,13 @@ function handleViewerIntent(intent, payload) {
         const said = steps && steps.rows[step] ? Boolean(steps.rows[step].done) : false;
         const now = cardTicks.has(step) ? cardTicks.get(step) : said;
         cardTicks.set(step, !now);
+        // And everyone else flying this card sees it. A route card is a
+        // shared checklist, not a performance — so unlike ink there is no
+        // presenter lock on it, and any pilot may mark a leg flown. Last
+        // write wins, which for a four-ship agreeing on whether the tanker
+        // is behind them is the right answer and needs no arbitration.
+        const hash = cardHash();
+        if (hash) originateBrief({ type: 'brief-card-tick', hash, index: step, done: !now });
       }
       noteActivity();
       break;

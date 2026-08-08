@@ -40,6 +40,23 @@ that entry.
   no control ever ends up in one.
 
 ### Changed
+- **Marking a route step flown now reaches every pilot holding that card**, so
+  a flight shares one checklist rather than each keeping a private one. Ticks
+  also ride WITH a card when it is cast — casting mid-mission is the normal
+  case, and a card that arrives claiming nothing has been flown is worse than
+  no card at all. Any pilot may tick: a route card is a shared checklist, not
+  a performance, so unlike ink there is no presenter lock on it and last write
+  wins. Each tick names its card by content hash, so a pilot holding a
+  different card — or none — ignores it rather than marking whatever sits at
+  that row of theirs.
+- **The highlighted step is now the first one not yet flown**, derived from
+  the ticks instead of read off the card. A card can declare `state:
+  "current"`, but a fixed marker is only true until the first leg is flown,
+  after which the highlight sits on something already behind the flight. Being
+  derived also settles the harder half for free: the ticks travel, so anything
+  computed from them travels too, and two pilots cannot end up looking at
+  different current steps while holding the same ticks. Nothing named
+  "current" goes on the wire at all.
 - **A follower's view now belongs to the presenter.** While someone else is
   casting, this instance is held: paging, changing page and opening the
   launcher are all refused, and the presenter's FOCUS is the only thing that

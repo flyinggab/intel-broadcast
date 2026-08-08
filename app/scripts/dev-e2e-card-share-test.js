@@ -90,10 +90,15 @@ async function probe(pc, tag, js) {
 const SHEET = `
   const rows = [...document.querySelectorAll('.card__step')];
   const from = document.querySelector('.card__from');
+  const name = (r) => r.querySelector('.card__step-name').textContent;
+  const at = rows.findIndex((r) => r.classList.contains('card__step--current'));
   return {
     steps: rows.length,
-    names: rows.slice(0, 3).map((r) => r.querySelector('.card__step-name').textContent),
+    names: rows.slice(0, 3).map(name),
     done: rows.filter((r) => r.classList.contains('card__step--done')).length,
+    flown: rows.map((r) => r.classList.contains('card__step--done')),
+    current: at,
+    currentName: at === -1 ? null : name(rows[at]),
     from: from && !from.classList.contains('is-hidden') ? from.textContent.trim() : null,
     empty: Boolean(document.querySelector('.card--empty, .card__empty')),
   };
@@ -245,6 +250,63 @@ async function main() {
   `);
   if (gone.shown) throw new Error('the acknowledgement never cleared — it reads as a standing state, not an event');
   console.log('[e2e] and it clears itself');
+
+  // THE STEPS ALREADY FLOWN CAME WITH IT. The lead ticked one before casting,
+  // so the wingman must be looking at the same state of the mission — not at a
+  // card that says nothing has happened yet.
+  if (JSON.stringify(got.flown) !== JSON.stringify(leadTicked.flown)) {
+    throw new Error(
+      `the wingman's flown steps ${JSON.stringify(got.flown)} differ from the lead's ` +
+        `${JSON.stringify(leadTicked.flown)} — the ticks must ride with the card`,
+    );
+  }
+  console.log(`[e2e] the wingman has the lead's ${got.done} flown step(s), not a fresh card`);
+
+  // CURRENT IS DERIVED, so it agrees on both screens without being sent.
+  if (got.current !== leadTicked.current) {
+    throw new Error(`current is step ${got.current} for the wingman and ${leadTicked.current} for the lead`);
+  }
+  if (got.current === -1 || got.flown[got.current]) {
+    throw new Error(`current (step ${got.current}) must be the first step NOT yet flown`);
+  }
+  console.log(`[e2e] both are on the same current step: ${got.currentName}`);
+
+  // ---------------------------------------------------------------------------
+  // A TICK CROSSES ON ITS OWN — the half the owner asked for in the same
+  // breath as sharing: "I will be able to cast and mark completed steps that
+  // will be reflected there."
+  // ---------------------------------------------------------------------------
+  const beforeTick = await probe(pcB, 'beforeTick', SHEET);
+  await run(pcA, `document.querySelectorAll('.card__tick')[${beforeTick.current}].click()`);
+  await sleep(1500);
+
+  const afterTick = await probe(pcB, 'afterTick', SHEET);
+  if (!afterTick.flown[beforeTick.current]) {
+    throw new Error(
+      `the lead flew step ${beforeTick.current} (${beforeTick.currentName}) and the wingman still shows it unflown — ` +
+        'ticks must reach every pilot holding the card',
+    );
+  }
+  console.log(`[e2e] the lead marks ${beforeTick.currentName} flown and the wingman sees it`);
+
+  // And the highlight follows it, on the far side, without current ever being
+  // sent: it is computed from the ticks, so it cannot disagree with them.
+  if (afterTick.current !== beforeTick.current + 1) {
+    throw new Error(
+      `after the tick the wingman's current is step ${afterTick.current}, expected ${beforeTick.current + 1}`,
+    );
+  }
+  console.log(`[e2e] and the wingman's current moves on to ${afterTick.currentName}`);
+
+  // BOTH WAYS. A wingman is a pilot too, and a checklist only one pilot can
+  // mark is a checklist the others cannot correct.
+  await run(pcB, `document.querySelectorAll('.card__tick')[${beforeTick.current}].click()`);
+  await sleep(1500);
+  const leadBack = await probe(pcA, 'leadBack', SHEET);
+  if (leadBack.flown[beforeTick.current]) {
+    throw new Error(`the wingman unflew step ${beforeTick.current} and the lead still shows it flown`);
+  }
+  console.log('[e2e] and the wingman can untick it back on the lead');
 
   console.log('[dev-e2e-card-share-test] PASS');
   cleanup(0);

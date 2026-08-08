@@ -176,7 +176,32 @@ const BRIEF_TYPES = new Set([
   'brief-snapshot-req',
   'brief-snapshot',
   'brief-card',
+  'brief-card-tick',
 ]);
+
+// A route card is a page of paper. Far past any real one, and the only job
+// here is to stop a client making every other pilot hold an unbounded map.
+const MAX_TICKS = 200;
+
+/**
+ * Validates a set of step ticks: `{ "0": true, "3": false }`.
+ *
+ * An OVERRIDE map, not the whole truth — a step missing from it is whatever
+ * the card itself said. Sent alongside a card so a lead who has already flown
+ * three legs does not hand out a card claiming nothing has happened yet.
+ */
+function tickMap(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const keys = Object.keys(v);
+  if (keys.length > MAX_TICKS) return null;
+  const out = {};
+  for (const k of keys) {
+    if (!/^\d{1,4}$/.test(k)) return null;
+    if (typeof v[k] !== 'boolean') return null;
+    out[k] = v[k];
+  }
+  return out;
+}
 
 /** Types only a presenter may originate. `brief-snapshot-req` is deliberately
  *  not here — any client may ask for the ink on the image it is looking at. */
@@ -279,7 +304,28 @@ function parseBriefMessage(data) {
     case 'brief-card': {
       if (!msg.card || typeof msg.card !== 'object' || Array.isArray(msg.card)) return null;
       if (typeof msg.card.layout !== 'string' || !msg.card.layout) return null;
-      return { type: msg.type, card: msg.card, presenter: str(msg.presenter) };
+      // The steps already flown ride WITH the card. Sending them separately
+      // would leave a window where the receiver's sheet showed a mission not
+      // yet started, and casting mid-flight is the normal case.
+      const ticks = msg.ticks === undefined ? {} : tickMap(msg.ticks);
+      if (!ticks) return null;
+      return { type: msg.type, card: msg.card, ticks, presenter: str(msg.presenter) };
+    }
+
+    // One step flown, or un-flown. Addressed by the CARD's content hash, so a
+    // pilot holding a different card — or none — ignores it instead of ticking
+    // whatever happens to be on step 4 of theirs.
+    case 'brief-card-tick': {
+      if (!isHash(msg.hash)) return null;
+      if (!Number.isInteger(msg.index) || msg.index < 0 || msg.index > 9999) return null;
+      if (typeof msg.done !== 'boolean') return null;
+      return {
+        type: msg.type,
+        hash: msg.hash,
+        index: msg.index,
+        done: msg.done,
+        presenter: str(msg.presenter),
+      };
     }
 
     case 'brief-snapshot': {

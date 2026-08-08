@@ -698,7 +698,11 @@ function cardBlock(block) {
     block.rows.forEach((step, index) => {
       const row = document.createElement('div');
       row.className = 'card__step';
-      if (step.state === 'current') row.classList.add('card__step--current');
+      // DERIVED in main from the ticks — the first step not yet flown — not
+      // whichever row the card was written calling itself current. A fixed
+      // marker is only true until the first leg is flown, after which it
+      // points at something already behind the flight.
+      if (step.current) row.classList.add('card__step--current');
       // `done` ONLY. This used to also accept state === 'done', which meant a
       // step the card called done could never be unticked — the tick writes
       // `done`, `state` still said done, and the OR kept the row flown for
