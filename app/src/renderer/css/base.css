@@ -193,3 +193,11 @@ body.is-unfocused .stage__chrome { opacity: .25; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rule { border: 0; border-top: var(--rule); margin: 0; }
 .is-hidden { display: none !important; }
+
+/* Everything to the right of the nav rail: the pages, and the action bar
+   under them. The rail is a sibling of THIS rather than of the bar, which is
+   what makes it run the full height of the body while the bar starts at its
+   edge — neither one is a strip across the whole window, and they cannot
+   overlap. */
+.workspace { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.workspace > .page { flex: 1 1 auto; min-width: 0; min-height: 0; }

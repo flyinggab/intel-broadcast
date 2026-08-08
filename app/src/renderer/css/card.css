@@ -312,3 +312,16 @@
   font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
   color: var(--pp-tertiary); padding: 4px 8px;
 }
+
+/* Whose card this is. Shown only on a card that arrived from another pilot —
+   there is no banner and no accept step, by design, so this line is the only
+   thing that answers "whose plan am I flying?". Sized and toned to sit under
+   the content rather than over it: it is provenance, not a heading. */
+.card__from {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .08em;
+  color: var(--pp-tertiary);
+  text-align: right;
+  margin-bottom: 3px;
+}

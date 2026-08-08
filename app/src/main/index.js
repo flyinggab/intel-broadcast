@@ -154,6 +154,14 @@ let cardModel = null;
 // writing into a pilot's card file.
 let cardTicks = new Map();
 
+// The card exactly as it came off disk. `cardModel` is the RESOLVED form —
+// every binding already turned into a string — which is what the renderer
+// needs and the wrong thing to send: the receiver has its own copy of the
+// layout and must resolve against that, or a card would arrive rendered to
+// the sender's template version rather than the receiver's.
+let cardSource = null;
+const currentCardSource = () => cardSource;
+
 /**
  * Loads the card named in config and resolves it against its layout.
  *
@@ -163,11 +171,13 @@ let cardTicks = new Map();
  */
 function loadCard() {
   cardModel = null;
+  cardSource = null;
   cardTicks = new Map();
   const cardPath = process.env.INTEL_BROADCAST_CARD_PATH || config.cardPath;
   if (!cardPath) return;
   try {
     const card = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
+    cardSource = card;
     const layoutPath = path.join(__dirname, '..', '..', 'resources', 'layouts', `${card.layout}.layout.json`);
     if (!fs.existsSync(layoutPath)) {
       console.log(`[card] ${cardPath}: no layout named "${card.layout}"`);
@@ -454,6 +464,20 @@ function handleBriefIntent(intent, payload) {
   const hash = currentHash();
   switch (intent) {
     case 'brief-present': {
+      // On CARD the same key means "put this card on every kneeboard" — the
+      // same verb as casting a photo, which is why it is the same glyph and
+      // the same binding. It sends the DATA; the layout is already on the
+      // other end, shipped inside the app.
+      if (view.state.page === 'card') {
+        const raw = currentCardSource();
+        if (!raw) {
+          console.log('[card] nothing to send — no card loaded');
+          return true;
+        }
+        originateBrief({ type: 'brief-card', card: raw });
+        console.log(`[card] sent to ${Math.max(0, (view.state.peers || []).length - 1)} pilot(s) on net`);
+        return true;
+      }
       const on = Boolean(payload);
       view.setPresenting(on, config.callsign || '');
       if (on) {
@@ -493,6 +517,37 @@ function handleBriefIntent(intent, payload) {
       if (!hash) return true;
       originateBrief({ type: 'brief-clear', hash });
       return true;
+    case 'brief-card': {
+      // The card DATA arrives, not a picture of it — the layout ships inside
+      // the app, so it renders here with OUR copy of the template and looks
+      // exactly as it does on the sender.
+      //
+      // Validated again, here, even though the sender validated it at import:
+      // a card off the wire is a file from another pilot, and the only thing
+      // standing between it and a pilot's kneeboard is this refusing it whole.
+      const layoutPath = path.join(__dirname, '..', '..', 'resources', 'layouts', `${msg.card.layout}.layout.json`);
+      if (!fs.existsSync(layoutPath)) {
+        console.log(`[card] ${msg.presenter || 'someone'} sent a card needing layout "${msg.card.layout}", which this build does not have`);
+        break;
+      }
+      const layout = JSON.parse(fs.readFileSync(layoutPath, 'utf8'));
+      const { ok, errors, card: resolved } = resolveCard({ layout, card: msg.card });
+      if (!ok) {
+        console.log(`[card] REFUSED a card from ${msg.presenter || 'someone'}, ${errors.length} problem(s):`);
+        for (const err of errors.slice(0, 6)) console.log(`[card]   ${err}`);
+        break;
+      }
+      for (const page of resolved.pages) {
+        for (const block of page.blocks) if (block.type === 'image') block.url = `intel://blob/${block.blob}`;
+      }
+      // No banner and no prompt, by design: the card the lead sent IS the
+      // card. The only mark is the line of provenance the sheet carries.
+      cardModel = { ...resolved, from: msg.presenter || '' };
+      cardSource = msg.card;
+      cardTicks = new Map();
+      console.log(`[card] took a card from ${msg.presenter || 'someone'}`);
+      break;
+    }
     case 'brief-snapshot-req': {
       // Both surfaces ask for this, and both must be answered: a dashboard tab
       // that woke up behind the ink has no other way to catch up.

@@ -832,6 +832,16 @@ function renderCard(s) {
 
   // CARD and MAP are two destinations, not a sub-rail — the nav pages
   // between them. This renders whichever one the snapshot selects.
+  // One line of provenance, and deliberately nothing more. A card someone
+  // sent simply BECOMES the card — no banner, no prompt, no accept step — so
+  // this is the only thing that answers "whose plan am I flying?".
+  if (model.from) {
+    const from = document.createElement('div');
+    from.className = 'card__from';
+    from.textContent = t('card.from', { who: model.from.toUpperCase() });
+    card.sheet.append(from);
+  }
+
   const page = model.pages.find((p) => p.id === (s.cardPage || 'card')) || model.pages[0];
   const comms = [];
   for (const block of page.blocks) {

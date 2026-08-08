@@ -175,6 +175,7 @@ const BRIEF_TYPES = new Set([
   'brief-clear',
   'brief-snapshot-req',
   'brief-snapshot',
+  'brief-card',
 ]);
 
 /** Types only a presenter may originate. `brief-snapshot-req` is deliberately
@@ -270,6 +271,16 @@ function parseBriefMessage(data) {
     case 'brief-snapshot-req':
       if (!isHash(msg.hash)) return null;
       return { type: msg.type, hash: msg.hash };
+
+    // The card DATA, not a picture of it. Layouts ship inside the app, so the
+    // receiver renders it with its own copy of the template and it looks
+    // exactly as it does on the sender — a few KB of JSON rather than an
+    // image, and legible at any surface size because it is still text.
+    case 'brief-card': {
+      if (!msg.card || typeof msg.card !== 'object' || Array.isArray(msg.card)) return null;
+      if (typeof msg.card.layout !== 'string' || !msg.card.layout) return null;
+      return { type: msg.type, card: msg.card, presenter: str(msg.presenter) };
+    }
 
     case 'brief-snapshot': {
       if (!isHash(msg.hash)) return null;

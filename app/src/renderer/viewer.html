@@ -122,6 +122,11 @@
          entry there plus its two i18n keys. -->
     <nav class="nav" id="nav" aria-label="Pages"></nav>
 
+    <!-- Everything to the right of the rail. The rail runs the full
+         height of the body and the action bar starts at its edge, so the
+         two never overlap and neither one is a strip across the window. -->
+    <div class="workspace">
+
     <!-- =============================================== BRIEF ==========
          The kneeboard. The queue's current photo edge to edge; chrome
          floats and never displaces it, because a layout shift here moves
@@ -490,71 +495,72 @@
          Rendered from DESTINATIONS in viewer.js, so a new page is one entry
          there plus its two i18n keys. -->
 
+    <!-- ============================================== action bar ========
+         LEFT RAIL = which app. THIS = what that app can do. Rendered only
+         where an app HAS verbs — SETUP shows none, because it already has a
+         save bar and a second empty row would cost 44px to say nothing.
+         Its absence is information.
+
+         Icons only. The three view keys spent a spell as words in the strip
+         and cost 37px in Italian, which forced the page name out of the
+         crumb; as icons they cost 44px each in a bar with room for ten.
+         Chrome, so capture-clean still leaves the pilot only the photo. -->
+    <div class="abar is-hidden" id="abar">
+      <span class="abar__group" id="abar-views">
+        <button class="akey" data-view="brief" data-i18n-aria="view.photo">
+          <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="4" width="16" height="12"/><circle cx="10" cy="10" r="3"/></svg>
+        </button>
+        <button class="akey" data-view="received" data-i18n-aria="view.received">
+          <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9M6 9l4 4 4-4" stroke-linecap="round"/><path d="M3 15h14"/></svg>
+        </button>
+        <button class="akey" data-view="share" data-i18n-aria="view.share">
+          <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V4M6 8l4-4 4 4" stroke-linecap="round"/><path d="M3 15h14"/></svg>
+        </button>
+      </span>
+
+      <!-- The ink tools. They used to float over the photo, covering the very
+           image they were for. Same bar now, shown only while presenting. -->
+      <span class="abar__group is-hidden" id="brief-tools">
+        <span class="abar__sep"></span>
+        <button class="akey" id="tool-pen" data-tool="pen" data-i18n-aria="brief.pen">
+          <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17l3-1 9-9-2-2-9 9-1 3z"/><path d="M13 3l2-2 3 3-2 2"/></svg>
+        </button>
+        <button class="akey" id="tool-arrow" data-tool="arrow" data-i18n-aria="brief.arrow">
+          <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17L16 4"/><path d="M10 4h6v6"/></svg>
+        </button>
+        <button class="akey" id="tool-ring" data-tool="ring" data-i18n-aria="brief.ring">
+          <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5"/></svg>
+        </button>
+        <button class="akey" id="tool-undo" data-i18n-aria="brief.undo">
+          <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 9h8a4 4 0 010 8H8"/><path d="M7 5L3 9l4 4"/></svg>
+        </button>
+        <button class="akey" id="tool-clear" data-i18n-aria="brief.clear">
+          <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12"/><path d="M8 6V4h4v2"/><path d="M6 6l1 10h6l1-10"/></svg>
+        </button>
+      </span>
+
+      <!-- CARD's own verbs. Import is here rather than in SETUP because this is
+           where a pilot is standing when they want a different card, and a
+           setting you have to go looking for is one nobody finds. -->
+      <span class="abar__group is-hidden" id="abar-card">
+        <button class="akey" id="card-import" data-i18n-aria="card.import">
+          <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="2" width="11" height="16"/><path d="M6 6h5M6 9h5M6 12h3"/><path d="M14 12v5M11.5 14.5L14 17l2.5-2.5" stroke-linecap="round"/></svg>
+        </button>
+      </span>
+
+      <span class="abar__gap"></span>
+
+      <!-- ONE cast key, for a photo and for a card alike: it is the same verb —
+           put what I am looking at on everyone else's kneeboard. One glyph, one
+           binding, and a pilot who has cast a photo can cast a card. -->
+      <button class="akey" id="brief-cast" data-i18n-aria="brief.present">
+        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M2 15a5 5 0 015 5"/><path d="M2 11a9 9 0 019 9"/><path d="M2 7a13 13 0 0113 13"/><circle cx="3" cy="19" r="1.2" fill="currentColor" stroke="none"/></svg>
+      </button>
+    </div>
+    </div>
   </main>
 
 
-  <!-- ============================================== action bar ========
-       LEFT RAIL = which app. THIS = what that app can do. Rendered only
-       where an app HAS verbs — SETUP shows none, because it already has a
-       save bar and a second empty row would cost 44px to say nothing.
-       Its absence is information.
-
-       Icons only. The three view keys spent a spell as words in the strip
-       and cost 37px in Italian, which forced the page name out of the
-       crumb; as icons they cost 44px each in a bar with room for ten.
-       Chrome, so capture-clean still leaves the pilot only the photo. -->
-  <div class="abar is-hidden" id="abar">
-    <span class="abar__group" id="abar-views">
-      <button class="akey" data-view="brief" data-i18n-aria="view.photo">
-        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="4" width="16" height="12"/><circle cx="10" cy="10" r="3"/></svg>
-      </button>
-      <button class="akey" data-view="received" data-i18n-aria="view.received">
-        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9M6 9l4 4 4-4" stroke-linecap="round"/><path d="M3 15h14"/></svg>
-      </button>
-      <button class="akey" data-view="share" data-i18n-aria="view.share">
-        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V4M6 8l4-4 4 4" stroke-linecap="round"/><path d="M3 15h14"/></svg>
-      </button>
-    </span>
-
-    <!-- The ink tools. They used to float over the photo, covering the very
-         image they were for. Same bar now, shown only while presenting. -->
-    <span class="abar__group is-hidden" id="brief-tools">
-      <span class="abar__sep"></span>
-      <button class="akey" id="tool-pen" data-tool="pen" data-i18n-aria="brief.pen">
-        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17l3-1 9-9-2-2-9 9-1 3z"/><path d="M13 3l2-2 3 3-2 2"/></svg>
-      </button>
-      <button class="akey" id="tool-arrow" data-tool="arrow" data-i18n-aria="brief.arrow">
-        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17L16 4"/><path d="M10 4h6v6"/></svg>
-      </button>
-      <button class="akey" id="tool-ring" data-tool="ring" data-i18n-aria="brief.ring">
-        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5"/></svg>
-      </button>
-      <button class="akey" id="tool-undo" data-i18n-aria="brief.undo">
-        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 9h8a4 4 0 010 8H8"/><path d="M7 5L3 9l4 4"/></svg>
-      </button>
-      <button class="akey" id="tool-clear" data-i18n-aria="brief.clear">
-        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12"/><path d="M8 6V4h4v2"/><path d="M6 6l1 10h6l1-10"/></svg>
-      </button>
-    </span>
-
-    <!-- CARD's own verbs. Import is here rather than in SETUP because this is
-         where a pilot is standing when they want a different card, and a
-         setting you have to go looking for is one nobody finds. -->
-    <span class="abar__group is-hidden" id="abar-card">
-      <button class="akey" id="card-import" data-i18n-aria="card.import">
-        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="2" width="11" height="16"/><path d="M6 6h5M6 9h5M6 12h3"/><path d="M14 12v5M11.5 14.5L14 17l2.5-2.5" stroke-linecap="round"/></svg>
-      </button>
-    </span>
-
-    <span class="abar__gap"></span>
-
-    <!-- ONE cast key, for a photo and for a card alike: it is the same verb —
-         put what I am looking at on everyone else's kneeboard. One glyph, one
-         binding, and a pilot who has cast a photo can cast a card. -->
-    <button class="akey" id="brief-cast" data-i18n-aria="brief.present">
-      <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M2 15a5 5 0 015 5"/><path d="M2 11a9 9 0 019 9"/><path d="M2 7a13 13 0 0113 13"/><circle cx="3" cy="19" r="1.2" fill="currentColor" stroke="none"/></svg>
-    </button>
-  </div>
 
 </div>
 <script src="i18n.js"></script>

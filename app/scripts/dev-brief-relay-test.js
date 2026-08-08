@@ -223,6 +223,53 @@ async function main() {
     console.log('[test] RelayClient carries a brief end to end over /rt');
   }
 
+  // -------------------------------------------------------------------------
+  // A mission card travels as DATA, never as a picture of one.
+  // -------------------------------------------------------------------------
+  {
+    const fs2 = require('fs');
+    const path2 = require('path');
+    const { resolveCard } = require('../src/main/card');
+    const cardFile = path2.join(__dirname, '..', '..', 'design', 'kneeboard', 'foxhunt2-roman1.card.json');
+    const card = JSON.parse(fs2.readFileSync(cardFile, 'utf8'));
+
+    const lead = await connect('LEAD');
+    const wing = await connect('WING');
+    send(lead, { type: 'brief-card', card });
+    await settle(300);
+
+    const got = wing.inbox.find((m) => m.type === 'brief-card');
+    assert.ok(got, 'the card reaches the other pilot');
+    assert.strictEqual(got.presenter, 'LEAD', 'stamped from the authenticated socket');
+    assert.deepStrictEqual(got.card, card, 'and arrives byte-for-byte as the sender had it');
+
+    // THE POINT: what crossed the wire is the card's DATA. The receiver renders
+    // it with ITS OWN copy of the template, which ships inside the app — so it
+    // looks exactly as it does on the sender, stays real text at any surface
+    // size, and costs a few KB rather than an image.
+    const layout = JSON.parse(
+      fs2.readFileSync(path2.join(__dirname, '..', 'resources', 'layouts', `${got.card.layout}.layout.json`), 'utf8'),
+    );
+    const resolved = resolveCard({ layout, card: got.card });
+    assert.ok(resolved.ok, `a received card must resolve locally: ${resolved.errors.join('; ')}`);
+    assert.ok(JSON.stringify(got.card).length < 64 * 1024, 'a card is small — if this grows, something became an image');
+
+    // A card with no layout name, or one this build has never heard of, must
+    // not cross: the receiver would have nothing to render it with.
+    wing.inbox.length = 0;
+    send(lead, { type: 'brief-card', card: { schema: 1 } });
+    send(lead, { type: 'brief-card', card: 'not-an-object' });
+    await settle();
+    assert.strictEqual(wing.inbox.length, 0, 'a card with no layout never leaves the relay');
+
+    console.log(
+      `[test] a card crosses as ${JSON.stringify(got.card).length} bytes of DATA and resolves on the far side`,
+    );
+    lead.ws.close();
+    wing.ws.close();
+    await settle();
+  }
+
   await settle();
   await new Promise((resolve) => server.close(resolve));
   console.log('[dev-brief-relay-test] PASS');

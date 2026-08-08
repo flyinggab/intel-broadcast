@@ -99,6 +99,7 @@
     'okb.tabOpen': 'OPEN',
     'okb.addTab': 'RESTART OPENKNEEBOARD, THEN ADD A TAB \u2192 TAC LINK',
     'okb.stillCaptures': 'WINDOW CAPTURE KEEPS WORKING EITHER WAY',
+    'card.from': 'FROM {who}',
     'card.import': 'LOAD A MISSION CARD',
     'brief.present': 'PRESENT — CAST TO THE FLIGHT',
     'brief.pen': 'PEN',
@@ -304,6 +305,7 @@
     'card.rejected': 'CARD RIFIUTATA — VEDI LOG',
     'card.tick': 'SEGNA QUESTO STEP COME FATTO',
 
+    'card.from': 'DA {who}',
     'card.import': 'CARICA UNA CARD DI MISSIONE',
     'brief.present': 'PRESENTA — TRASMETTI ALLA FORMAZIONE',
     'brief.pen': 'PENNA',
