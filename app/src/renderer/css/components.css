@@ -1076,3 +1076,100 @@ body[data-page="share"] .page.share { display: flex; }
    promise: what you are looking at is on every kneeboard right now. */
 .akey.is-live { background: var(--go); color: var(--ink); box-shadow: none; }
 .akey:disabled { opacity: .4; cursor: default; }
+
+/* --- the template library -------------------------------------------------
+   A view of CARD, not a destination: choosing a template is something you do
+   while looking at the card. Tiles rather than a list because the useful
+   comparison is between templates, not down one column of them.            */
+.lib {
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--sp-2);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--sp-2);
+  align-content: start;
+}
+.lib__group {
+  grid-column: 1 / -1;
+  margin: var(--sp-1) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-cap);
+  letter-spacing: var(--ls-cap);
+  color: var(--hi);
+}
+.lib__group:first-child { margin-top: 0; }
+.lib__empty { grid-column: 1 / -1; color: var(--hi); font-size: var(--fs-cap); letter-spacing: var(--ls-cap); }
+
+.tpl { position: relative; background: var(--dn); box-shadow: inset 0 0 0 1px var(--edge); }
+.tpl--on { box-shadow: inset 0 0 0 1px var(--go); background: var(--up); }
+/* The whole tile is the target. A 44px floor in BOTH axes — a tile you have to
+   hit precisely is one you miss on a knee in turbulence. */
+.tpl__choose {
+  display: block;
+  width: 100%;
+  min-height: var(--touch-min);
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: var(--sp-2);
+  color: inherit;
+  font: inherit;
+}
+.tpl__name { display: block; font-weight: 700; letter-spacing: .03em; color: var(--lit); }
+.tpl__id { display: block; font-family: var(--font-mono); font-size: var(--fs-cap); color: var(--hi); margin-top: 1px; }
+.tpl__meta,
+.tpl__needs {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-cap);
+  letter-spacing: var(--ls-cap);
+  color: var(--hi);
+  margin-top: var(--sp-1);
+}
+.tpl__flag {
+  position: absolute; top: var(--sp-2); right: var(--sp-2);
+  font-family: var(--font-mono); font-size: var(--fs-cap); letter-spacing: var(--ls-cap); color: var(--go);
+}
+/* Only on templates a pilot imported: the shipped ones are not theirs to
+   delete, so the key is absent rather than present-and-refusing. */
+.tpl__remove {
+  position: absolute; top: 0; right: 0;
+  width: var(--touch-min); height: var(--touch-min);
+  background: none; border: 0; cursor: pointer;
+  color: var(--hi); font-size: 1.125rem; line-height: 1;
+}
+.tpl__remove:hover { color: var(--fault); }
+
+/* --- naming a template on the way in --------------------------------------- */
+.tplask { padding: var(--sp-3); max-width: 26rem; }
+.tplask__title { margin: 0; font-weight: 700; letter-spacing: .06em; color: var(--lit); }
+.tplask__file {
+  margin: var(--sp-1) 0 var(--sp-3);
+  font-family: var(--font-mono); font-size: var(--fs-cap); color: var(--hi); word-break: break-all;
+}
+.tplask__label {
+  display: block; font-family: var(--font-mono); font-size: var(--fs-cap);
+  letter-spacing: var(--ls-cap); color: var(--hi); margin-bottom: var(--sp-1);
+}
+.tplask__in { display: block; width: 100%; min-height: var(--touch-min); margin-bottom: var(--sp-3); }
+.tplask__meta {
+  display: grid; grid-template-columns: auto 1fr; gap: 2px var(--sp-2);
+  margin: 0 0 var(--sp-3); font-family: var(--font-mono); font-size: var(--fs-cap);
+}
+.tplask__meta dt { color: var(--hi); letter-spacing: var(--ls-cap); }
+.tplask__meta dd { margin: 0; color: var(--lit); }
+.tplask__keys { display: flex; gap: var(--sp-2); }
+.tplask__keys .key { flex: 1; min-height: var(--touch-min); }
+
+/* --- a file that was refused ----------------------------------------------- */
+.tplbad { padding: var(--sp-3); max-width: 30rem; }
+.tplbad__title { margin: 0; font-weight: 700; letter-spacing: .06em; color: var(--fault); }
+.tplbad__file {
+  margin: var(--sp-1) 0 var(--sp-2);
+  font-family: var(--font-mono); font-size: var(--fs-cap); color: var(--hi); word-break: break-all;
+}
+.tplbad__list { margin: 0 0 var(--sp-3); padding-left: var(--sp-3); }
+.tplbad__list li { font-family: var(--font-mono); font-size: var(--fs-cap); line-height: 1.7; color: var(--fault); }
+.tplbad__why { margin: 0; font-size: var(--fs-cap); letter-spacing: var(--ls-cap); line-height: 1.6; color: var(--hi); }

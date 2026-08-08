@@ -75,6 +75,7 @@ const crumb = { root: el('crumb'), page: el('crumb-page'), pos: el('crumb-pos') 
 const menukey = el('menukey');
 const nav = el('nav');
 const abar = { root: el('abar'), views: el('abar-views'), card: el('abar-card') };
+const lib = el('lib');
 const banner = {
   root: el('banner'),
   who: el('banner-who'),
@@ -123,6 +124,10 @@ const PLACEHOLDER = 'img/frame-placeholder.svg';
 // INTEL is SHOWING, which is why they live in the action bar with the other
 // verbs rather than in the rail with the apps.
 const INTEL_VIEWS = ['brief', 'received', 'share'];
+// CARD's own views, same idiom: one destination on the rail, two views in the
+// bar. TEMPLATES is not a place you navigate TO — it is the other half of the
+// page you are already on.
+const CARD_VIEWS = ['card', 'templates'];
 
 // Every arrival banner dismisses itself. Keyed on banner.at so a later state
 // push re-rendering the SAME banner cannot extend its life.
@@ -250,6 +255,175 @@ function renderNav(s) {
     tile.title = say;
     nav.append(tile);
   }
+}
+
+/**
+ * The template library, the naming panel, and refusals — one page, because
+ * they are three states of the same question and only one is ever true.
+ *
+ * Everything here comes off the snapshot. The naming panel is on screen
+ * because MAIN is holding an inspected template, not because this file
+ * remembers a key being pressed.
+ */
+function renderTemplates(s) {
+  if (!lib) return;
+  lib.textContent = '';
+
+  if (s.templateError) {
+    lib.append(refusal(t('tpl.refused'), s.templateError.file, s.templateError.errors, t('tpl.refusedWhy')));
+    return;
+  }
+  if (s.templatePending) return void lib.append(namingPanel(s.templatePending));
+
+  const all = s.templates || [];
+  let group = null;
+  for (const tpl of all) {
+    if (tpl.source !== group) {
+      group = tpl.source;
+      const head = document.createElement('p');
+      head.className = 'lib__group';
+      head.textContent = t(group === 'shipped' ? 'tpl.shipped' : 'tpl.yours');
+      lib.append(head);
+    }
+    lib.append(templateTile(tpl, s));
+  }
+  if (!all.length) {
+    const empty = document.createElement('p');
+    empty.className = 'lib__empty';
+    empty.textContent = t('tpl.none');
+    lib.append(empty);
+  }
+}
+
+function templateTile(tpl, s) {
+  const card = s.card || {};
+  // IN USE means "this is the sheet you are looking at" — true both for the
+  // template your card is built on and for one you chose and have no data for.
+  const inUse = (card.blank && card.templateName === tpl.name) || (!card.blank && card.id === tpl.id);
+
+  const tile = document.createElement('div');
+  tile.className = 'tpl' + (inUse ? ' tpl--on' : '');
+
+  const choose = document.createElement('button');
+  choose.className = 'tpl__choose';
+  choose.dataset.template = tpl.id;
+  choose.setAttribute('aria-label', tpl.name);
+
+  const name = document.createElement('span');
+  name.className = 'tpl__name';
+  name.textContent = tpl.name;
+  const id = document.createElement('span');
+  id.className = 'tpl__id';
+  id.textContent = tpl.id;
+  const meta = document.createElement('span');
+  meta.className = 'tpl__meta';
+  meta.textContent = `${tpl.pages.map((p) => p.toUpperCase()).join(' + ')} · ${t('tpl.blocks', { n: tpl.blocks })}`;
+  const needs = document.createElement('span');
+  needs.className = 'tpl__needs';
+  // What a card must carry to fill it. The most useful thing on the tile when
+  // you are deciding whether a template is the one you want.
+  needs.textContent = tpl.requires.length ? `${t('tpl.needs')} ${tpl.requires.join(' · ')}` : '';
+  choose.append(name, id, meta, needs);
+  tile.append(choose);
+
+  if (inUse) {
+    const flag = document.createElement('span');
+    flag.className = 'tpl__flag';
+    flag.textContent = t('tpl.inUse');
+    tile.append(flag);
+  }
+  // Shipped templates are not a pilot's to delete.
+  if (tpl.source === 'user') {
+    const kill = document.createElement('button');
+    kill.className = 'tpl__remove';
+    kill.dataset.removeTemplate = tpl.id;
+    kill.textContent = '×';
+    kill.setAttribute('aria-label', t('tpl.remove', { name: tpl.name }));
+    kill.title = t('tpl.remove', { name: tpl.name });
+    tile.append(kill);
+  }
+  return tile;
+}
+
+function namingPanel(p) {
+  const wrap = document.createElement('div');
+  wrap.className = 'tplask';
+
+  const title = document.createElement('p');
+  title.className = 'tplask__title';
+  title.textContent = t(p.replaces ? 'tpl.nameReplace' : 'tpl.name');
+  const file = document.createElement('p');
+  file.className = 'tplask__file';
+  file.textContent = p.file;
+
+  const label = document.createElement('label');
+  label.className = 'tplask__label';
+  label.textContent = t('tpl.nameLabel');
+  label.setAttribute('for', 'tpl-name');
+
+  const input = document.createElement('input');
+  input.className = 'tplask__in';
+  input.id = 'tpl-name';
+  input.maxLength = 60;
+  // Prefilled from the name inside the file: whoever wrote the template
+  // usually named it well, and retyping a good name is a chore.
+  input.value = p.name || p.id;
+
+  const meta = document.createElement('dl');
+  meta.className = 'tplask__meta';
+  // The ID is SHOWN and not editable. It is what a shared card names on the
+  // wire, and the receiver looks up THEIR copy by it — rename it and cards
+  // from squadmates stop resolving against a template you are looking at.
+  for (const [k, v] of [
+    [t('tpl.id'), p.id],
+    [t('tpl.pages'), p.pages.map((x) => x.toUpperCase()).join(' + ')],
+    [t('tpl.needs'), p.requires.join(' · ') || '—'],
+  ]) {
+    const dt = document.createElement('dt');
+    dt.textContent = k;
+    const dd = document.createElement('dd');
+    dd.textContent = v;
+    meta.append(dt, dd);
+  }
+
+  const keys = document.createElement('div');
+  keys.className = 'tplask__keys';
+  const cancel = document.createElement('button');
+  cancel.className = 'key';
+  cancel.id = 'tpl-cancel';
+  cancel.textContent = t('tpl.cancel');
+  const save = document.createElement('button');
+  save.className = 'key key--cta';
+  save.id = 'tpl-save';
+  save.textContent = t('tpl.save');
+  keys.append(cancel, save);
+
+  wrap.append(title, file, label, input, meta, keys);
+  return wrap;
+}
+
+/** A file that was refused, and every reason why. */
+function refusal(title, file, errors, why) {
+  const wrap = document.createElement('div');
+  wrap.className = 'tplbad';
+  const h = document.createElement('p');
+  h.className = 'tplbad__title';
+  h.textContent = title;
+  const f = document.createElement('p');
+  f.className = 'tplbad__file';
+  f.textContent = file;
+  const list = document.createElement('ul');
+  list.className = 'tplbad__list';
+  for (const err of errors || []) {
+    const li = document.createElement('li');
+    li.textContent = err;
+    list.append(li);
+  }
+  const tail = document.createElement('p');
+  tail.className = 'tplbad__why';
+  tail.textContent = why;
+  wrap.append(h, f, list, tail);
+  return wrap;
 }
 
 function renderBanner(s) {
@@ -432,6 +606,7 @@ function render(s) {
   renderActionBar(s);
   renderBrief(s);
   renderCard(s);
+  renderTemplates(s);
   renderReceived(s);
   renderShare(s);
 }
@@ -853,6 +1028,23 @@ function renderCard(s) {
   // One line of provenance, and deliberately nothing more. A card someone
   // sent simply BECOMES the card — no banner, no prompt, no accept step — so
   // this is the only thing that answers "whose plan am I flying?".
+  // A TEMPLATE WITH NOTHING IN IT. Every value on the sheet below is a dash,
+  // and without saying so those dashes read as real answers — "TACAN: —" is a
+  // sentence a pilot will believe. Said once, at the top, rather than by
+  // styling every cell differently.
+  if (model.blank) {
+    const note = document.createElement('div');
+    note.className = 'card__blank';
+    const what = document.createElement('span');
+    what.className = 'card__blank-what';
+    what.textContent = t('card.blank');
+    const why = document.createElement('span');
+    why.className = 'card__blank-why';
+    why.textContent = t('card.blankWhy');
+    note.append(what, why);
+    card.sheet.append(note);
+  }
+
   if (model.from) {
     const from = document.createElement('div');
     from.className = 'card__from';
@@ -887,13 +1079,18 @@ function renderCard(s) {
  */
 function renderActionBar(s) {
   const inIntel = INTEL_VIEWS.includes(s.page);
-  const onCard = s.page === 'card';
+  const onCard = CARD_VIEWS.includes(s.page);
   abar.root.classList.toggle('is-hidden', !inIntel && !onCard);
   abar.views.classList.toggle('is-hidden', !inIntel);
   abar.card.classList.toggle('is-hidden', !onCard);
-  for (const key of abar.views.querySelectorAll('[data-view]')) {
+  for (const key of abar.root.querySelectorAll('[data-view]')) {
     key.classList.toggle('is-on', key.dataset.view === s.page);
   }
+  // Each view gets its OWN verb and only its own. Loading data into the
+  // library, or importing a template while looking at the sheet, are both
+  // keys that would sit there meaning nothing.
+  el('card-import').classList.toggle('is-hidden', s.page !== 'card');
+  el('template-import').classList.toggle('is-hidden', s.page !== 'templates');
 }
 
 function renderBrief(s) {
@@ -915,7 +1112,11 @@ function renderBrief(s) {
   const held = Boolean(b.locked);
   stage.prev.classList.toggle('is-hidden', held);
   stage.next.classList.toggle('is-hidden', held);
-  stage.cast.classList.toggle('is-hidden', held);
+  // And nothing to cast is nothing to cast: the library holds no card, and a
+  // template being previewed empty has no data to send. A key that would put
+  // the PREVIOUS card on everyone's knee is worse than one that is absent.
+  const nothingToSend = s.page === 'templates' || (s.page === 'card' && s.card && s.card.blank);
+  stage.cast.classList.toggle('is-hidden', held || Boolean(nothingToSend));
 
   for (const node of brief.tools.querySelectorAll('[data-tool]')) {
     node.classList.toggle('is-on', node.dataset.tool === b.tool);
@@ -1067,7 +1268,33 @@ abar.root.addEventListener('click', (event) => {
   const view = event.target.closest('[data-view]');
   if (view) return send('set-page', view.dataset.view);
   if (event.target.closest('#card-import')) return send('card-import');
+  if (event.target.closest('#template-import')) return send('template-import');
 });
+
+// The library. Delegated, because the tiles are rebuilt on every push.
+if (lib) {
+  lib.addEventListener('click', (event) => {
+    const kill = event.target.closest('[data-remove-template]');
+    if (kill) return send('template-remove', kill.dataset.removeTemplate);
+    const pick = event.target.closest('[data-template]');
+    if (pick) return send('template-choose', pick.dataset.template);
+    if (event.target.closest('#tpl-cancel')) return send('template-cancel');
+    if (event.target.closest('#tpl-save')) {
+      // The one place this file reads a value out of the DOM rather than off
+      // the snapshot, and it is not a state leak: the name exists nowhere else
+      // until the pilot commits it, which is what pressing SAVE means.
+      const input = el('tpl-name');
+      return send('template-save', input ? input.value : '');
+    }
+  });
+  // Enter saves. A one-field form that needs a mouse to submit is a form
+  // nobody finishes on a knee.
+  lib.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.target.id !== 'tpl-name') return;
+    event.preventDefault();
+    send('template-save', event.target.value);
+  });
+}
 
 nav.addEventListener('click', (event) => {
   const tile = event.target.closest('.dest[data-dest]');

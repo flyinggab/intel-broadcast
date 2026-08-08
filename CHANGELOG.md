@@ -17,6 +17,22 @@ that entry.
 ## Unreleased
 
 ### Added
+- **Card templates are a library you can add to.** TEMPLATES is a second view
+  of CARD, picked from the bottom bar exactly as RECEIVED and SHARE are views
+  of INTEL — choosing a template is something you do while looking at the card,
+  not something you go and configure. Two ship (`strike-package`, `cas-9line`);
+  importing one validates it, asks for a name prefilled from the file, and
+  copies it into the app's own data folder. Copied, not referenced: a template
+  linked from Downloads is a kneeboard that stops working the week the pilot
+  tidies up. Yours can be removed; shipped ones carry no remove key at all
+  rather than one that refuses.
+- **A template can be looked at before you have data for it** — chosen from the
+  library it renders empty, with its real blocks and a line saying there is no
+  data, because a sheet of dashes with nothing to explain it reads as real
+  answers. The preview is built by synthesising a card that satisfies the
+  layout and says nothing, then running it through the SAME resolver a real
+  card uses, so a preview cannot drift from the thing it previews. CAST is
+  absent there: it would send the previous card.
 - **A mark on the rail when something landed while you were elsewhere** — one
   dot per destination, on INTEL and on CARD, cleared by going there. An unread
   badge was carried once and deliberately removed, on the reasoning that "the

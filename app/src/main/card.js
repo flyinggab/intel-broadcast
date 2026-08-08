@@ -393,6 +393,142 @@ function resolveCard({ layout, card }) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Templates as things in their own right: validating one, and looking at one
+// before you have any data for it.
+// ---------------------------------------------------------------------------
+
+/** An id becomes a FILENAME, so it may not contain a path. */
+const SAFE_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+
+/** Sets `path` on `obj` without clobbering anything already there. */
+function plant(obj, dottedPath, value) {
+  const keys = String(dottedPath).split('.');
+  let cur = obj;
+  for (const key of keys.slice(0, -1)) {
+    if (!cur[key] || typeof cur[key] !== 'object' || Array.isArray(cur[key])) cur[key] = {};
+    cur = cur[key];
+  }
+  const last = keys[keys.length - 1];
+  if (cur[last] === undefined) cur[last] = value;
+  return cur[last];
+}
+
+/**
+ * Builds a card that satisfies a layout and says nothing.
+ *
+ * This is how a template is shown before it has data. The alternative was a
+ * "blank mode" threaded through the resolver, which would have meant every
+ * rendering rule existing twice — and the second copy is the one that rots.
+ * Instead the skeleton goes through the SAME resolveCard as a real card, so a
+ * preview cannot drift from the thing it is previewing.
+ *
+ * One row per repeated block, not zero: a table's columns are the most useful
+ * thing about it when you are deciding whether a template is the one you want,
+ * and an empty block shows none of them.
+ */
+function blankCardFor(layout) {
+  const card = { schema: 1, layout: layout.id };
+
+  for (const page of layout.pages || []) {
+    // A page gated on data stays OFF. The map page is the case that matters:
+    // an image block needs a real content hash, and inventing one would put a
+    // broken picture in front of a pilot deciding what template to use.
+    if (page.when) continue;
+    for (const block of page.blocks || []) {
+      if (block.type === 'image') continue;
+      if (block.when) plant(card, block.when, ['—']);
+      if (block.repeat) plant(card, block.repeat, [{}]);
+      const scope = block.bind ? plant(card, block.bind, {}) : card;
+      if (block.list && typeof scope === 'object') {
+        if (scope[block.list] === undefined) scope[block.list] = ['—'];
+      }
+      // Every `{token}` the block can render, planted as a dash. Row-scoped
+      // tokens fall back to the card, so planting at the top answers them too.
+      for (const spec of [block.items, block.columns, [block.cell], [block.row], [block]].filter(Boolean)) {
+        for (const one of spec) {
+          for (const text of Object.values(one || {})) {
+            if (typeof text !== 'string') continue;
+            TOKEN.lastIndex = 0;
+            let m = TOKEN.exec(text);
+            while (m) {
+              if (!m[2]) plant(card, m[1], '—'); // a filter already has its own answer
+              m = TOKEN.exec(text);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Whatever `requires` names, so the layout's own gate passes.
+  for (const required of layout.requires || []) plant(card, required, '—');
+  return card;
+}
+
+/**
+ * Is this file a card template at all?
+ *
+ * Called on IMPORT, where the file came from another pilot and the only thing
+ * between it and a kneeboard is this saying no. The last check is the one that
+ * matters most: a template that cannot render its own empty sheet is broken,
+ * whatever its structure looks like, and finding that out at import beats
+ * finding it out in the air.
+ */
+function validateLayout(layout) {
+  const errors = [];
+  if (!layout || typeof layout !== 'object' || Array.isArray(layout)) {
+    return { ok: false, errors: ['not a JSON object'] };
+  }
+  if (layout.schema !== 1) errors.push(`schema ${JSON.stringify(layout.schema)} is not supported`);
+  if (typeof layout.id !== 'string' || !layout.id) errors.push('no "id"');
+  else if (!SAFE_ID.test(layout.id)) errors.push(`"id" must be a plain name, got ${JSON.stringify(layout.id)}`);
+  if (layout.name !== undefined && typeof layout.name !== 'string') errors.push('"name" must be text');
+  if (!Array.isArray(layout.pages) || !layout.pages.length) errors.push('no "pages"');
+
+  for (const [p, page] of (Array.isArray(layout.pages) ? layout.pages : []).entries()) {
+    const where = `pages[${p}]`;
+    if (typeof page !== 'object' || page === null) {
+      errors.push(`${where}: not an object`);
+      continue;
+    }
+    if (typeof page.id !== 'string' || !page.id) errors.push(`${where}: no "id"`);
+    if (!Array.isArray(page.blocks)) errors.push(`${where}: no "blocks"`);
+    for (const [b, block] of (Array.isArray(page.blocks) ? page.blocks : []).entries()) {
+      const at = `${page.id || where}/block[${b}]`;
+      if (!block || typeof block !== 'object') {
+        errors.push(`${at}: not an object`);
+        continue;
+      }
+      if (!BLOCK_TYPES.has(block.type)) errors.push(`${at}: unknown block type ${JSON.stringify(block.type)}`);
+      for (const spec of [block.items, block.columns, [block.cell], [block.row]].filter(Boolean)) {
+        for (const [i, one] of spec.entries()) if (one) checkVocabulary(one, `${at}[${i}]`, errors);
+      }
+    }
+  }
+
+  if (errors.length) return { ok: false, errors };
+
+  // The proof: render it empty. Anything the structural pass cannot see — a
+  // binding with no fallback, a filter that does not exist — surfaces here.
+  const preview = resolveCard({ layout, card: blankCardFor(layout) });
+  if (!preview.ok) return { ok: false, errors: preview.errors };
+  return { ok: true, errors: [] };
+}
+
+/** What the library shows about a template without opening it again. */
+function describeLayout(layout) {
+  const pages = (layout.pages || []).map((p) => p.id);
+  const blocks = (layout.pages || []).reduce((n, p) => n + (p.blocks || []).length, 0);
+  return {
+    id: layout.id,
+    name: typeof layout.name === 'string' && layout.name ? layout.name : layout.id,
+    pages,
+    blocks,
+    requires: Array.isArray(layout.requires) ? layout.requires.slice() : [],
+  };
+}
+
 /**
  * Marks WHERE THE FLIGHT IS: the first step not yet flown.
  *
@@ -431,6 +567,9 @@ function markCurrentStep(model) {
 module.exports = {
   resolveCard,
   markCurrentStep,
+  validateLayout,
+  blankCardFor,
+  describeLayout,
   BLOCK_TYPES,
   WIDTHS,
   EMPHASES,

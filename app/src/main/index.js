@@ -22,11 +22,12 @@ const i18n = require('../renderer/i18n');
 const { initFileLogging, getLogFilePath, recentLines } = require('./logger');
 const tailscale = require('./tailscale');
 const okb = require('./okb');
-const { resolveCard, markCurrentStep } = require('./card');
+const { resolveCard, markCurrentStep, blankCardFor } = require('./card');
+const { createTemplateStore } = require('./templateStore');
 const { createOkbServer } = require('./okbServer');
 // SETUP is a page of the viewer, so there is no settings window module any
 // more: what survived is the config writer and the folder dialog.
-const { saveSettingsValues, browseFolder, browseCard } = require('./settingsConfig');
+const { saveSettingsValues, browseFolder, browseCard, browseLayout } = require('./settingsConfig');
 
 const BUNDLED_PHOTOS_DIR = path.join(__dirname, '..', '..', 'photos');
 
@@ -163,6 +164,22 @@ let cardTicks = new Map();
 let cardSource = null;
 const currentCardSource = () => cardSource;
 
+// The library. Built once `app` is ready, because the user directory comes
+// from Electron's userData path.
+let templates = null;
+
+// WHICH TEMPLATE THE PILOT IS LOOKING AT. Normally the loaded card's own, set
+// when a card is loaded or arrives. It differs only when the pilot picked one
+// out of the library that they have no data for — then the sheet shows that
+// template EMPTY, which is the only way to see what a template wants before
+// committing to it.
+let chosenTemplateId = null;
+
+// An inspected template waiting to be named. Held HERE rather than in the
+// snapshot: it is a file another pilot wrote, and nothing about it needs to
+// reach a DOM except the handful of fields the naming panel shows.
+let pendingLayout = null;
+
 /**
  * Loads the card named in config and resolves it against its layout.
  *
@@ -179,13 +196,14 @@ function loadCard() {
   try {
     const card = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
     cardSource = card;
-    const layoutPath = path.join(__dirname, '..', '..', 'resources', 'layouts', `${card.layout}.layout.json`);
-    if (!fs.existsSync(layoutPath)) {
-      console.log(`[card] ${cardPath}: no layout named "${card.layout}"`);
-      cardModel = { error: true, pages: [] };
+    // Through the LIBRARY, so a card built on a template the pilot imported
+    // loads exactly like one built on a template that ships.
+    const layout = templates && templates.get(card.layout);
+    if (!layout) {
+      console.log(`[card] ${cardPath}: no template named "${card.layout}"`);
+      cardModel = { error: true, pages: [], missingTemplate: card.layout };
       return;
     }
-    const layout = JSON.parse(fs.readFileSync(layoutPath, 'utf8'));
     const { ok, errors, card: resolved } = resolveCard({ layout, card });
     if (!ok) {
       console.log(`[card] ${cardPath} REFUSED, ${errors.length} problem(s):`);
@@ -202,6 +220,7 @@ function loadCard() {
       }
     }
     cardModel = resolved;
+    chosenTemplateId = card.layout;
     const pages = resolved.pages.map((p) => p.id).join(', ');
     console.log(`[card] loaded ${cardPath} (${resolved.pages.length} page(s): ${pages})`);
   } catch (err) {
@@ -256,7 +275,28 @@ function okbPluginDir() {
 
 /** The card as the renderer should see it: what the card said, with the
  *  pilot's ticks laid over the top. */
+/**
+ * The template the pilot chose, rendered with nothing in it.
+ *
+ * Goes through the SAME resolveCard as a real card — `blankCardFor` builds a
+ * card that satisfies the layout and says nothing — so a preview cannot drift
+ * from the sheet it is previewing. `blank` tells the renderer to say so out
+ * loud rather than let dashes read as real values.
+ */
+function blankTemplateModel(id) {
+  const layout = templates && templates.get(id);
+  if (!layout) return null;
+  const { ok, card: resolved } = resolveCard({ layout, card: blankCardFor(layout) });
+  if (!ok) return null;
+  return { ...resolved, blank: true, templateName: (templates.list().templates.find((t) => t.id === id) || {}).name || id };
+}
+
 function cardForSnapshot() {
+  // Picked a template we have no data for: show it empty.
+  if (chosenTemplateId && (!cardSource || cardSource.layout !== chosenTemplateId)) {
+    const preview = blankTemplateModel(chosenTemplateId);
+    if (preview) return preview;
+  }
   if (!cardModel || !cardModel.pages) return cardModel;
   const ticked = !cardTicks.size
     ? cardModel
@@ -285,6 +325,39 @@ function cardForSnapshot() {
  * it so a pilot holding a different card, or none, ignores the message rather
  * than ticking whatever sits at that index on theirs.
  */
+/** Rebuilds the library into the snapshot. Called after anything that changes
+ *  it, so the view is never a stale list a pilot has already acted on. */
+function refreshTemplates() {
+  if (!templates) return;
+  const { templates: all, bad } = templates.list();
+  for (const one of bad) {
+    console.log(`[template] skipping ${one.file} (${one.source}): ${one.errors[0]}`);
+  }
+  view.setTemplates(all);
+}
+
+/** Puts a template on the sheet. With no data for it, that is the empty
+ *  preview; with data, the card itself. */
+/**
+ * The file dialog, or a path handed straight in.
+ *
+ * A native dialog cannot be driven from a test, which would leave everything
+ * after it — validating, naming, saving, choosing — permanently unexercised.
+ * The bypass is gated on an env var set only by the dev tests, so a packaged
+ * build has exactly one way to pick a file.
+ */
+function pickFile(browse, payload) {
+  if (process.env.INTEL_BROADCAST_TEST_PICK_PATH && typeof payload === 'string' && payload) {
+    return Promise.resolve(payload);
+  }
+  return browse(viewer && viewer.window);
+}
+
+function chooseTemplate(id) {
+  if (!templates || !templates.has(id)) return;
+  chosenTemplateId = id;
+}
+
 function cardHash() {
   if (!cardSource) return null;
   return crypto.createHash('sha256').update(JSON.stringify(cardSource)).digest('hex');
@@ -428,14 +501,15 @@ function applyBriefMessage(msg) {
       // Validated again, here, even though the sender validated it at import:
       // a card off the wire is a file from another pilot, and the only thing
       // standing between it and a pilot's kneeboard is this refusing it whole.
-      const layoutPath = path.join(__dirname, '..', '..', 'resources', 'layouts', `${msg.card.layout}.layout.json`);
-      if (!fs.existsSync(layoutPath)) {
-        console.log(`[card] ${msg.presenter || 'someone'} sent a card needing layout "${msg.card.layout}", which this build does not have`);
+      // Through the LIBRARY, so a card built on a template the squad shares
+      // out of band resolves exactly like one built on a shipped template.
+      const layout = templates && templates.get(msg.card.layout);
+      if (!layout) {
+        console.log(`[card] ${msg.presenter || 'someone'} sent a card needing template "${msg.card.layout}", which is not in your library`);
         return;
       }
       let resolved;
       try {
-        const layout = JSON.parse(fs.readFileSync(layoutPath, 'utf8'));
         const out = resolveCard({ layout, card: msg.card });
         if (!out.ok) {
           console.log(`[card] REFUSED a card from ${msg.presenter || 'someone'}, ${out.errors.length} problem(s):`);
@@ -454,6 +528,7 @@ function applyBriefMessage(msg) {
       // card. The only mark is the line of provenance the sheet carries.
       cardModel = { ...resolved, from: msg.presenter || '' };
       cardSource = msg.card;
+      chosenTemplateId = msg.card.layout;
       // The steps already flown come WITH it. A lead casting mid-mission is
       // the normal case, and a card that arrives claiming nothing has happened
       // yet is worse than no card: it is a confident wrong answer about where
@@ -1250,6 +1325,11 @@ function handleViewerIntent(intent, payload) {
       }
       break;
     case 'card-tick': {
+      // Not on a template being previewed empty. Its rows are placeholders,
+      // and a tick there would go out to the net stamped with the hash of
+      // whatever card is still loaded — marking a step on somebody else's
+      // sheet that this pilot is not even looking at.
+      if (chosenTemplateId && (!cardSource || cardSource.layout !== chosenTemplateId)) break;
       const step = Number(payload);
       if (Number.isInteger(step) && step >= 0) {
         // A toggle: clicking a ticked step unticks it, which is what makes a
@@ -1306,12 +1386,67 @@ function handleViewerIntent(intent, payload) {
       return void browseFolder(viewer && viewer.window).then((folder) => {
         if (folder) applyNewConfig(saveSettingsValues({ photosFolder: folder }));
       });
+    case 'template-import':
+      // Inspected, NOT saved. The naming step sits between the two: a template
+      // saved before it is named appears in the library under whatever the
+      // file happened to call it if the pilot changes their mind.
+      return void pickFile(browseLayout, payload).then((file) => {
+        if (!file) return;
+        const found = templates.inspect(file);
+        if (!found.ok) {
+          console.log(`[template] REFUSED ${path.basename(file)}: ${found.errors.join('; ')}`);
+          view.setTemplateError({ file: path.basename(file), errors: found.errors.slice(0, 6) });
+          return pushState();
+        }
+        // The LAYOUT stays in main. Only what the naming panel shows crosses
+        // to the renderer — a template is a file another pilot wrote, and
+        // there is no reason for it to be in a DOM.
+        pendingLayout = found.layout;
+        view.setTemplatePending({ ...found.describe, file: path.basename(file), replaces: found.replaces });
+        pushState();
+      });
+    case 'template-save': {
+      const pending = view.state.templatePending;
+      if (!pending || !pendingLayout) return;
+      const saved = templates.save(pendingLayout, String(payload || pending.name || ''));
+      if (!saved.ok) {
+        view.setTemplateError({ file: pending.file, errors: saved.errors.slice(0, 6) });
+        return void pushState();
+      }
+      console.log(`[template] saved "${saved.id}"`);
+      pendingLayout = null;
+      view.setTemplatePending(null);
+      refreshTemplates();
+      // Straight to it. Importing a template is something you do BECAUSE you
+      // want to use it, and leaving the pilot on the library to hunt for the
+      // one they just added is a step that exists for no reason.
+      chooseTemplate(saved.id);
+      return void pushState();
+    }
+    case 'template-cancel':
+      pendingLayout = null;
+      view.setTemplatePending(null);
+      view.setTemplateError(null);
+      return void pushState();
+    case 'template-choose':
+      chooseTemplate(String(payload || ''));
+      view.setPage('card');
+      return void pushState();
+    case 'template-remove': {
+      const gone = templates.remove(String(payload || ''));
+      if (!gone.ok) console.log(`[template] not removed: ${gone.errors.join('; ')}`);
+      // The card was built on it. Keep the DATA — the pilot may re-import the
+      // template — but stop claiming to render a sheet we no longer have.
+      if (gone.ok && chosenTemplateId === payload) loadCard();
+      refreshTemplates();
+      return void pushState();
+    }
     case 'card-import':
       // Picked from CARD's own action bar, because that is where a pilot is
       // standing when they want a different card. The path is SAVED, so the
       // card a pilot chose is still there next launch — a mission card they
       // have to re-pick every time is one they will stop using.
-      return void browseCard(viewer && viewer.window).then((file) => {
+      return void pickFile(browseCard, payload).then((file) => {
         if (!file) return;
         applyNewConfig(saveSettingsValues({ cardPath: file }));
         loadCard();
@@ -1483,6 +1618,13 @@ app.whenReady().then(() => {
   registerHotkeys();
   refreshGallery();
   watchPhotosFolder();
+  // BEFORE loadCard: a card is resolved against a template out of the
+  // library, so the library has to exist first.
+  templates = createTemplateStore({
+    shippedDir: path.join(__dirname, '..', '..', 'resources', 'layouts'),
+    userDataDir: app.getPath('userData'),
+  });
+  refreshTemplates();
   loadCard();
   if (isHost()) startHost();
   startClient();

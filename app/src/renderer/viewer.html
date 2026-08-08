@@ -192,6 +192,14 @@
       </div>
     </section>
 
+    <!-- =============================================== TEMPLATES ======
+         The library. A second view of CARD, not a destination of its own:
+         choosing a template is something you do while looking at the card.
+         Everything here is rendered from the snapshot — see renderTemplates. -->
+    <section class="page page--flush" data-page="templates">
+      <div class="lib" id="lib"></div>
+    </section>
+
     <!-- =============================================== RECEIVED =======
          Curation of the brief: every received photo, batch by batch. A
          tile toggled off is not in the queue; HIDE drops a whole batch.
@@ -543,8 +551,18 @@
            where a pilot is standing when they want a different card, and a
            setting you have to go looking for is one nobody finds. -->
       <span class="abar__group is-hidden" id="abar-card">
-        <button class="akey" id="card-import" data-i18n-aria="card.import">
+        <button class="akey" data-view="card" data-i18n-aria="view.card">
+          <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="2" width="14" height="16"/><path d="M6 6h8M6 9h8M6 12h5"/></svg>
+        </button>
+        <button class="akey" data-view="templates" data-i18n-aria="view.templates">
+          <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3" width="7" height="6"/><rect x="11" y="3" width="7" height="6"/><rect x="2" y="11" width="7" height="6"/><rect x="11" y="11" width="7" height="6"/></svg>
+        </button>
+        <span class="abar__sep"></span>
+        <button class="akey is-hidden" id="card-import" data-i18n-aria="card.import">
           <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="2" width="11" height="16"/><path d="M6 6h5M6 9h5M6 12h3"/><path d="M14 12v5M11.5 14.5L14 17l2.5-2.5" stroke-linecap="round"/></svg>
+        </button>
+        <button class="akey is-hidden" id="template-import" data-i18n-aria="tpl.import">
+          <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3" width="7" height="6"/><rect x="11" y="3" width="7" height="6"/><rect x="2" y="11" width="7" height="6"/><path d="M14.5 11v5M12 13.5l2.5-2.5 2.5 2.5" stroke-linecap="round"/></svg>
         </button>
       </span>
 

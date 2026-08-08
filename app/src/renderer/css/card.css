@@ -325,3 +325,19 @@
   text-align: right;
   margin-bottom: 3px;
 }
+
+/* A template being looked at with no data in it. Every value below is a dash,
+   and unlabelled those dashes read as real answers — "TACAN —" is a sentence
+   a pilot will believe. Said once, here, rather than by styling every empty
+   cell differently and hoping the difference is noticed. */
+.card__blank {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 6px 9px;
+  background: var(--pp-recessed);
+  box-shadow: inset 3px 0 0 var(--pp-secondary);
+}
+.card__blank-what { font-size: 15px; font-weight: 700; letter-spacing: .06em; color: var(--pp-ink); }
+.card__blank-why { font-size: 11px; color: var(--pp-tertiary); letter-spacing: .08em; }

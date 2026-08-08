@@ -69,4 +69,15 @@ async function browseCard(parent) {
   return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
 }
 
-module.exports = { saveSettingsValues, browseFolder, browseCard };
+/** Picks a template file. Separate from browseCard so the dialog says which
+ *  of the two kinds of JSON it wants — they are not interchangeable, and a
+ *  pilot handed one filter for both will pick the wrong one. */
+async function browseLayout(parent) {
+  const result = await dialog.showOpenDialog(parent && !parent.isDestroyed() ? parent : undefined, {
+    properties: ['openFile'],
+    filters: [{ name: 'Card template', extensions: ['json'] }],
+  });
+  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+}
+
+module.exports = { saveSettingsValues, browseFolder, browseCard, browseLayout };

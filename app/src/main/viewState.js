@@ -36,6 +36,11 @@ const INTERACTION_GRACE_MS = 8000;
 // them — a pilot who walked over to SHARE has plainly seen that intel landed.
 const INTEL_PAGES = ['brief', 'received', 'share'];
 
+// And the pages that ARE the CARD app: the sheet, and the template library.
+// Same shape as INTEL — one destination on the rail, views inside it — so
+// walking to TEMPLATES counts as having seen a card that arrived.
+const CARD_PAGES = ['card', 'templates'];
+
 function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.now() } = {}) {
   const state = {
     // identity / net
@@ -78,6 +83,14 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     // it answers is "is there anything over there", which a number does not
     // answer any better. The page itself holds the detail.
     unseen: { brief: false, card: false },
+
+    // The template library, and the two things that can be happening to it.
+    // All three ride the snapshot because the renderer decides nothing: the
+    // naming panel is SHOWN because main is holding an inspected template,
+    // not because the renderer remembers pressing a key.
+    templates: [], // [{ id, name, source, pages, blocks, requires }]
+    templatePending: null, // an inspected file waiting to be named and saved
+    templateError: null, // { file, errors } — a file that was refused
 
     // Brief mode. See design/brief-mode/HANDOFF.md.
     //
@@ -292,6 +305,25 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     }
   }
 
+  /** The library, rebuilt by main after anything that changes it. */
+  function setTemplates(templates) {
+    state.templates = Array.isArray(templates) ? templates : [];
+  }
+
+  /** A file was inspected and is waiting to be named, or null to drop it.
+   *  Setting one clears any refusal on screen: they answer the same question
+   *  and showing both at once says the import both failed and is in progress. */
+  function setTemplatePending(pending) {
+    state.templatePending = pending || null;
+    if (pending) state.templateError = null;
+  }
+
+  /** A file was refused. Same exclusivity, the other way round. */
+  function setTemplateError(error) {
+    state.templateError = error || null;
+    if (error) state.templatePending = null;
+  }
+
   /** A card went out to `n` other pilots, or null to clear the acknowledgement.
    *  `n` of 0 is a real answer and stays: "nobody is on the net" is the thing
    *  a pilot most needs to hear when they thought they had just shared. */
@@ -394,7 +426,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
   /** Clears the mark on whichever destination `page` belongs to. */
   function seePage(page) {
     if (INTEL_PAGES.includes(page)) state.unseen.brief = false;
-    else if (page === 'card') state.unseen.card = false;
+    else if (CARD_PAGES.includes(page)) state.unseen.card = false;
   }
 
   /**
@@ -410,7 +442,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
    * so anywhere.
    */
   function noteCardArrived() {
-    if (state.page !== 'card') state.unseen.card = true;
+    if (!CARD_PAGES.includes(state.page)) state.unseen.card = true;
   }
   function setNavCollapsed(collapsed) {
     noteInteraction();
@@ -485,6 +517,9 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
       locale: state.locale,
       banner: state.banner,
       unseen: { ...state.unseen },
+      templates: state.templates,
+      templatePending: state.templatePending,
+      templateError: state.templateError,
       brief: {
         ...state.brief,
         // A brief is live whenever anyone is presenting. There is no longer a
@@ -538,6 +573,9 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     setPresenter,
     noteCardSent,
     noteCardArrived,
+    setTemplates,
+    setTemplatePending,
+    setTemplateError,
     setFocus,
     isFollower,
     setTool,
