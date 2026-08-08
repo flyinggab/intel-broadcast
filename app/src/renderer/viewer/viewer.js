@@ -74,7 +74,7 @@ const strip = { net: el('strip-net'), relay: el('strip-relay') };
 const crumb = { root: el('crumb'), page: el('crumb-page'), pos: el('crumb-pos') };
 const menukey = el('menukey');
 const nav = el('nav');
-const abar = { root: el('abar'), views: el('abar-views') };
+const abar = { root: el('abar'), views: el('abar-views'), card: el('abar-card') };
 const banner = {
   root: el('banner'),
   who: el('banner-who'),
@@ -862,6 +862,7 @@ function renderActionBar(s) {
   const onCard = s.page === 'card';
   abar.root.classList.toggle('is-hidden', !inIntel && !onCard);
   abar.views.classList.toggle('is-hidden', !inIntel);
+  abar.card.classList.toggle('is-hidden', !onCard);
   for (const key of abar.views.querySelectorAll('[data-view]')) {
     key.classList.toggle('is-on', key.dataset.view === s.page);
   }
@@ -1026,6 +1027,7 @@ menukey.addEventListener('click', () => send('toggle-nav'));
 abar.root.addEventListener('click', (event) => {
   const view = event.target.closest('[data-view]');
   if (view) return send('set-page', view.dataset.view);
+  if (event.target.closest('#card-import')) return send('card-import');
 });
 
 nav.addEventListener('click', (event) => {

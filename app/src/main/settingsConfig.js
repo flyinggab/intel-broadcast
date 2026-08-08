@@ -53,4 +53,20 @@ async function browseFolder(parent) {
   return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
 }
 
-module.exports = { saveSettingsValues, browseFolder };
+/**
+ * Picks a mission card off disk.
+ *
+ * Filtered to `.json` and nothing else. That is a convenience, not a
+ * safeguard — a card is a file from another pilot either way, and the only
+ * thing that makes it safe is `resolveCard` refusing it whole when anything
+ * fails to validate. The filter just stops a pilot picking a photo by mistake.
+ */
+async function browseCard(parent) {
+  const result = await dialog.showOpenDialog(parent && !parent.isDestroyed() ? parent : undefined, {
+    properties: ['openFile'],
+    filters: [{ name: 'Mission card', extensions: ['json'] }],
+  });
+  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+}
+
+module.exports = { saveSettingsValues, browseFolder, browseCard };

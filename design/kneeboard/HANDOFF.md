@@ -6,6 +6,10 @@ current-step emphasis and click-to-tick. `dev-card-geometry-test` measures the
 real render: **0 clipped values** on both the example card and a deliberately
 full one.
 
+A pilot can now LOAD a card from CARD's own action bar — the path is saved, so
+it survives a restart. What is still missing is sending one: see §5 and the
+note below.
+
 Two things remain, both recorded in §7:
 - the **height budget is not enforced at import**; `card.js` carries the
   measured model but it comes out ~132px light, so it is documented and

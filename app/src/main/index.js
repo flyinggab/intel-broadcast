@@ -25,7 +25,7 @@ const { resolveCard } = require('./card');
 const { createOkbServer } = require('./okbServer');
 // SETUP is a page of the viewer, so there is no settings window module any
 // more: what survived is the config writer and the folder dialog.
-const { saveSettingsValues, browseFolder } = require('./settingsConfig');
+const { saveSettingsValues, browseFolder, browseCard } = require('./settingsConfig');
 
 const BUNDLED_PHOTOS_DIR = path.join(__dirname, '..', '..', 'photos');
 
@@ -1153,6 +1153,18 @@ function handleViewerIntent(intent, payload) {
       // The picker lives on SHARE now, next to the gallery it feeds.
       return void browseFolder(viewer && viewer.window).then((folder) => {
         if (folder) applyNewConfig(saveSettingsValues({ photosFolder: folder }));
+      });
+    case 'card-import':
+      // Picked from CARD's own action bar, because that is where a pilot is
+      // standing when they want a different card. The path is SAVED, so the
+      // card a pilot chose is still there next launch — a mission card they
+      // have to re-pick every time is one they will stop using.
+      return void browseCard(viewer && viewer.window).then((file) => {
+        if (!file) return;
+        applyNewConfig(saveSettingsValues({ cardPath: file }));
+        loadCard();
+        view.setPage('card');
+        pushState();
       });
     case 'set-auto-show':
       // The toggle lives on the viewer's RECEIVED page now; applies live.
