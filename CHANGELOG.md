@@ -75,6 +75,13 @@ that entry.
 - Comms agency names are one word — MOTHER, not MOTHER (CVN-71); SHELL, not
   SHELL KC-135. On a kneeboard the agency is the callsign and the parenthetical
   is explanatory text charging the column for it.
+- **A table's columns now line up down the page.** Rows were independent flex
+  lines that each sized themselves, so a row missing a value slid everything
+  after it left: a tanker with no altitude put its heading where the row above
+  put its altitude, and a comms entry with no TACAN put its frequency somewhere
+  new. Tables lay out as tables now, every row sharing one set of
+  content-sized columns. `dev-card-geometry-test` fails if any two rows put the
+  same column at different x.
 - **A host could not tell that sharing over the internet was a button.** It
   was a flat panel the same tone as the status rows above it, on a page where
   the recessed "primary" key treatment looked like the read-only PORT and

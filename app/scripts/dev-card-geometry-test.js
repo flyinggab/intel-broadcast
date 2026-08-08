@@ -68,6 +68,23 @@ child.on('exit', () => {
       failed = true;
     }
 
+    if (!r.tables) {
+      console.error(`[card-geometry] FAIL: ${r.card} — no .card__rows found, so alignment proves nothing`);
+      failed = true;
+    }
+    if (r.misaligned && r.misaligned.length) {
+      console.error(`[card-geometry] FAIL: ${r.card} — ${r.misaligned.length} column(s) do not line up:`);
+      for (const m of r.misaligned) {
+        console.error(`  ${m.title} column ${m.col} starts at ${m.xs.join(', ')}px on different rows`);
+      }
+      console.error(
+        '  A column has to mean the same thing all the way down. A row missing a value must leave a\n' +
+          '  gap in ITS column, not slide everything after it left — otherwise a pilot reads a heading\n' +
+          '  where the row above has an altitude.',
+      );
+      failed = true;
+    }
+
     // The sheet is a fixed 893 x 1263 and the whole design is built around
     // fitting inside it. Overflow means a block is off the bottom of the
     // kneeboard, where a pilot cannot scroll to it in flight.

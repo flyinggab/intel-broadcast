@@ -272,6 +272,11 @@ must never trap a pilot, and the route to SETUP must always survive.
   `min-width: 0`, even with the room to spare. `min-width: min-content` on a
   comms cell fixed all of it at once.
 
+  Table blocks lay out as `display: table`, not flex rows. Independent rows
+  each sized themselves, so a column stopped meaning the same thing down the
+  page the moment one row was missing a value. The geometry test now fails on
+  any two rows placing the same column at different x.
+
   Agency names are **one word**: MOTHER, not MOTHER (CVN-71); SHELL, not
   SHELL KC-135. On a kneeboard the agency IS the callsign and the parenthetical
   is explanatory text that costs the column its width. That is the owner's

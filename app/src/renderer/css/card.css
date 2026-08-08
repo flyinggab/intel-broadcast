@@ -209,12 +209,31 @@
 .card__tick:hover .card__ring { border-color: var(--pp-ink); }
 
 /* --- tables (targets, comms) ---------------------------------------------- */
+/* A table, laid out as one. Every row shares one set of column widths, each
+   sized to the widest cell in it — so all the TACANs line up, all the
+   frequencies line up, and a row missing a value leaves a gap in ITS column
+   instead of sliding everything after it left. As independent flex rows they
+   each sized themselves, and a tanker with no altitude put its heading where
+   the row above put its altitude.
+
+   `display: table` rather than grid + subgrid because the column count varies
+   per block and the renderer must not be the thing that decides track lists —
+   auto table layout works it out from the content, which is exactly the rule
+   here. The cell marked `flex` takes width: 100% and absorbs the slack. */
+.card__rows { display: table; width: 100%; border-collapse: collapse; }
 .card__row {
-  display: flex; align-items: center; gap: 8px;
-  height: 31px; padding: 0 8px;
-  border-bottom: 1px solid var(--pp-rule);
+  display: table-row;
+  height: 31px;
   font-size: 13px;
 }
+/* 9px each side. Auto table layout sizes a column to its content, so unlike
+   the fixed widths this replaced there is nothing but the padding holding two
+   columns apart — at 4px the TARGETS row read as one run-on string. */
+.card__row > * { display: table-cell; vertical-align: middle; padding: 0 9px; white-space: nowrap; }
+.card__row > *:first-child { padding-left: 8px; }
+.card__row > *:last-child { padding-right: 8px; }
+.card__rows .card__cell { border-bottom: 1px solid var(--pp-rule); }
+.card__rows .card__row:last-child .card__cell { border-bottom: 0; }
 .card__row:last-child { border-bottom: 0; }
 .card__row--marked { background: var(--pp-raised); box-shadow: inset 3px 0 0 var(--pp-go); }
 .card__cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -271,9 +290,12 @@
    If a row genuinely does not fit, this turns silent truncation into visible
    overflow — which dev-card-geometry-test catches and a pilot can SEE. That is
    the right trade: an ellipsis reads as a value, an overflow does not. */
-.card__comms .card__cell { min-width: min-content; }
-.card__comms .card__w-sm,
-.card__comms .card__w-xs { flex: 0 1 auto; }
+/* In a table these stop being flex bases: auto layout sizes each column to
+   its widest cell, and the one marked `flex` takes the remainder. Keeping
+   `white-space: nowrap` on the cells is what makes "widest cell" mean the
+   whole value rather than a wrapped fragment. */
+.card__rows .card__w-flex { width: 100%; }
+.card__rows .card__cell { min-width: min-content; }
 .card__comms .card__cell--mono { white-space: nowrap; }
 
 /* --- prose ---------------------------------------------------------------- */

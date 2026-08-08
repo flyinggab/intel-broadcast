@@ -120,7 +120,26 @@ app.whenReady().then(async () => {
           h: Math.round(b.getBoundingClientRect().height / (sheet.getBoundingClientRect().width / sheet.clientWidth)),
           rows: b.querySelectorAll('.card__step').length || b.querySelectorAll('.card__row').length || 0,
         }));
+        // A column must mean the same thing all the way down: every cell at
+        // the same index in a table starts at the same x. Laid out as
+        // independent flex rows they did not, so a tanker with no altitude put
+        // its heading where the row above put its altitude.
+        const misaligned = [];
+        for (const table of sheet.querySelectorAll('.card__rows')) {
+          const rows = [...table.querySelectorAll('.card__row')];
+          const title = (table.closest('.card__section').querySelector('.card__head-title') || {}).textContent || '?';
+          const cols = Math.max(0, ...rows.map((r) => r.children.length));
+          for (let i = 0; i < cols; i += 1) {
+            const xs = rows
+              .map((r) => r.children[i])
+              .filter(Boolean)
+              .map((c) => Math.round(c.getBoundingClientRect().left));
+            if (new Set(xs).size > 1) misaligned.push({ title, col: i, xs: [...new Set(xs)] });
+          }
+        }
         return {
+          misaligned,
+          tables: sheet.querySelectorAll('.card__rows').length,
           blocks,
           bodyH: sheet.clientHeight - 36,
           comms,

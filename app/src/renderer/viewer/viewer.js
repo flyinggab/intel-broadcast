@@ -716,13 +716,20 @@ function cardBlock(block) {
 
   if (block.type === 'table') {
     section.append(cardHead(block.title));
+    // Wrapped, because the rows have to SHARE their column widths. Laid out as
+    // independent flex rows, a row with no TACAN put its frequency at a
+    // different x than the row above it — which defeats the one thing a table
+    // is for: a column meaning the same thing all the way down.
+    const rows = document.createElement('div');
+    rows.className = 'card__rows';
     for (const row of block.rows) {
       const line = document.createElement('div');
       line.className = 'card__row';
       if (row.marked) line.classList.add('card__row--marked');
       for (const cell of row.cells) line.append(cardCell(cell));
-      section.append(line);
+      rows.append(line);
     }
+    section.append(rows);
     return section;
   }
 
