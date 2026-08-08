@@ -25,10 +25,12 @@ const fs = require('fs');
 const RENDERER = path.join(__dirname, '..', '..', 'src', 'renderer');
 const APP_DIR = path.join(__dirname, '..', '..');
 
-function buildModel(cardFile) {
-  const layout = JSON.parse(
-    fs.readFileSync(path.join(APP_DIR, 'resources', 'layouts', 'strike-package.layout.json'), 'utf8'),
-  );
+// Each card names its OWN template, and is resolved against that one. This
+// used to hardcode strike-package, which meant a second shipped template could
+// never be measured — and a template nobody has rendered at a real size is
+// exactly how the bullseye came to be silently truncated.
+function buildModel(cardFile, layoutFile) {
+  const layout = JSON.parse(fs.readFileSync(layoutFile, 'utf8'));
   const card = JSON.parse(fs.readFileSync(cardFile, 'utf8'));
   const { ok, errors, card: resolved } = resolveCard({ layout, card });
   if (!ok) throw new Error(`card refused: ${errors.join('; ')}`);
@@ -38,9 +40,17 @@ function buildModel(cardFile) {
 // Both the example card from the design folder and the deliberately-full one.
 // The full card is the interesting case: a card that fits only because its
 // strings happen to be short is not a card that fits.
+const LAYOUTS = path.join(APP_DIR, 'resources', 'layouts');
+const SAMPLES = path.join(APP_DIR, '..', 'design', 'kneeboard', 'samples');
 const CARDS = [
-  ['design', path.join(APP_DIR, '..', 'design', 'kneeboard', 'foxhunt2-roman1.card.json')],
-  ['full', path.join(APP_DIR, 'scripts', 'fixtures', 'card-full.card.json')],
+  ['design', path.join(APP_DIR, '..', 'design', 'kneeboard', 'foxhunt2-roman1.card.json'), path.join(LAYOUTS, 'strike-package.layout.json')],
+  ['full', path.join(APP_DIR, 'scripts', 'fixtures', 'card-full.card.json'), path.join(LAYOUTS, 'strike-package.layout.json')],
+  // The second SHIPPED template. A template that ships is one a pilot will
+  // fly, so it earns the same string-width check as the first.
+  ['cas', path.join(SAMPLES, 'uzi11-cas.card.json'), path.join(LAYOUTS, 'cas-9line.layout.json')],
+  // And the sample template meant to be IMPORTED — measured here so the file
+  // handed out as "this is what a template looks like" is one that renders.
+  ['ferry', path.join(SAMPLES, 'colt21-ferry.card.json'), path.join(SAMPLES, 'ferry-flight.layout.json')],
 ];
 
 app.whenReady().then(async () => {
@@ -59,8 +69,8 @@ app.whenReady().then(async () => {
   await win.webContents.executeJavaScript('document.fonts.ready.then(() => true)');
 
   const results = [];
-  for (const [name, file] of CARDS) {
-    const model = buildModel(file);
+  for (const [name, file, layoutFile] of CARDS) {
+    const model = buildModel(file, layoutFile);
     const report = await win.webContents.executeJavaScript(`
       (() => {
         const model = ${JSON.stringify(model)};

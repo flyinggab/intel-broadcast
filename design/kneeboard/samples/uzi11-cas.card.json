@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "layout": "cas-9line",
+  "title": "UZI 1-1 · CAS",
+  "subtitle": "KHASAB VALLEY · ON CALL 0940Z",
+  "flight": {
+    "callsign": "UZI 1-1",
+    "playtime": "45+00",
+    "bullseye": "N25 44'12.0 E56 15'36.0",
+    "threat": "ZU-23 · MANPAD · SMALL ARMS"
+  },
+  "jtac": {
+    "contacts": [
+      { "name": "AXEMAN 3-1", "freq": "251.000", "tacan": "—" },
+      { "name": "OVERLORD", "freq": "264.000", "tacan": "—" },
+      { "name": "TEXACO 1-1", "freq": "270.500", "tacan": "38Y" }
+    ]
+  },
+  "nineline": {
+    "lines": [
+      { "n": "1", "label": "IP / BP", "value": "SIERRA" },
+      { "n": "2", "label": "HEADING", "value": "285 / OFFSET L" },
+      { "n": "3", "label": "DISTANCE", "value": "6.4 NM" },
+      { "n": "4", "label": "ELEVATION", "value": "1350 FT MSL" },
+      { "n": "5", "label": "DESCRIPTION", "value": "2x ZU-23 IN REVETMENT" },
+      { "n": "6", "label": "LOCATION", "value": "N25 51'04.2 E56 09'48.7" },
+      { "n": "7", "label": "MARK", "value": "LASER 1688" },
+      { "n": "8", "label": "FRIENDLIES", "value": "SW 400M" },
+      { "n": "9", "label": "EGRESS", "value": "SOUTH TO SIERRA" }
+    ]
+  },
+  "attack": {
+    "winchester": "BINGO 3.2",
+    "steps": [
+      { "name": "CHECK IN", "ref": "AXEMAN", "alt": "15000", "speed": "300", "note": "PLAYTIME AND LOADOUT", "done": true },
+      { "name": "IP SIERRA", "ref": "SP", "alt": "15000", "speed": "350", "note": "", "done": true },
+      { "name": "TALLY", "ref": "", "alt": "12000", "speed": "350", "note": "CONFIRM MARK", "state": "current" },
+      { "name": "ATTACK", "ref": "TGT", "alt": "8000", "speed": "420", "note": "WINGS LEVEL 20 SEC" },
+      { "name": "OFF SOUTH", "ref": "EGR", "alt": "12000", "speed": "420", "note": "" },
+      { "name": "REATTACK", "ref": "SP", "alt": "15000", "speed": "350", "note": "ONLY ON CLEARANCE" },
+      { "name": "BDA", "ref": "AXEMAN", "alt": "15000", "speed": "300", "note": "" }
+    ],
+    "abort": [
+      { "name": "ABORT CODE", "value": "SANDSTORM" },
+      { "name": "SAFE", "value": "270 / 20 NM" },
+      { "name": "ROE", "value": "POSITIVE ID · CLEARANCE EACH PASS" }
+    ],
+    "remarks": [
+      "No drop without a cleared hot call from AXEMAN 3-1.",
+      "Friendlies danger close south-west — attack heading 285 only.",
+      "Laser 1688, self-lase on second pass if the mark is lost.",
+      "Winchester or bingo: call off target and push TEXACO."
+    ]
+  }
+}

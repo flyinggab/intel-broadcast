@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "layout": "ferry-flight",
+  "title": "COLT 2-1 · FERRY",
+  "subtitle": "AL DHAFRA → KHASAB · 1215Z",
+  "flight": {
+    "callsign": "COLT 2-1",
+    "aircraft": "F-16C",
+    "fuel": "7000",
+    "from": "AL DHAFRA",
+    "to": "KHASAB"
+  },
+  "route": {
+    "bingo": "BINGO 2.4",
+    "legs": [
+      { "name": "TAXI", "ref": "RWY 13L", "alt": "GND", "speed": "—", "note": "TOWER 126.5", "done": true },
+      { "name": "DEPART", "ref": "DHAFRA 1", "alt": "5000", "speed": "300", "note": "", "done": true },
+      { "name": "CLIMB", "ref": "WP1", "alt": "24000", "speed": "350", "note": "", "state": "current" },
+      { "name": "CRUISE", "ref": "WP2", "alt": "24000", "speed": "400", "note": "COAST OUT" },
+      { "name": "COAST IN", "ref": "WP3", "alt": "18000", "speed": "350", "note": "" },
+      { "name": "DESCENT", "ref": "WP4", "alt": "8000", "speed": "300", "note": "" },
+      { "name": "APPROACH", "ref": "KHASAB", "alt": "3000", "speed": "250", "note": "TACAN 112X" },
+      { "name": "LAND", "ref": "RWY 01", "alt": "GND", "speed": "—", "note": "" }
+    ],
+    "alternates": [
+      { "name": "FUJAIRAH", "rwy": "11", "dist": "48 NM SW" },
+      { "name": "SHARJAH", "rwy": "12", "dist": "96 NM SW" },
+      { "name": "BANDAR ABBAS", "rwy": "21L", "dist": "72 NM N · DIVERT ONLY" }
+    ],
+    "notes": [
+      "Airspace is controlled the whole way — squawk 4721, no comm-out entry.",
+      "Coast out at WP2 only. Direct routing crosses the Iranian FIR.",
+      "Khasab has no arresting gear. Divert on any hook or brake fault.",
+      "Bingo 2.4 to Fujairah, 3.1 to Sharjah."
+    ]
+  },
+  "comms": {
+    "stations": [
+      { "name": "DHAFRA TWR", "freq": "126.500", "tacan": "—" },
+      { "name": "DEPARTURE", "freq": "124.200", "tacan": "—" },
+      { "name": "CENTRE", "freq": "132.750", "tacan": "—" },
+      { "name": "KHASAB APP", "freq": "119.900", "tacan": "112X" },
+      { "name": "GUARD", "freq": "243.000", "tacan": "—" }
+    ]
+  }
+}

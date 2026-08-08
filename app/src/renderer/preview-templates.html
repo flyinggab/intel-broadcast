@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tac Link — importing and choosing a card template</title>
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/base.css" />
+<link rel="stylesheet" href="css/components.css" />
+<style>
+  body { background: #22251f; color: #cfd3c8; font-family: var(--font-ui); padding: 20px 24px 60px; display: block; }
+  h1 { font-size: 20px; letter-spacing: .08em; margin: 0 0 2px; }
+  .sub { font-family: var(--font-mono); font-size: 12px; color: #8d9384; letter-spacing: .06em; margin-bottom: 22px; }
+  h2 { font-size: 14px; letter-spacing: .1em; color: #e8ece6; margin: 30px 0 4px; text-transform: uppercase; }
+  .why { font-size: 13px; line-height: 1.55; color: #a9af9f; max-width: 980px; margin: 0 0 14px; }
+  .why b { color: #e8ece6; }
+  .why code { font-family: var(--font-mono); font-size: 12px; color: #b8beaa; }
+  .row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+  .name { font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em; color: #cfd3c8; margin-bottom: 6px; }
+  .name em { color: #98bb62; font-style: normal; }
+  .note { font-size: 12px; line-height: 1.45; color: #8d9384; max-width: 300px; margin-top: 7px; }
+  .dev { width: 300px; height: 380px; background: var(--bg); position: relative; overflow: hidden;
+         box-shadow: 0 0 0 7px #2c2f28, 0 0 0 8px #171a15; display: flex; flex-direction: column; }
+  .verdict { border-left: 3px solid #98bb62; padding: 9px 12px; margin: 14px 0 0; background: #262a22;
+             font-size: 13px; line-height: 1.55; max-width: 980px; }
+  .ask { border-left: 3px solid #c8a33c; padding: 9px 12px; margin: 14px 0 0; background: #2a271e;
+         font-size: 13px; line-height: 1.55; max-width: 980px; }
+  .ask b, .verdict b { color: #e8ece6; }
+
+  /* --- the shell, as shipped ------------------------------------------- */
+  .mstrip { height: 22px; flex: none; background: var(--bg); border-bottom: var(--rule); display: flex;
+            align-items: center; gap: 6px; padding-right: 6px; font-family: var(--font-mono);
+            font-size: 9px; color: var(--hi); }
+  .mstrip .ham { width: 26px; height: 22px; display: grid; place-items: center; color: #cfd3c8; }
+  .mstrip .ham i { display: block; width: 11px; height: 1px; background: currentColor; box-shadow: 0 3px 0 currentColor, 0 -3px 0 currentColor; }
+  .mbody { flex: 1; display: flex; min-height: 0; }
+  .lrail { flex: none; width: 26px; background: #22271f; border-right: 1px solid #171a15;
+          display: flex; flex-direction: column; align-items: center; gap: 2px; padding-top: 3px; }
+  .lrail b { width: 24px; height: 30px; display: grid; place-items: center; gap: 1px; align-content: center;
+            background: rgba(120,128,112,.28); color: #dfe4d6; font-size: 5px; letter-spacing: .04em; font-weight: 700; }
+  .lrail b.on { background: var(--lit); color: var(--ink); }
+  .lrail b s { display: block; width: 11px; height: 11px; border: 1px solid currentColor; text-decoration: none; }
+  .lrail .sp { flex: 1; }
+  .work { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .scr { flex: 1; min-height: 0; overflow: hidden; }
+
+  /* the bottom action bar, as shipped */
+  .abar2 { flex: none; height: 26px; background: var(--bg); border-top: var(--rule); display: flex;
+           align-items: center; gap: 3px; padding: 0 4px; }
+  .abar2 k { width: 22px; height: 22px; display: grid; place-items: center; background: var(--up);
+             box-shadow: var(--bevel-up); color: #cfd3c8; font-size: 7px; font-family: var(--font-mono); }
+  .abar2 k.on { background: var(--lit); color: var(--ink); box-shadow: none; }
+  .abar2 k.go { color: #98bb62; }
+  .abar2 .sep { width: 1px; height: 13px; background: #171a15; margin: 0 3px; }
+  .abar2 .gap { flex: 1; }
+
+  /* --- the paper card -------------------------------------------------- */
+  .sheet { height: 100%; background: #E9E5DA; color: #1F1C16; padding: 5px 6px; font-size: 7px; overflow: hidden; }
+  .sheet h { display: block; background: #3A362D; color: #EDE9DE; font-size: 6px; letter-spacing: .12em;
+             padding: 2px 4px; font-weight: 400; margin: 0 0 3px; }
+  .sheet .r { display: flex; gap: 4px; padding: 1.5px 3px; border-bottom: 1px solid #D6D1C4; }
+  .sheet .r.cur { background: #DCD8C9; box-shadow: inset 2px 0 0 #6E8B3D; }
+  .sheet .r.dn { opacity: .5; }
+  .sheet .r u { text-decoration: none; flex: 1; }
+  .sheet .r q { quotes: none; font-family: var(--font-mono); color: #55503f; }
+  .sheet .mut { color: #6b6555; }
+  .sheet .blank { color: #b3ad9c; }
+
+  /* --- the template library -------------------------------------------- */
+  .lib { height: 100%; background: var(--dn); padding: 5px; display: grid; gap: 4px;
+         grid-template-columns: 1fr 1fr; align-content: start; overflow: hidden; }
+  .tpl { background: #262b21; box-shadow: inset 0 0 0 1px #171a15; padding: 5px; position: relative; }
+  .tpl.on { background: #2f3a28; box-shadow: inset 0 0 0 1px #98bb62; }
+  .tpl n { display: block; font-size: 8px; font-weight: 700; letter-spacing: .04em; color: #e8ece6; line-height: 1.15; }
+  .tpl i { display: block; font-family: var(--font-mono); font-size: 6px; color: #9aa18c; margin-top: 2px; font-style: normal; }
+  .tpl s { display: block; text-decoration: none; font-family: var(--font-mono); font-size: 5.5px;
+           letter-spacing: .08em; color: #868d78; margin-top: 4px; }
+  .tpl em { position: absolute; top: 4px; right: 4px; font-style: normal; font-family: var(--font-mono);
+            font-size: 5.5px; letter-spacing: .08em; color: #9aa18c; }
+  .tpl.on em { color: #98bb62; }
+  .lib .hd { grid-column: 1 / -1; font-family: var(--font-mono); font-size: 6.5px; letter-spacing: .14em;
+             color: #a9af9f; padding: 2px 1px 0; }
+
+  /* --- the naming panel ------------------------------------------------- */
+  .ask2 { height: 100%; background: var(--dn); padding: 8px 7px; }
+  .ask2 t { display: block; font-size: 8px; font-weight: 700; letter-spacing: .1em; color: #e8ece6; margin-bottom: 2px; }
+  .ask2 f { display: block; font-family: var(--font-mono); font-size: 6px; color: #8d9384; margin-bottom: 8px; word-break: break-all; }
+  .ask2 l { display: block; font-family: var(--font-mono); font-size: 5.5px; letter-spacing: .12em; color: #7d8472; margin-bottom: 2px; }
+  .ask2 .in { background: #16190f; box-shadow: inset 0 1px 2px #000; padding: 4px 5px; font-size: 8px;
+              color: #e8ece6; margin-bottom: 7px; }
+  .ask2 .in .car { border-left: 1px solid #98bb62; margin-left: 1px; }
+  .ask2 .needs { font-size: 6.5px; line-height: 1.6; color: #9aa18c; margin-bottom: 8px; }
+  .ask2 .needs b { color: #cfd3c8; font-weight: 400; }
+  .ask2 .btns { display: flex; gap: 5px; }
+  .ask2 .btns b { flex: 1; text-align: center; padding: 5px 0; font-size: 7px; letter-spacing: .1em;
+                  background: var(--up); box-shadow: var(--bevel-up); color: #cfd3c8; font-weight: 400; }
+  .ask2 .btns b.go { background: #4a5c30; color: #e8ece6; box-shadow: none; }
+
+  .bad { height: 100%; background: var(--dn); padding: 9px 8px; }
+  .bad t { display: block; font-size: 8px; font-weight: 700; letter-spacing: .08em; color: #d9a13c; margin-bottom: 5px; }
+  .bad p { margin: 0 0 6px; font-size: 7px; line-height: 1.55; color: #c2c8b8; }
+  .bad ul { margin: 0; padding-left: 9px; }
+  .bad li { font-family: var(--font-mono); font-size: 6.5px; line-height: 1.7; color: #d9a13c; }
+</style>
+</head>
+<body>
+
+<h1>CARD — importing and choosing a template</h1>
+<div class="sub">MOCKUP FOR APPROVAL · NOT BUILT YET</div>
+
+<p class="why">
+  A card is two files and always has been: a <b>template</b> (the shape — what boxes exist, what they are
+  called, where they sit) and <b>data</b> (what goes in them). Today the app ships one template and there is
+  no way to add another; import means data only. This adds the other half.
+</p>
+<p class="why">
+  <b>The split is not cosmetic — it is what makes sharing work.</b> Casting a card sends the DATA and nothing
+  else, a few KB, and the receiver renders it with their own copy of the template. So a template is not a
+  document you send around; it is something every pilot in the squad installs once, and after that everyone's
+  cards look identical on everyone's knee.
+</p>
+
+<h2>1 · Where it lives</h2>
+<p class="why">
+  <b>TEMPLATES is a view of CARD</b>, picked from the bottom bar — exactly as RECEIVED and SHARE are views of
+  INTEL. It is not a SETUP page: choosing a template is something you do while looking at the card, not
+  something you go and configure. The bar shows only what the view you are on can actually do.
+</p>
+
+<div class="row">
+  <div>
+    <div class="name">A · the CARD view</div>
+    <div class="dev">
+      <div class="mstrip"><span class="ham"><i></i></span>TAC LINK · CARD</div>
+      <div class="mbody">
+        <div class="lrail">
+          <b><s></s>INTEL</b><b class="on"><s></s>CARD</b><span class="sp"></span><b><s></s></b>
+        </div>
+        <div class="work">
+          <div class="scr"><div class="sheet">
+            <h>ROUTE</h>
+            <div class="r dn"><u>DEPART</u><q>250/350</q></div>
+            <div class="r dn"><u>REJOIN</u><q>250/350</q></div>
+            <div class="r dn"><u>AAR</u><q>220/300</q></div>
+            <div class="r cur"><u>HOLD</u><q>240/350</q></div>
+            <div class="r"><u>VARAVI</u><q>240/400</q></div>
+            <div class="r"><u>POP-UP</u><q>180/450</q></div>
+            <h style="margin-top:5px">COMM 1</h>
+            <div class="r"><u>MAGIC</u><q>251.000</q></div>
+            <div class="r"><u>TEXACO</u><q>270.500</q></div>
+          </div></div>
+          <div class="abar2">
+            <k class="on">CARD</k><k>TMPL</k>
+            <span class="sep"></span>
+            <k>DATA</k>
+            <span class="gap"></span>
+            <k class="go">CAST</k>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">The sheet you fly. <b>DATA</b> loads a <code>.card.json</code> into it; <b>CAST</b> puts it
+      on everyone's knee. Both already exist.</p>
+  </div>
+
+  <div>
+    <div class="name">B · the <em>TEMPLATES</em> view</div>
+    <div class="dev">
+      <div class="mstrip"><span class="ham"><i></i></span>TAC LINK · CARD · TEMPLATES</div>
+      <div class="mbody">
+        <div class="lrail">
+          <b><s></s>INTEL</b><b class="on"><s></s>CARD</b><span class="sp"></span><b><s></s></b>
+        </div>
+        <div class="work">
+          <div class="scr"><div class="lib">
+            <span class="hd">SHIPPED WITH TAC LINK</span>
+            <div class="tpl on">
+              <em>IN USE</em>
+              <n>Strike package</n>
+              <i>strike-package</i>
+              <s>CARD + MAP · 8 BLOCKS</s>
+            </div>
+            <div class="tpl">
+              <n>CAS · 9-line</n>
+              <i>cas-9line</i>
+              <s>CARD + MAP · 6 BLOCKS</s>
+            </div>
+            <span class="hd">YOURS</span>
+            <div class="tpl">
+              <em>×</em>
+              <n>Ferry flight</n>
+              <i>ferry-flight</i>
+              <s>CARD · 5 BLOCKS</s>
+            </div>
+          </div></div>
+          <div class="abar2">
+            <k>CARD</k><k class="on">TMPL</k>
+            <span class="sep"></span>
+            <k>+TPL</k>
+            <span class="gap"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">Shipped ones can be chosen but not removed. Yours carry <b>×</b>. Tapping one makes it the
+      card's template. No CAST here — there is nothing to cast until it has data.</p>
+  </div>
+</div>
+
+<h2>2 · Importing a template, and naming it</h2>
+<p class="why">
+  Pick a <code>.layout.json</code>, then <b>name it</b> — prefilled from the name inside the file, because
+  the person who wrote the template usually named it well and retyping a good name is a chore.
+</p>
+
+<div class="row">
+  <div>
+    <div class="name">C · name it</div>
+    <div class="dev">
+      <div class="mstrip"><span class="ham"><i></i></span>TAC LINK · CARD · TEMPLATES</div>
+      <div class="mbody">
+        <div class="lrail">
+          <b><s></s>INTEL</b><b class="on"><s></s>CARD</b><span class="sp"></span><b><s></s></b>
+        </div>
+        <div class="work">
+          <div class="scr"><div class="ask2">
+            <t>NAME THIS TEMPLATE</t>
+            <f>ferry-flight.layout.json</f>
+            <l>NAME</l>
+            <div class="in">Ferry flight<span class="car">&nbsp;</span></div>
+            <div class="needs">
+              ID <b>ferry-flight</b><br />
+              PAGES <b>CARD</b><br />
+              NEEDS <b>flight · route · comms</b>
+            </div>
+            <div class="btns"><b>CANCEL</b><b class="go">SAVE</b></div>
+          </div></div>
+          <div class="abar2">
+            <k>CARD</k><k class="on">TMPL</k><span class="sep"></span><k>+TPL</k><span class="gap"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">The <b>ID</b> is shown but not editable — see the note below. <b>NEEDS</b> is the template's
+      own <code>requires</code>: the data keys a card must carry, so you know what to feed it.</p>
+  </div>
+
+  <div>
+    <div class="name">D · a file that is not a template</div>
+    <div class="dev">
+      <div class="mstrip"><span class="ham"><i></i></span>TAC LINK · CARD · TEMPLATES</div>
+      <div class="mbody">
+        <div class="lrail">
+          <b><s></s>INTEL</b><b class="on"><s></s>CARD</b><span class="sp"></span><b><s></s></b>
+        </div>
+        <div class="work">
+          <div class="scr"><div class="bad">
+            <t>NOT IMPORTED</t>
+            <p>mission-notes.json is not a card template. Nothing has changed.</p>
+            <ul>
+              <li>no "id"</li>
+              <li>no "pages"</li>
+            </ul>
+            <p style="margin-top:8px">A template that ships broken is one that breaks on a pilot's knee, so
+              it is refused whole rather than half-loaded.</p>
+          </div></div>
+          <div class="abar2">
+            <k>CARD</k><k class="on">TMPL</k><span class="sep"></span><k>+TPL</k><span class="gap"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">Same rule the card data already follows: <b>refuse whole, name what is wrong, change
+      nothing</b>. The template you were using is still the one you are using.</p>
+  </div>
+</div>
+
+<div class="ask">
+  <b>The one thing I would not let you edit: the ID.</b> A template's <code>id</code> is what a shared card
+  names when it crosses the wire — the receiver looks up <em>their</em> copy by it. Rename the id and cards
+  from your squadmates stop resolving; you would get "this build does not have layout X" for a template you
+  are plainly looking at. So <b>NAME is yours to change, ID is the file's</b>. Two pilots can call the same
+  template different things and still fly each other's cards.
+</div>
+
+<h2>3 · Putting data in — JSON import</h2>
+<p class="why">
+  <b>DATA</b> on the CARD view picks a <code>.card.json</code>. The file names its own template, so choosing
+  a template first is not required — importing data selects the right one. What the TEMPLATES view is for is
+  the other direction: seeing what you have, and looking at a template before you have data for it.
+</p>
+
+<div class="row">
+  <div>
+    <div class="name">E · a template with no data yet</div>
+    <div class="dev">
+      <div class="mstrip"><span class="ham"><i></i></span>TAC LINK · CARD</div>
+      <div class="mbody">
+        <div class="lrail">
+          <b><s></s>INTEL</b><b class="on"><s></s>CARD</b><span class="sp"></span><b><s></s></b>
+        </div>
+        <div class="work">
+          <div class="scr"><div class="sheet">
+            <h>9-LINE</h>
+            <div class="r"><q>1</q><u class="mut">IP / BP</u><q class="blank">—</q></div>
+            <div class="r"><q>2</q><u class="mut">HEADING</u><q class="blank">—</q></div>
+            <div class="r"><q>3</q><u class="mut">DISTANCE</u><q class="blank">—</q></div>
+            <div class="r"><q>4</q><u class="mut">ELEVATION</u><q class="blank">—</q></div>
+            <div class="r"><q>5</q><u class="mut">DESCRIPTION</u><q class="blank">—</q></div>
+            <h style="margin-top:5px">ATTACK</h>
+            <div class="r"><u class="blank">no data loaded</u></div>
+          </div></div>
+          <div class="abar2">
+            <k class="on">CARD</k><k>TMPL</k><span class="sep"></span><k>DATA</k><span class="gap"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">Chosen from the library, no card loaded. You can see what the template <em>wants</em>
+      before you have it. No CAST — there is nothing to send.</p>
+  </div>
+
+  <div>
+    <div class="name">F · data for a template you do not have</div>
+    <div class="dev">
+      <div class="mstrip"><span class="ham"><i></i></span>TAC LINK · CARD</div>
+      <div class="mbody">
+        <div class="lrail">
+          <b><s></s>INTEL</b><b class="on"><s></s>CARD</b><span class="sp"></span><b><s></s></b>
+        </div>
+        <div class="work">
+          <div class="scr"><div class="bad">
+            <t>NOT LOADED</t>
+            <p>tanker-track.card.json is built on a template you do not have:</p>
+            <ul><li>aar-track</li></ul>
+            <p style="margin-top:8px">Import that template and load this card again. Your current card has
+              not changed.</p>
+          </div></div>
+          <div class="abar2">
+            <k class="on">CARD</k><k>TMPL</k><span class="sep"></span><k>DATA</k><span class="gap"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">The same message a <em>received</em> card gives today, which is the common case: a
+      squadmate casts a card built on a template you have not installed.</p>
+  </div>
+</div>
+
+<h2>4 · What this means underneath</h2>
+<p class="why">
+  <b>Shipped templates stay in the app</b> (<code>resources/layouts/</code>) and are read-only. <b>Yours are
+  copied</b> into the app's own data folder on import — copied, not referenced, so a template does not vanish
+  because you tidied your Downloads folder. Same reasoning as the blob store: if the app needs it to render,
+  the app holds it.
+</p>
+<p class="why">
+  A name is stored beside the id, not written back into the file. The file you imported is never edited.
+</p>
+
+<div class="verdict">
+  <b>What I need from you before building:</b><br />
+  1 · TEMPLATES as a view of CARD in the bottom bar — or would you rather it lived in SETUP?<br />
+  2 · The library as tiles (above), or a plain list with more detail per row?<br />
+  3 · Naming on import — keep it, or just take the file's own name silently and let you rename later?<br />
+  4 · Should choosing a template with no data show the empty sheet (E), or stay on the last card you had?
+</div>
+
+</body>
+</html>

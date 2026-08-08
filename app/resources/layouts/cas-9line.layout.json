@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "id": "cas-9line",
+  "name": "CAS · 9-line",
+  "requires": [
+    "flight",
+    "jtac",
+    "nineline",
+    "attack"
+  ],
+  "pages": [
+    {
+      "id": "card",
+      "label": "CARD",
+      "layout": "single",
+      "blocks": [
+        {
+          "type": "fields",
+          "band": "header",
+          "items": [
+            {
+              "label": "CALLSIGN",
+              "value": "{flight.callsign}",
+              "width": "sm"
+            },
+            {
+              "label": "PLAYTIME",
+              "value": "{flight.playtime}",
+              "width": "xs",
+              "style": "mono"
+            },
+            {
+              "label": "BULLSEYE",
+              "value": "{flight.bullseye}",
+              "width": "md",
+              "style": "mono"
+            },
+            {
+              "label": "THREAT",
+              "value": "{flight.threat}",
+              "width": "flex",
+              "emphasis": "threat"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "title": "9-LINE",
+          "repeat": "nineline.lines",
+          "columns": [
+            {
+              "value": "{n}",
+              "width": "badge",
+              "style": "mono"
+            },
+            {
+              "value": "{label}",
+              "width": "md",
+              "emphasis": "muted"
+            },
+            {
+              "value": "{value}",
+              "width": "flex",
+              "style": "mono",
+              "emphasis": "strong"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "title": "ATTACK",
+          "repeat": "attack.steps",
+          "complete": "done",
+          "row": {
+            "name": "{name}",
+            "ref": "{ref|blank}",
+            "gate": "{alt} / {speed}",
+            "note": "{note|blank}",
+            "state": "{state|none}"
+          }
+        },
+        {
+          "type": "table",
+          "band": "comms",
+          "column": 1,
+          "title": "JTAC",
+          "repeat": "jtac.contacts",
+          "columns": [
+            {
+              "value": "{name}",
+              "width": "md",
+              "emphasis": "strong"
+            },
+            {
+              "value": "{freq}",
+              "width": "sm",
+              "style": "mono"
+            },
+            {
+              "value": "{tacan|dash}",
+              "width": "xs",
+              "style": "mono",
+              "emphasis": "muted"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "band": "comms",
+          "column": 2,
+          "title": "ABORT · SAFE",
+          "repeat": "attack.abort",
+          "columns": [
+            {
+              "value": "{name}",
+              "width": "md",
+              "emphasis": "strong"
+            },
+            {
+              "value": "{value}",
+              "width": "flex",
+              "style": "mono"
+            }
+          ]
+        },
+        {
+          "type": "prose",
+          "title": "REMARKS",
+          "bind": "attack",
+          "badge": "{winchester|blank}",
+          "list": "remarks"
+        }
+      ]
+    },
+    {
+      "id": "map",
+      "label": "MAP",
+      "layout": "full-bleed",
+      "when": "map",
+      "blocks": [
+        {
+          "type": "image",
+          "bind": "map",
+          "source": "{blob}",
+          "caption": "{caption|blank}"
+        }
+      ]
+    }
+  ]
+}
