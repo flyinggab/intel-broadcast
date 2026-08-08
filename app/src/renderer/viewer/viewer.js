@@ -74,7 +74,7 @@ const strip = { net: el('strip-net'), relay: el('strip-relay') };
 const crumb = { root: el('crumb'), page: el('crumb-page'), pos: el('crumb-pos') };
 const menukey = el('menukey');
 const nav = el('nav');
-const views = el('views');
+const abar = { root: el('abar'), views: el('abar-views') };
 const banner = {
   root: el('banner'),
   who: el('banner-who'),
@@ -119,6 +119,11 @@ const fixkey = el('fixkey');
 
 const PLACEHOLDER = 'img/frame-placeholder.svg';
 
+// The three faces of INTEL. Not destinations — RECEIVED and SHARE are what
+// INTEL is SHOWING, which is why they live in the action bar with the other
+// verbs rather than in the rail with the apps.
+const INTEL_VIEWS = ['brief', 'received', 'share'];
+
 // Every arrival banner dismisses itself. Keyed on banner.at so a later state
 // push re-rendering the SAME banner cannot extend its life.
 const BANNER_DISMISS_MS = 10000;
@@ -144,21 +149,13 @@ function renderStrip(s) {
   // The breadcrumb replaced the callsign here: the callsign is identity, which
   // settings owns and the squad sees, while WHERE YOU ARE is the thing the
   // strip has to answer now that there is no tab bar to answer it.
-  // INTEL's three views live under one destination, so the crumb names the
-  // VIEW while the rail names the app.
-  const INTEL_VIEWS = ['brief', 'received', 'share'];
-  const inIntel = INTEL_VIEWS.includes(s.page);
-  views.classList.toggle('is-hidden', !inIntel);
-  for (const key of views.querySelectorAll('[data-view]')) {
-    key.classList.toggle('is-on', key.dataset.view === s.page);
-  }
-  // Inside INTEL the crumb's page name says nothing the rail and the view keys
-  // do not already say — the rail is lit on INTEL and one key is lit on the
-  // view. Three names for one place, and at --ui-scale 1.4 the Italian ones
-  // pushed the strip 37px past the window. The position stays: that is the one
-  // thing nothing else reports.
-  const dest = DESTINATIONS.find((d) => d.id === s.page) || (inIntel ? DESTINATIONS[0] : null);
-  setText(crumb.page, inIntel ? '' : dest ? t(dest.label) : '');
+  // The strip says WHERE YOU ARE and nothing else now: its verbs moved to the
+  // action bar. That is what let the page name come back — as three word keys
+  // in here they cost 37px in Italian and pushed the strip past the window,
+  // and the name was what got dropped to pay for them.
+  const dest =
+    DESTINATIONS.find((d) => d.id === s.page) || (INTEL_VIEWS.includes(s.page) ? DESTINATIONS[0] : null);
+  setText(crumb.page, dest ? t(dest.label) : '');
   // Position is only meaningful where there is a queue to be positioned in.
   const q = s.queue;
   setText(crumb.pos, s.page === 'brief' && q.current ? `${q.pos + 1} / ${q.total}` : '');
@@ -233,7 +230,10 @@ function renderNav(s) {
       label.textContent = t(d.label);
       tile.append(label);
     }
+    // Both, always. `title` is what a hover says, and the SETUP key carries no
+    // caption at all — an icon with no word anywhere is a guess.
     tile.setAttribute('aria-label', t(d.label));
+    tile.title = t(d.label);
     nav.append(tile);
   }
 }
@@ -415,6 +415,7 @@ function render(s) {
   if (window.__renderSetup) window.__renderSetup(s);
   renderBanner(s);
   renderStage(s);
+  renderActionBar(s);
   renderBrief(s);
   renderCard(s);
   renderReceived(s);
@@ -849,13 +850,30 @@ function renderCard(s) {
   sizeCard();
 }
 
+/**
+ * The action bar: what THIS app can do.
+ *
+ * Hidden entirely where an app has no verbs. SETUP is the case that matters —
+ * it already carries a save bar, and a second empty row beneath would spend
+ * 44px of a kneeboard saying nothing.
+ */
+function renderActionBar(s) {
+  const inIntel = INTEL_VIEWS.includes(s.page);
+  const onCard = s.page === 'card';
+  abar.root.classList.toggle('is-hidden', !inIntel && !onCard);
+  abar.views.classList.toggle('is-hidden', !inIntel);
+  for (const key of abar.views.querySelectorAll('[data-view]')) {
+    key.classList.toggle('is-on', key.dataset.view === s.page);
+  }
+}
+
 function renderBrief(s) {
   const b = s.brief || {};
   presenterCursor = b.presenting ? null : b.cursor || null; // never draw our own
   const mine = b.presenting;
   const theirs = Boolean(b.presenter) && !mine;
 
-  stage.cast.classList.toggle('is-on', mine);
+  stage.cast.classList.toggle('is-live', mine);
   brief.tools.classList.toggle('is-hidden', !mine);
   stage.ink.classList.toggle('is-live', mine);
 
@@ -1005,9 +1023,9 @@ const send = (intent, payload) => window.viewerAPI && window.viewerAPI.send(inte
 // that navigates, because the rail itself is one press to anywhere.
 menukey.addEventListener('click', () => send('toggle-nav'));
 
-views.addEventListener('click', (event) => {
-  const key = event.target.closest('[data-view]');
-  if (key) send('set-page', key.dataset.view);
+abar.root.addEventListener('click', (event) => {
+  const view = event.target.closest('[data-view]');
+  if (view) return send('set-page', view.dataset.view);
 });
 
 nav.addEventListener('click', (event) => {

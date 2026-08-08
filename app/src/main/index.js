@@ -1414,7 +1414,7 @@ function attachViewerProbe() {
              barKey: document.getElementById('briefbar-key').textContent,
              markShown: !document.getElementById('brief-mark').classList.contains('is-hidden'),
              toolsShown: !document.getElementById('brief-tools').classList.contains('is-hidden'),
-             casting: document.getElementById('brief-cast').classList.contains('is-on'),
+             casting: document.getElementById('brief-cast').classList.contains('is-live'),
              inkLive: document.getElementById('stage-ink').classList.contains('is-live'),
              tool: (document.querySelector('#brief-tools [data-tool].is-on') || {}).id || '',
            },

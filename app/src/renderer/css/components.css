@@ -1009,77 +1009,53 @@ body[data-page="share"] .page.share { display: flex; }
   user-select: none;
 }
 
-/* Tool strip. Icon keys at the 44px floor: this is aimed at with a VR
-   controller ray from phase 4, and labels would not survive the Italian
-   strings at this width anyway. */
-.tools {
-  position: absolute;
-  left: var(--sp-3);
-  right: var(--sp-3);
-  bottom: calc(var(--touch-min) + var(--sp-3));
+
+
+
+/* --- action bar ------------------------------------------------------------
+   The left rail answers WHICH APP; this answers WHAT THAT APP CAN DO. Two
+   questions, two surfaces — nothing about a photo belongs in the same row as
+   SETUP, and nothing about navigation belongs next to a pen.
+
+   Rendered only where an app has verbs. SETUP has none and shows no bar: it
+   already carries a save bar, and a second empty row would cost 44px to say
+   nothing. A bar that is sometimes absent teaches that its presence means
+   something.
+
+   Not a new surface so much as a home for an old one — the ink tools used to
+   float over the stage, covering the image they were for.                   */
+.abar {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-2);
-  background: var(--bg);
-  box-shadow: var(--bevel-up);
-}
-.tools__gap { flex: 1; }
-.tool {
-  display: grid;
-  place-items: center;
-  width: var(--touch-min);
-  height: var(--touch-min);
-  flex: none;
-  background: var(--up);
-  box-shadow: var(--bevel-up);
-  color: var(--ink);
-  cursor: pointer;
-}
-.tool svg { width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.6; }
-.tool.is-on { background: var(--lit); color: var(--ink); }
-.tool:disabled { opacity: .4; cursor: default; }
-
-/* PRESENT, in the stage foot. Lit while presenting — same signal as the bar
-   and the mark, so all three agree at a glance. */
-.cast {
-  display: grid;
-  place-items: center;
-  width: var(--touch-min);
-  height: var(--touch-min);
-  flex: none;
-  background: var(--up);
-  box-shadow: var(--bevel-up);
-  color: var(--ink);
-  cursor: pointer;
-}
-.cast svg { width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.6; }
-.cast.is-on { background: var(--lit); }
-
-/* --- INTEL's three views ---------------------------------------------------
-   RECEIVED and SHARE stopped being destinations: they are what INTEL is
-   showing. That puts them beside the page name in the strip rather than in the
-   rail, and it is why each one still takes the WHOLE page when picked — a
-   filmstrip along the bottom was tried in the mockup and rejected, because two
-   recon photos are indistinguishable at that size and telling them apart is
-   the entire job.                                                           */
-.views { display: flex; flex: none; align-items: center; }
-/* Empty inside INTEL, so it must not hold width open. */
-.crumb__page:empty { display: none; }
-.views.is-hidden { display: none; }
-.views__key {
-  flex: none;
-  /* Both axes clear the floor: "FOTO" is short enough in Italian that the key
-     came out 43.4px wide, which the geometry test now catches. */
-  min-width: var(--touch-min);
-  min-height: var(--touch-min);
+  gap: var(--sp-1);
   padding: 0 var(--sp-2);
+  min-height: var(--touch-min);
+  background: var(--bg);
+  border-top: var(--rule);
+  box-shadow: 0 -1px 0 var(--hi);
+}
+.abar.is-hidden { display: none; }
+.abar__group { display: flex; align-items: center; gap: var(--sp-1); }
+.abar__group.is-hidden { display: none; }
+.abar__gap { flex: 1 1 auto; }
+.abar__sep { width: 1px; height: 1.25rem; background: var(--edge); flex: none; margin: 0 var(--sp-1); }
+
+.akey {
+  flex: none;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  display: grid;
+  place-items: center;
   background: var(--up);
   box-shadow: var(--bevel-up);
   color: var(--ink);
-  font-family: var(--font-mono);
-  font-size: var(--fs-cap);
-  letter-spacing: .07em;
   cursor: pointer;
 }
-.views__key.is-on { background: var(--lit); }
+.akey__icon { width: 1.125rem; height: 1.125rem; fill: none; stroke: currentColor; stroke-width: 1.7; }
+.akey.is-on { background: var(--lit); }
+/* Live. --go means "a requirement is satisfied" everywhere else in the app;
+   casting is the one place it means "this is happening", and it is the same
+   promise: what you are looking at is on every kneeboard right now. */
+.akey.is-live { background: var(--go); color: var(--ink); box-shadow: none; }
+.akey:disabled { opacity: .4; cursor: default; }

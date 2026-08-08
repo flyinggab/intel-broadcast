@@ -52,14 +52,6 @@
       <span class="crumb__page" id="crumb-page"></span>
       <span class="crumb__pos" id="crumb-pos"></span>
     </button>
-    <!-- INTEL's three views. Not navigation — RECEIVED and SHARE are what
-         INTEL is SHOWING, so they belong beside the page name rather than in
-         the rail. Hidden everywhere else. -->
-    <span class="views is-hidden" id="views">
-      <button class="views__key" data-view="brief" data-i18n="view.photo">PHOTO</button>
-      <button class="views__key" data-view="received" data-i18n="view.received">RECEIVED</button>
-      <button class="views__key" data-view="share" data-i18n="view.share">SHARE</button>
-    </span>
     <span class="strip__seg strip__seg--grow" id="strip-net"></span>
     <!-- The status and its remedy travel together. The strip is
          space-between, so left loose the key drifted to the far edge and read
@@ -160,35 +152,8 @@
           <button class="stage__nav stage__nav--prev" id="stage-prev" aria-label="Previous">&lsaquo;</button>
           <button class="stage__nav stage__nav--next" id="stage-next" aria-label="Next">&rsaquo;</button>
 
-          <!-- Tools. Icons, not labels: at this density labels would not
-               survive the Italian strings, and every one of these has a
-               hotkey anyway — some presenters are on a HOTAS. -->
-          <div class="tools is-hidden" id="brief-tools">
-            <button class="tool" id="tool-pen" data-tool="pen" aria-label="Pen">
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17l3-1 9-9-2-2-9 9-1 3z" /><path d="M13 3l2-2 3 3-2 2" /></svg>
-            </button>
-            <button class="tool" id="tool-arrow" data-tool="arrow" aria-label="Arrow">
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17L16 4" /><path d="M10 4h6v6" /></svg>
-            </button>
-            <button class="tool" id="tool-ring" data-tool="ring" aria-label="Ring">
-              <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /></svg>
-            </button>
-            <span class="tools__gap"></span>
-            <button class="tool" id="tool-undo" aria-label="Undo">
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 9h8a4 4 0 010 8H8" /><path d="M7 5L3 9l4 4" /></svg>
-            </button>
-            <button class="tool" id="tool-clear" aria-label="Clear">
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12" /><path d="M8 6V4h4v2" /><path d="M6 6l1 10h6l1-10" /></svg>
-            </button>
-          </div>
-
           <div class="stage__foot">
             <span class="stage__file" id="stage-file"></span>
-            <!-- PRESENT. One key, in the foot, always reachable from the page
-                 the brief is about. -->
-            <button class="cast" id="brief-cast" aria-label="Present">
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 15a5 5 0 015 5" /><path d="M2 11a9 9 0 019 9" /><path d="M2 7a13 13 0 0113 13" /><circle cx="3" cy="19" r="1.2" fill="currentColor" stroke="none" /></svg>
-            </button>
             <span class="stage__pos"><span id="stage-pos-n"></span><span class="stage__pos-meta" id="stage-pos-meta"></span></span>
           </div>
         </div>
@@ -504,6 +469,7 @@
           </section>
 
         </main>
+
       </div>
       <footer class="savebar">
         <div class="savebar__state">
@@ -525,6 +491,61 @@
          there plus its two i18n keys. -->
 
   </main>
+
+
+  <!-- ============================================== action bar ========
+       LEFT RAIL = which app. THIS = what that app can do. Rendered only
+       where an app HAS verbs — SETUP shows none, because it already has a
+       save bar and a second empty row would cost 44px to say nothing.
+       Its absence is information.
+
+       Icons only. The three view keys spent a spell as words in the strip
+       and cost 37px in Italian, which forced the page name out of the
+       crumb; as icons they cost 44px each in a bar with room for ten.
+       Chrome, so capture-clean still leaves the pilot only the photo. -->
+  <div class="abar is-hidden" id="abar">
+    <span class="abar__group" id="abar-views">
+      <button class="akey" data-view="brief" data-i18n-aria="view.photo">
+        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="4" width="16" height="12"/><circle cx="10" cy="10" r="3"/></svg>
+      </button>
+      <button class="akey" data-view="received" data-i18n-aria="view.received">
+        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9M6 9l4 4 4-4" stroke-linecap="round"/><path d="M3 15h14"/></svg>
+      </button>
+      <button class="akey" data-view="share" data-i18n-aria="view.share">
+        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V4M6 8l4-4 4 4" stroke-linecap="round"/><path d="M3 15h14"/></svg>
+      </button>
+    </span>
+
+    <!-- The ink tools. They used to float over the photo, covering the very
+         image they were for. Same bar now, shown only while presenting. -->
+    <span class="abar__group is-hidden" id="brief-tools">
+      <span class="abar__sep"></span>
+      <button class="akey" id="tool-pen" data-tool="pen" data-i18n-aria="brief.pen">
+        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17l3-1 9-9-2-2-9 9-1 3z"/><path d="M13 3l2-2 3 3-2 2"/></svg>
+      </button>
+      <button class="akey" id="tool-arrow" data-tool="arrow" data-i18n-aria="brief.arrow">
+        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17L16 4"/><path d="M10 4h6v6"/></svg>
+      </button>
+      <button class="akey" id="tool-ring" data-tool="ring" data-i18n-aria="brief.ring">
+        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5"/></svg>
+      </button>
+      <button class="akey" id="tool-undo" data-i18n-aria="brief.undo">
+        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 9h8a4 4 0 010 8H8"/><path d="M7 5L3 9l4 4"/></svg>
+      </button>
+      <button class="akey" id="tool-clear" data-i18n-aria="brief.clear">
+        <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12"/><path d="M8 6V4h4v2"/><path d="M6 6l1 10h6l1-10"/></svg>
+      </button>
+    </span>
+
+    <span class="abar__gap"></span>
+
+    <!-- ONE cast key, for a photo and for a card alike: it is the same verb —
+         put what I am looking at on everyone else's kneeboard. One glyph, one
+         binding, and a pilot who has cast a photo can cast a card. -->
+    <button class="akey" id="brief-cast" data-i18n-aria="brief.present">
+      <svg class="akey__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M2 15a5 5 0 015 5"/><path d="M2 11a9 9 0 019 9"/><path d="M2 7a13 13 0 0113 13"/><circle cx="3" cy="19" r="1.2" fill="currentColor" stroke="none"/></svg>
+    </button>
+  </div>
 
 </div>
 <script src="i18n.js"></script>

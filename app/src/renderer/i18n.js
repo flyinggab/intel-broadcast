@@ -99,7 +99,7 @@
     'okb.tabOpen': 'OPEN',
     'okb.addTab': 'RESTART OPENKNEEBOARD, THEN ADD A TAB \u2192 TAC LINK',
     'okb.stillCaptures': 'WINDOW CAPTURE KEEPS WORKING EITHER WAY',
-    'brief.present': 'PRESENT',
+    'brief.present': 'PRESENT — CAST TO THE FLIGHT',
     'brief.pen': 'PEN',
     'brief.arrow': 'ARROW',
     'brief.ring': 'RING',
@@ -303,7 +303,7 @@
     'card.rejected': 'CARD RIFIUTATA — VEDI LOG',
     'card.tick': 'SEGNA QUESTO STEP COME FATTO',
 
-    'brief.present': 'PRESENTA',
+    'brief.present': 'PRESENTA — TRASMETTI ALLA FORMAZIONE',
     'brief.pen': 'PENNA',
     'brief.arrow': 'FRECCIA',
     'brief.ring': 'CERCHIO',

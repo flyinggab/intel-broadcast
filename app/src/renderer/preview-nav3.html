@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tac Link — a bottom action bar</title>
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/base.css" />
+<link rel="stylesheet" href="css/components.css" />
+<style>
+  body { background: #22251f; color: #cfd3c8; font-family: var(--font-ui); padding: 20px 24px 60px; display: block; }
+  h1 { font-size: 20px; letter-spacing: .08em; margin: 0 0 2px; }
+  .sub { font-family: var(--font-mono); font-size: 12px; color: #8d9384; letter-spacing: .06em; margin-bottom: 20px; }
+  h2 { font-size: 14px; letter-spacing: .1em; color: #e8ece6; margin: 26px 0 4px; text-transform: uppercase; }
+  .why { font-size: 13px; line-height: 1.5; color: #a9af9f; max-width: 960px; margin: 0 0 14px; }
+  .why b { color: #e8ece6; }
+  .row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+  .name { font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em; color: #cfd3c8; margin-bottom: 6px; }
+  .name em { color: #98bb62; font-style: normal; }
+  .note { font-size: 12px; line-height: 1.45; color: #8d9384; max-width: 296px; margin-top: 7px; }
+  .dev { width: 300px; height: 380px; background: var(--bg); position: relative; overflow: hidden;
+         box-shadow: 0 0 0 7px #2c2f28, 0 0 0 8px #171a15; display: flex; flex-direction: column; }
+  .verdict { border-left: 3px solid #98bb62; padding: 8px 12px; margin: 12px 0 0; background: #262a22;
+             font-size: 13px; line-height: 1.5; max-width: 960px; }
+
+  .mstrip { height: 24px; flex: none; background: var(--bg); border-bottom: var(--rule); display: flex;
+            align-items: center; gap: 6px; padding-right: 6px; font-family: var(--font-mono);
+            font-size: 9px; color: var(--hi); }
+  .mbody { flex: 1; display: flex; min-height: 0; }
+  .photo { flex: 1; min-width: 0; background: linear-gradient(160deg,#6f7a63,#7d876f 45%,#69735d); position: relative; }
+  .gal { flex: 1; min-width: 0; background: var(--dn); display: grid; grid-template-columns: 1fr 1fr;
+         gap: 4px; padding: 5px; align-content: start; }
+  .gal i { height: 46px; background: linear-gradient(150deg,#79836b,#5f684f); box-shadow: var(--bevel-up); }
+  .gal i.off { opacity: .3; }
+  .card { flex: 1; min-width: 0; background: #E9E5DA; color: #1F1C16; padding: 5px 6px; font-size: 8px; }
+  .card b { display: block; background: #3A362D; color: #EDE9DE; font-size: 7px; letter-spacing: .1em;
+            padding: 2px 4px; font-weight: 400; margin-bottom: 3px; }
+
+  /* left rail, as shipped */
+  .rail2 { flex: none; width: 34px; background: #22271f; border-right: 1px solid #171a15;
+           display: flex; flex-direction: column; align-items: center; gap: 2px; padding-top: 3px; }
+  .r2 { width: 30px; height: 30px; flex: none; display: flex; flex-direction: column; align-items: center;
+        justify-content: center; gap: 1px; background: rgba(120,128,112,.28); color: #dfe4d6; }
+  .r2.on { background: var(--lit); color: var(--ink); }
+  .r2 svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+  .r2 span { font-size: 5px; font-weight: 700; letter-spacing: .03em; }
+  .r2spacer { flex: 1; }
+
+  /* THE PROPOSAL: a bottom action bar */
+  .abar { flex: none; height: 36px; background: var(--bg); border-top: var(--rule);
+          display: flex; align-items: center; gap: 3px; padding: 0 4px; }
+  .abar__gap { flex: 1; }
+  .ak { width: 30px; height: 30px; flex: none; display: grid; place-items: center; background: var(--up);
+        box-shadow: var(--bevel-up); color: var(--ink); cursor: pointer; }
+  .ak svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+  .ak.on { background: var(--lit); }
+  .ak.go { background: var(--go); color: #10140e; box-shadow: none; }
+  .ak.wide { width: auto; padding: 0 7px; font-family: var(--font-mono); font-size: 8px; font-weight: 700; }
+  .asep { width: 1px; height: 18px; background: var(--edge); flex: none; margin: 0 2px; }
+</style>
+</head>
+<body>
+
+<h1>A BOTTOM BAR FOR ACTIONS</h1>
+<div class="sub">LEFT = WHERE YOU ARE · BOTTOM = WHAT YOU CAN DO HERE · CLICK ANYTHING</div>
+
+<p class="why">
+  The split is the idea: the rail answers <b>which app</b>, the bottom bar answers <b>what this app can
+  do</b>. Nothing about a photo belongs in the same row as SETUP, and nothing about navigation belongs
+  next to a pen.
+  <br><br>
+  It is also not a new surface. The tool strip already sits along the bottom of the stage while
+  presenting — this generalises that instead of adding to it, which is why PRESENT and the pen live in
+  the same bar as RECEIVED and SHARE rather than floating over the photo.
+  <br><br>
+  <b>Icons only.</b> Three view keys as words cost 37px of strip in Italian and forced the crumb out;
+  as icons they cost 30px each and the bar has room for twice as many. The bar is chrome, so it hides
+  with everything else and the captured kneeboard is still only the photo.
+</p>
+
+<h2>INTEL — three views and the cast key</h2>
+<div class="row">
+  <div class="unit">
+    <div class="name">A · <em>BROWSING</em> — the photo</div>
+    <div class="dev" id="dA">
+      <div class="mstrip"><span style="width:34px;text-align:center">&#9776;</span>
+        <span style="color:var(--lit);font-weight:700">2 / 8</span>
+        <span style="margin-left:auto">HOST · 4</span></div>
+      <div class="mbody">
+        <div class="rail2">
+          <div class="r2 on"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/><path d="M6 8h8M6 12h5"/></svg><span>INTEL</span></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/><path d="M7 6h6M7 9h6"/></svg><span>CARD</span></div>
+          <div class="r2spacer"></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 3v2M10 15v2M17 10h-2M5 10H3M15 5l-1.4 1.4M6.4 13.6L5 15M15 15l-1.4-1.4M6.4 6.4L5 5"/></svg></div>
+        </div>
+        <div class="photo" id="pA"></div>
+        <div class="gal" id="gA" style="display:none"><i></i><i></i><i></i><i class="off"></i><i></i><i class="off"></i></div>
+      </div>
+      <div class="abar" id="barA">
+        <button class="ak on" data-v="photo" title="Photo"><svg viewBox="0 0 20 20"><rect x="2" y="4" width="16" height="12"/><circle cx="10" cy="10" r="3"/></svg></button>
+        <button class="ak" data-v="in" title="Received"><svg viewBox="0 0 20 20"><path d="M10 3v9M6 9l4 4 4-4" stroke-linecap="round"/><path d="M3 15h14"/></svg></button>
+        <button class="ak" data-v="out" title="Share"><svg viewBox="0 0 20 20"><path d="M10 13V4M6 8l4-4 4 4" stroke-linecap="round"/><path d="M3 15h14"/></svg></button>
+        <span class="abar__gap"></span>
+        <button class="ak" id="castA" title="Present"><svg viewBox="0 0 20 20"><path d="M2 15a5 5 0 015 5M2 11a9 9 0 019 9M2 7a13 13 0 0113 13"/><circle cx="3" cy="19" r="1.2" fill="currentColor" stroke="none"/></svg></button>
+      </div>
+    </div>
+    <div class="note">Views on the left of the bar, the cast key on the right — reading order matches
+      what they do: pick what you are looking at, then broadcast it. Press RECEIVED or SHARE and the
+      gallery takes the page; press the cast key.</div>
+  </div>
+
+  <div class="unit">
+    <div class="name">B · PRESENTING — the tools join the same bar</div>
+    <div class="dev">
+      <div class="mstrip"><span style="width:34px;text-align:center">&#9776;</span>
+        <span style="color:var(--lit);font-weight:700">2 / 8</span>
+        <span style="margin-left:auto">PRESENTING</span></div>
+      <div class="mbody">
+        <div class="rail2">
+          <div class="r2 on"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/></svg><span>INTEL</span></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/></svg><span>CARD</span></div>
+          <div class="r2spacer"></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/></svg></div>
+        </div>
+        <div class="photo"></div>
+      </div>
+      <div class="abar">
+        <button class="ak on"><svg viewBox="0 0 20 20"><rect x="2" y="4" width="16" height="12"/><circle cx="10" cy="10" r="3"/></svg></button>
+        <button class="ak"><svg viewBox="0 0 20 20"><path d="M10 3v9M6 9l4 4 4-4"/><path d="M3 15h14"/></svg></button>
+        <button class="ak"><svg viewBox="0 0 20 20"><path d="M10 13V4M6 8l4-4 4 4"/><path d="M3 15h14"/></svg></button>
+        <span class="asep"></span>
+        <button class="ak on"><svg viewBox="0 0 20 20"><path d="M3 17l3-1 9-9-2-2-9 9-1 3z"/></svg></button>
+        <button class="ak"><svg viewBox="0 0 20 20"><path d="M3 17L16 4"/><path d="M10 4h6v6"/></svg></button>
+        <button class="ak"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.5"/></svg></button>
+        <button class="ak"><svg viewBox="0 0 20 20"><path d="M4 9h8a4 4 0 010 8H8"/><path d="M7 5L3 9l4 4"/></svg></button>
+        <span class="abar__gap"></span>
+        <button class="ak go"><svg viewBox="0 0 20 20"><path d="M2 15a5 5 0 015 5M2 11a9 9 0 019 9M2 7a13 13 0 0113 13"/><circle cx="3" cy="19" r="1.2" fill="currentColor" stroke="none"/></svg></button>
+      </div>
+    </div>
+    <div class="note">The pen, arrow, ring and undo appear in the SAME bar rather than floating over the
+      photo — which is where they are today, and where they covered the image they were for. The cast
+      key goes <code>--go</code> while live. Nothing has moved; the tools just came home.</div>
+  </div>
+
+  <div class="unit">
+    <div class="name">C · CARD — a different app, a different bar</div>
+    <div class="dev">
+      <div class="mstrip"><span style="width:34px;text-align:center">&#9776;</span>
+        <span style="color:var(--lit);font-weight:700">CARD</span>
+        <span style="margin-left:auto">HOST · 4</span></div>
+      <div class="mbody">
+        <div class="rail2">
+          <div class="r2"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/></svg><span>INTEL</span></div>
+          <div class="r2 on"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/></svg><span>CARD</span></div>
+          <div class="r2spacer"></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/></svg></div>
+        </div>
+        <div class="card">
+          <div style="font-size:7px;letter-spacing:.1em;color:#6A6255">CALLSIGN</div>
+          <div style="font-size:11px;font-weight:700;margin-bottom:4px">ROMAN 1</div>
+          <b>ROUTE</b>
+          <div style="line-height:1.8">DEPART&nbsp;&#10003; · REJOIN&nbsp;&#10003; · <b style="display:inline;background:none;color:#1F1C16;font-size:8px;padding:0">AAR</b> · HOLD</div>
+        </div>
+      </div>
+      <div class="abar">
+        <span class="abar__gap"></span>
+        <button class="ak" id="sendC" title="Cast to the flight"><svg viewBox="0 0 20 20"><path d="M2 15a5 5 0 015 5M2 11a9 9 0 019 9M2 7a13 13 0 0113 13"/><circle cx="3" cy="19" r="1.2" fill="currentColor" stroke="none"/></svg></button>
+      </div>
+    </div>
+    <div class="note">The SAME cast key as a photo, because it is the same verb: put what I am looking
+      at on everyone else&rsquo;s kneeboard. One glyph to learn, one binding, and a pilot who has cast a
+      photo already knows how to cast a card.</div>
+  </div>
+  <div class="unit">
+    <div class="name">D · <em>SETUP</em> — no actions, no bar</div>
+    <div class="dev">
+      <div class="mstrip"><span style="width:34px;text-align:center">&#9776;</span>
+        <span style="color:var(--lit);font-weight:700">SETUP</span>
+        <span style="margin-left:auto">ONLINE</span></div>
+      <div class="mbody">
+        <div class="rail2">
+          <div class="r2"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/></svg><span>INTEL</span></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/></svg><span>CARD</span></div>
+          <div class="r2spacer"></div>
+          <div class="r2 on"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/></svg></div>
+        </div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+          <div style="flex:1;background:var(--bg);padding:6px;font-size:9px;color:var(--ink)">
+            <div style="font-family:var(--font-mono);font-size:7px;letter-spacing:.1em;color:var(--muted)">CALLSIGN</div>
+            <div style="background:var(--dn);box-shadow:var(--bevel-dn);padding:4px 6px;color:var(--lit);font-weight:700;margin-top:3px">GHOSTRIDER 1-1</div>
+          </div>
+          <div style="flex:none;display:flex;align-items:center;gap:6px;padding:5px 6px;background:var(--bg);border-top:var(--rule)">
+            <span style="font-family:var(--font-mono);font-size:7px;color:var(--muted)">ALL CHANGES APPLIED</span>
+            <span style="margin-left:auto;font-family:var(--font-mono);font-size:8px;font-weight:700;background:var(--up);box-shadow:var(--bevel-up);color:var(--muted);padding:3px 7px">SAVE &amp; APPLY</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note">No action bar at all. SETUP already has a save bar, and stacking a second empty
+      row under it would cost 36px to say nothing. <b>The bar is present only where an app has verbs</b>
+      — its absence is information too.</div>
+  </div>
+</div>
+
+<div class="verdict"><b>What this buys, concretely.</b> The strip stops being a junk drawer: it goes back
+to saying only where you are and whether you are online, and it stops overflowing — three word-keys cost
+37px in Italian and forced the crumb out, three icon-keys cost 90px in a bar with room for ten.
+The tool strip stops floating over the photo. And every app gets somewhere obvious to put its verbs,
+which CARD needs immediately and the roadmap's MAP and PLAN will need next.
+<br><br>
+<b>The cost:</b> 36–44px of height, permanently, on a surface whose whole point is the photo. It is
+chrome so capture-clean still hides it, but on screen it is real. The rail already took 46px of width;
+this takes height as well, and the two together are about 12% of the window.
+<br><br>
+<b>Settled:</b> icons only, everywhere — including the cast key on CARD, which is the SAME glyph as
+casting a photo because it is the same verb. One glyph, one binding, and nothing new to learn.
+<br><br>
+<b>And the bar only exists where an app has verbs.</b> SETUP shows none. That keeps the cost honest:
+36px on the two surfaces that use it, nothing on the ones that do not — and a bar that is sometimes
+absent teaches the pilot that its presence means something.</div>
+
+<script>
+  const bar = document.getElementById('barA');
+  const photo = document.getElementById('pA');
+  const gal = document.getElementById('gA');
+  bar.addEventListener('click', (e) => {
+    const k = e.target.closest('.ak[data-v]');
+    if (!k) return;
+    bar.querySelectorAll('.ak[data-v]').forEach((o) => o.classList.toggle('on', o === k));
+    const showing = k.dataset.v === 'photo';
+    photo.style.display = showing ? '' : 'none';
+    gal.style.display = showing ? 'none' : 'grid';
+  });
+  document.getElementById('castA').addEventListener('click', (e) => {
+    e.currentTarget.classList.toggle('go');
+  });
+  document.getElementById('sendC').addEventListener('click', (e) => {
+    e.currentTarget.classList.toggle('go');
+  });
+</script>
+</body>
+</html>

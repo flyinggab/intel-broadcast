@@ -121,7 +121,9 @@ async function goTo(dest) {
   if (probe.navCollapsed) await click('#menukey');
   // RECEIVED and SHARE are no longer destinations — they are views of INTEL,
   // picked from the strip. Still one press either way.
-  if (dest === 'received' || dest === 'share') return click(`.views__key[data-view="${dest}"]`);
+  // The views moved from the strip to the action bar: they are app verbs, not
+  // navigation.
+  if (dest === 'received' || dest === 'share') return click(`#abar .akey[data-view="${dest}"]`);
   await click(`.dest[data-dest="${dest}"]`);
 }
 
