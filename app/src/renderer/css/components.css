@@ -12,7 +12,9 @@
   justify-content: space-between;
   gap: var(--sp-4);
   height: var(--h-strip);
-  padding: 0 var(--sp-4);
+  /* No padding on the left: the collapse key is flush with the window edge so
+     it lines up with the rail below it. */
+  padding: 0 var(--sp-4) 0 0;
   background: var(--bg);
   border-bottom: var(--rule);
   box-shadow: 0 1px 0 var(--hi);
@@ -238,13 +240,15 @@ body[data-mode="join"] [data-mode="host"] { display: none; }
 
 .menukey {
   flex: none;
+  /* Exactly the rail's width, because it sits directly above it — a collapse
+     key half a column off the thing it collapses reads as unrelated. */
+  width: 2.875rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Square, and both dimensions are the floor. This was 2.25rem (36px) wide
-     against a 44px floor: a corner target you had to aim at. The geometry
-     test never caught it because it only measured HEIGHT. */
-  width: var(--touch-min);
+  /* Both dimensions clear the 44px floor. It was 2.25rem (36px) wide against
+     that floor: a corner target you had to aim at, and the geometry test never
+     caught it because it only measured HEIGHT. */
   height: var(--touch-min);
   padding: 0;
   border: 0;
@@ -371,6 +375,8 @@ body[data-surface="window"] .wctl { display: flex; align-items: center; gap: 1px
   letter-spacing: .04em;
   line-height: 1;
 }
+/* Pushes SYSTEM to the foot of the rail. */
+.nav__spacer { flex: 1 1 auto; }
 .nav__sep {
   flex: none;
   height: 1px;
@@ -402,23 +408,6 @@ body[data-surface="window"] .wctl { display: flex; align-items: center; gap: 1px
 .crumb__page { color: var(--lit); font-weight: 700; }
 .crumb__pos { color: var(--hi); }
 
-.menukey {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Square, and both dimensions are the floor. This was 2.25rem (36px) wide
-     against a 44px floor: a corner target you had to aim at. The geometry
-     test never caught it because it only measured HEIGHT. */
-  width: var(--touch-min);
-  height: var(--touch-min);
-  padding: 0;
-  border: 0;
-  background: var(--up);
-  box-shadow: var(--bevel-up);
-  color: var(--ink);
-  cursor: pointer;
-}
 .menukey:active,
 .menukey.is-active { background: var(--dn); box-shadow: var(--bevel-dn); color: var(--lit); }
 .menukey__icon { width: .875rem; height: .875rem; stroke: currentColor; fill: none; stroke-width: 1.6; }

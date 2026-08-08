@@ -40,6 +40,14 @@
        where you are, the connection, and the key that opens the launcher.
        28px of the capture, replacing a 28px strip AND a 58px tab bar. -->
   <header class="strip" id="strip">
+    <!-- FIRST in the strip, so it sits directly above the rail it collapses.
+         It is in the strip rather than in the rail because a control that
+         disappears with the thing it toggles cannot bring it back. -->
+    <button class="menukey" id="menukey" aria-expanded="true">
+      <svg class="menukey__icon" viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M3 6h14M3 10h14M3 14h14"/>
+      </svg>
+    </button>
     <button class="crumb" id="crumb" aria-haspopup="menu" aria-expanded="false">
       <span class="crumb__page" id="crumb-page"></span>
       <span class="crumb__pos" id="crumb-pos"></span>
@@ -61,14 +69,6 @@
         <circle cx="6" cy="15" r="2" fill="currentColor" stroke="none"/>
       </svg>
     </button>
-    <!-- Collapses the nav rail, and lives HERE rather than in the rail: a
-         control that disappears with the thing it toggles cannot bring it
-         back. -->
-    <button class="menukey" id="menukey" aria-expanded="true">
-      <svg class="menukey__icon" viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M3 6h14M3 10h14M3 14h14"/>
-        </svg>
-      </button>
       <!-- The window's own controls. The frame is gone so OpenKneeboard's
            Window Capture never picks up a Windows title bar, which means the
            only way to move, size or close this window is here. CSS shows them

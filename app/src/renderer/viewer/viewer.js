@@ -68,11 +68,17 @@ const DESTINATIONS = [
     id: 'setup',
     group: 'system',
     label: 'tab.setup',
+    // A gear, and no caption: SETUP is the one destination nobody has to be
+    // told the name of, and it sits apart from the flight surfaces anyway.
     icon: [
-      ['path', { d: 'M2 5h16M2 10h16M2 15h16' }],
-      ['circle', { cx: 7, cy: 5, r: 2, fill: 'currentColor', stroke: 'none' }],
-      ['circle', { cx: 13, cy: 10, r: 2, fill: 'currentColor', stroke: 'none' }],
-      ['circle', { cx: 6, cy: 15, r: 2, fill: 'currentColor', stroke: 'none' }],
+      ['circle', { cx: 10, cy: 10, r: 2.6 }],
+      [
+        'path',
+        {
+          d: 'M10 2.6v2M10 15.4v2M17.4 10h-2M4.6 10h-2M15.2 4.8l-1.4 1.4M6.2 13.8l-1.4 1.4M15.2 15.2l-1.4-1.4M6.2 6.2L4.8 4.8',
+          'stroke-linecap': 'round',
+        },
+      ],
     ],
   },
 ];
@@ -192,9 +198,15 @@ function renderNav(s) {
   nav.textContent = '';
   let lastGroup = null;
   for (const d of DESTINATIONS) {
-    // A hairline where the group changes. The grid's headings do not survive
-    // at 46px, and a caption per icon already says what each one is.
-    if (lastGroup !== null && d.group !== lastGroup) {
+    // SYSTEM is pushed to the FOOT of the rail. It is not a flight surface —
+    // nobody reaches for SETUP while they are flying — and putting it at the
+    // bottom keeps the destinations a pilot actually uses under the thumb, in
+    // the same order every time, however many pages the roadmap adds above.
+    if (d.group === 'system' && lastGroup !== 'system') {
+      const spacer = document.createElement('span');
+      spacer.className = 'nav__spacer';
+      nav.append(spacer);
+    } else if (lastGroup !== null && d.group !== lastGroup) {
       const sep = document.createElement('span');
       sep.className = 'nav__sep';
       nav.append(sep);
@@ -214,10 +226,15 @@ function renderNav(s) {
       for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
       svg.append(node);
     }
-    const label = document.createElement('span');
-    label.className = 'dest__label';
-    label.textContent = t(d.label);
-    tile.append(svg, label);
+    tile.append(svg);
+    // SETUP carries the gear alone; everything else earns its caption.
+    if (d.group !== 'system') {
+      const label = document.createElement('span');
+      label.className = 'dest__label';
+      label.textContent = t(d.label);
+      tile.append(label);
+    }
+    tile.setAttribute('aria-label', t(d.label));
     nav.append(tile);
   }
 }
