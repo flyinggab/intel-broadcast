@@ -115,11 +115,10 @@ async function probeInViewer(objectLiteral) {
 
 const click = (selector) => runInViewer(`document.querySelector(${JSON.stringify(selector)}).click()`);
 
-// The tab bar is gone: navigation is the launcher. Open it from the strip,
-// then pick a destination. Two clicks, exactly as a pilot does it.
+// ONE press. The grid launcher is gone: the rail is always on screen, so
+// getting anywhere costs a single press — which is why it replaced the menu.
 async function goTo(dest) {
-  if (!probe.launcherOpen) await click('#menukey');
-  await waitFor('the launcher to open', () => probe.launcherOpen === true);
+  if (probe.navCollapsed) await click('#menukey');
   await click(`.dest[data-dest="${dest}"]`);
 }
 
@@ -175,7 +174,7 @@ async function main() {
   // focus — which a window spawned by a test script does not reliably get.
   // Relying on that made this assertion pass or fail by luck.
   await runInViewer(`window.dispatchEvent(new MouseEvent('mousemove'))`);
-  // The chrome must NEVER disappear on its own. Both ways into the launcher
+  // The chrome must NEVER disappear on its own. The rail and the key that
   // live in .strip, so hiding it strands the pilot on whatever page they are
   // on. This asserts it while the window is UNFOCUSED — document.hasFocus() is
   // false here, which is exactly the case that defeated an earlier fix that
@@ -187,10 +186,10 @@ async function main() {
     menukey: !!document.getElementById('menukey').offsetParent,
   }`);
   if (chrome.strip !== true || chrome.menukey !== true) {
-    throw new Error(`the launcher must stay reachable when idle, got ${JSON.stringify(chrome)}`);
+    throw new Error(`navigation must stay reachable when idle, got ${JSON.stringify(chrome)}`);
   }
   if (probe.chromeHidden) throw new Error('chrome must not hide itself');
-  console.log(`[e2e] idle with hasFocus=${chrome.hasFocus}: strip and launcher key still there`);
+  console.log(`[e2e] idle with hasFocus=${chrome.hasFocus}: strip and nav key still there`);
 
   // --- tabs switch pages; SETUP does not ------------------------------------
   await goTo('received');
@@ -203,43 +202,49 @@ async function main() {
   if (probe.batches[0].tiles.length !== 3) throw new Error('every received photo gets a tile');
   console.log('[e2e] RECEIVED lists the batch with callsign, selection count and Zulu time');
 
-  // --- the launcher is the navigation now ---------------------------------
-  if (!probe.launcherOpen) await click('#menukey');
-  await waitFor('the launcher to open', () => probe.launcherOpen === true);
-  if (!probe.dests.includes('brief') || !probe.dests.includes('setup')) {
-    throw new Error(`launcher must list every destination, got ${JSON.stringify(probe.dests)}`);
+  // --- the rail is the navigation now -------------------------------------
+  if (probe.navCollapsed) await click('#menukey');
+  if (!probe.navDests.includes('brief') || !probe.navDests.includes('setup')) {
+    throw new Error(`the rail must list every destination, got ${JSON.stringify(probe.navDests)}`);
   }
-  if (!probe.groups.length) throw new Error('destinations must be grouped — that is what scales');
-  // Escape must close it: it covers the whole window.
-  await runInViewer(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
-  await waitFor('Escape to close the launcher', () => probe.launcherOpen === false);
-  console.log('[e2e] launcher lists every destination, grouped, and Escape closes it');
+  if (probe.navLabels.some((l) => !l)) {
+    throw new Error(`every rail key carries a caption, got ${JSON.stringify(probe.navLabels)}`);
+  }
+  console.log(`[e2e] rail lists ${probe.navDests.length} destinations, each captioned`);
 
-  // ...and it must be VISIBLE, which is a different question from open. On
-  // BRIEF the page underneath owns a .stage whose chrome and standby plate are
-  // absolutely positioned siblings in the same stacking context; when they
-  // outranked the launcher it opened, took the click and stayed buried, so the
-  // landing page had no way out of it. Checking the class alone missed that
-  // entirely — ask which element is really on top.
-  await goTo('brief');
-  await waitFor('BRIEF page', () => probe.page === 'brief');
+  // ONE press to switch. That is the entire reason the rail replaced the grid
+  // launcher, so it is asserted rather than assumed: no opening step first.
+  await click('.dest[data-dest="setup"]');
+  await waitFor('SETUP in one press', () => probe.page === 'setup');
+  await click('.dest[data-dest="brief"]');
+  await waitFor('BRIEF in one press', () => probe.page === 'brief');
+  console.log('[e2e] one press per destination — no menu to open first');
+
+  // Collapsing must never strand a pilot. The key that brings the rail back
+  // lives in the STRIP rather than in the rail, so it survives its own
+  // collapse — a control that disappears with the thing it toggles cannot
+  // undo itself, and on BRIEF that would leave no navigation at all.
   await click('#menukey');
-  await waitFor('the launcher to open over BRIEF', () => probe.launcherOpen === true);
-  if (probe.launcherOnTop !== true) {
+  await waitFor('the rail to collapse', () => probe.navCollapsed === true);
+  await runInViewer(`
+    const k = document.getElementById('menukey');
+    const r = k.getBoundingClientRect();
+    let hit = document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2));
+    while (hit && !hit.id && hit.parentElement) hit = hit.parentElement;
+    console.log('MENUKEY ' + JSON.stringify({ id: hit && hit.id, w: Math.round(r.width) }));
+  `);
+  const keyLine = output.split('\n').reverse().find((l) => l.includes('MENUKEY '));
+  const key = JSON.parse(keyLine.slice(keyLine.indexOf('MENUKEY ') + 8));
+  if (key.id !== 'menukey' || !key.w) {
     throw new Error(
-      `the open launcher is buried on BRIEF (standby=${probe.standby}) — a pilot cannot navigate`,
+      `with the rail collapsed the key that reopens it is unreachable (hit "${key.id}") — ` +
+        'collapsing would trap the pilot with no way to navigate',
     );
   }
-  const stack = probe.launcherStack;
-  if (stack.launcher <= stack.chrome || stack.launcher <= stack.standby) {
-    throw new Error(
-      `the launcher must outrank every stage layer, got ${JSON.stringify(stack)} — ` +
-        'on BRIEF the menu opens under the stage and the landing page becomes a dead end',
-    );
-  }
-  console.log(`[e2e] launcher paints above the BRIEF stage ${JSON.stringify(stack)}`);
-  await runInViewer(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
-  await waitFor('Escape to close the launcher', () => probe.launcherOpen === false);
+  await click('#menukey');
+  await waitFor('the rail to come back', () => probe.navCollapsed === false);
+  console.log('[e2e] the rail collapses and comes back from the strip');
+
 
   // SETUP is a page of this window now — the EFB carries its own settings.
   await goTo('setup');

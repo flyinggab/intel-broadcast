@@ -18,7 +18,7 @@ const body = document.body;
 const el = (id) => document.getElementById(id);
 
 // --- destinations -----------------------------------------------------------
-// The launcher is generated from this. Adding a page is ONE entry here plus
+// The nav rail is generated from this. Adding a page is ONE entry here plus
 // its two i18n keys — which is the whole reason the tab bar went: a bar
 // divides a fixed width by N and stops working at six, a grouped grid does
 // not. Every entry is a page of this window, SETUP included: the EFB carries
@@ -83,7 +83,7 @@ const GROUPS = ['intel', 'mission', 'reference', 'tools', 'system'];
 const strip = { net: el('strip-net'), relay: el('strip-relay') };
 const crumb = { root: el('crumb'), page: el('crumb-page'), pos: el('crumb-pos') };
 const menukey = el('menukey');
-const launcher = el('launcher');
+const nav = el('nav');
 const banner = {
   root: el('banner'),
   who: el('banner-who'),
@@ -172,56 +172,53 @@ function renderStrip(s) {
   fixkey.title = t('net.fix');
 }
 
-function renderLauncher(s) {
-  launcher.classList.toggle('is-hidden', !s.launcherOpen);
-  // The menu key goes while a presenter holds this pilot's controls, for the
-  // same reason the chevrons do: main refuses to open the launcher, so the
-  // key would press and do nothing. Same rule everywhere — a control that
-  // cannot act is not shown.
-  const held = Boolean(s.brief && s.brief.locked);
-  menukey.classList.toggle('is-hidden', held);
-  menukey.classList.toggle('is-active', Boolean(s.launcherOpen));
-  menukey.setAttribute('aria-expanded', s.launcherOpen ? 'true' : 'false');
-  crumb.root.setAttribute('aria-expanded', s.launcherOpen ? 'true' : 'false');
-  // Rebuilding a hidden menu every push is waste, and it would also fight the
-  // pilot's scroll position inside it.
-  if (!s.launcherOpen) return;
+/**
+ * The navigation rail. Rebuilt only when the destination set or the active
+ * page changes — it is on screen permanently now, so rebuilding it on every
+ * 3-second state push would fight the pilot's own scroll and hover.
+ */
+let renderedNav = '';
+function renderNav(s) {
+  nav.classList.toggle('is-collapsed', Boolean(s.navCollapsed));
+  menukey.classList.toggle('is-active', !s.navCollapsed);
+  menukey.setAttribute('aria-expanded', s.navCollapsed ? 'false' : 'true');
+  menukey.setAttribute('aria-label', t('nav.toggle'));
+  menukey.title = t('nav.toggle');
 
-  launcher.textContent = '';
-  for (const group of GROUPS) {
-    const members = DESTINATIONS.filter((d) => d.group === group);
-    if (members.length === 0) continue;
+  const signature = `${s.page}|${s.locale}`;
+  if (signature === renderedNav) return;
+  renderedNav = signature;
 
-    const heading = document.createElement('span');
-    heading.className = 'launcher__group';
-    heading.textContent = t(`group.${group}`);
-    launcher.appendChild(heading);
-
-    const tiles = document.createElement('div');
-    tiles.className = 'launcher__tiles';
-    for (const d of members) {
-      const tile = document.createElement('button');
-      tile.className = 'dest' + (d.id === s.page ? ' is-active' : '');
-      tile.dataset.dest = d.id;
-      tile.setAttribute('role', 'menuitem');
-
-      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      svg.setAttribute('class', 'dest__icon');
-      svg.setAttribute('viewBox', '0 0 20 20');
-      svg.setAttribute('aria-hidden', 'true');
-      for (const [tag, attrs] of d.icon) {
-        const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
-        for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, String(value));
-        svg.appendChild(node);
-      }
-
-      const name = document.createElement('span');
-      name.textContent = t(d.label);
-
-      tile.append(svg, name);
-      tiles.appendChild(tile);
+  nav.textContent = '';
+  let lastGroup = null;
+  for (const d of DESTINATIONS) {
+    // A hairline where the group changes. The grid's headings do not survive
+    // at 46px, and a caption per icon already says what each one is.
+    if (lastGroup !== null && d.group !== lastGroup) {
+      const sep = document.createElement('span');
+      sep.className = 'nav__sep';
+      nav.append(sep);
     }
-    launcher.appendChild(tiles);
+    lastGroup = d.group;
+
+    const tile = document.createElement('button');
+    tile.className = 'dest' + (d.id === s.page ? ' is-active' : '');
+    tile.dataset.dest = d.id;
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'dest__icon');
+    svg.setAttribute('viewBox', '0 0 20 20');
+    svg.setAttribute('aria-hidden', 'true');
+    for (const [tag, attrs] of d.icon) {
+      const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      svg.append(node);
+    }
+    const label = document.createElement('span');
+    label.className = 'dest__label';
+    label.textContent = t(d.label);
+    tile.append(svg, label);
+    nav.append(tile);
   }
 }
 
@@ -395,7 +392,7 @@ function render(s) {
   body.classList.toggle('is-chrome-hidden', s.chromeHidden);
   body.classList.toggle('is-unfocused', !s.focused);
 
-  renderLauncher(s);
+  renderNav(s);
   renderStrip(s);
   // SETUP is a page of this window; settings.js exposes its renderer rather
   // than subscribing separately, so the two cannot show different snapshots.
@@ -816,7 +813,7 @@ function renderCard(s) {
     return;
   }
 
-  // CARD and MAP are two destinations, not a rail — the launcher pages
+  // CARD and MAP are two destinations, not a sub-rail — the nav pages
   // between them. This renders whichever one the snapshot selects.
   const page = model.pages.find((p) => p.id === (s.cardPage || 'card')) || model.pages[0];
   const comms = [];
@@ -985,23 +982,18 @@ window.addEventListener('resize', sizeCard);
 
 const send = (intent, payload) => window.viewerAPI && window.viewerAPI.send(intent, payload);
 
-// Two ways into the launcher, both in the strip: the key, and the breadcrumb
+// Navigation
 // itself — the label already says where you are, so it is the obvious thing
 // to press to go somewhere else.
-menukey.addEventListener('click', () => send('toggle-launcher'));
-crumb.root.addEventListener('click', () => send('toggle-launcher'));
+// The hamburger collapses the rail. It is the only thing left in the strip
+// that navigates, because the rail itself is one press to anywhere.
+menukey.addEventListener('click', () => send('toggle-nav'));
 
-launcher.addEventListener('click', (event) => {
+nav.addEventListener('click', (event) => {
   const tile = event.target.closest('.dest[data-dest]');
   if (!tile) return;
   const dest = DESTINATIONS.find((d) => d.id === tile.dataset.dest);
   if (dest) send('set-page', dest.id);
-});
-
-// Escape closes it — the launcher covers the whole window, so there has to be
-// a way out that is not "find the key again".
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') send('close-launcher');
 });
 
 banner.close.addEventListener('click', () => send('banner-dismiss'));

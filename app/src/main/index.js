@@ -827,7 +827,7 @@ function writeHotkeyMarker() {
 // The chrome does NOT auto-hide.
 //
 // It used to, after a few idle seconds on BRIEF. That hid `.strip`, and both
-// ways into the launcher — the breadcrumb and the menu key — live in the
+// the rail and the hamburger that collapses it live in the
 // strip. So sitting still on BRIEF removed the only way off the page: you
 // click where the key was and nothing is there to receive it.
 //
@@ -1045,7 +1045,7 @@ function applyNewConfig(newConfig) {
 
 /**
  * Shows SETUP. It is a page of the viewer — the EFB carries its own settings —
- * so this navigates rather than opening a window. Reached from the launcher,
+ * so this navigates rather than opening a window. Reached from the rail,
  * the tray and the app menu.
  *
  * The Tailscale panel polls only while SETUP is the page: it shells out to the
@@ -1118,12 +1118,8 @@ function handleViewerIntent(intent, payload) {
       noteActivity();
       break;
     }
-    case 'toggle-launcher':
-      view.toggleLauncher();
-      noteActivity();
-      break;
-    case 'close-launcher':
-      view.setLauncher(false);
+    case 'toggle-nav':
+      view.toggleNav();
       noteActivity();
       break;
     case 'step':
@@ -1422,33 +1418,9 @@ function attachViewerProbe() {
              inkLive: document.getElementById('stage-ink').classList.contains('is-live'),
              tool: (document.querySelector('#brief-tools [data-tool].is-on') || {}).id || '',
            },
-           launcherOpen: !document.getElementById('launcher').classList.contains('is-hidden'),
-           // Not the same question as launcherOpen, and the difference is a
-           // shipped bug: the menu was open and taking clicks while the BRIEF
-           // stage painted over it, so the class said "open" and the pilot saw
-           // nothing. Ask the compositor who is actually on top.
-           launcherOnTop: (() => {
-             const el = document.getElementById('launcher');
-             if (el.classList.contains('is-hidden')) return null;
-             const r = el.getBoundingClientRect();
-             const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-             return Boolean(hit) && (hit === el || el.contains(hit));
-           })(),
-           // The same question asked structurally, because the hit test alone
-           // is not enough: .stage__chrome is pointer-events: none, so it
-           // buries the launcher visually while letting the probe's click
-           // straight through. These layers share a stacking context, so the
-           // ranking IS the invariant.
-           launcherStack: (() => {
-             const z = (sel) => {
-               const n = document.querySelector(sel);
-               return n ? parseInt(getComputedStyle(n).zIndex, 10) || 0 : 0;
-             };
-             return { launcher: z('#launcher'), chrome: z('.stage__chrome'), standby: z('.stage__standby') };
-           })(),
-           crumb: document.getElementById('crumb-page').textContent + ' ' + document.getElementById('crumb-pos').textContent,
-           dests: [...document.querySelectorAll('.dest[data-dest]')].map((d) => d.dataset.dest),
-           groups: [...document.querySelectorAll('.launcher__group')].map((g) => g.textContent),
+           navCollapsed: document.getElementById('nav').classList.contains('is-collapsed'),
+           navDests: [...document.querySelectorAll('#nav .dest[data-dest]')].map((d) => d.dataset.dest),
+           navLabels: [...document.querySelectorAll('#nav .dest__label')].map((l) => l.textContent),
            pos: document.getElementById('stage-pos-n').textContent,
            standby: !document.getElementById('stage-standby').classList.contains('is-hidden'),
            batches: [...document.querySelectorAll('.batch[data-batch-id]')].map((b) => ({

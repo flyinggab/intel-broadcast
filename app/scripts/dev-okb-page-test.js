@@ -37,7 +37,7 @@ const SNAPSHOT = {
   connected: true,
   peers: [],
   page: 'brief',
-  launcherOpen: false,
+  navCollapsed: false,
   chromeHidden: false,
   focused: true,
   autoShow: true,

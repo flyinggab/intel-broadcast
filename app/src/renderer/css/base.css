@@ -91,6 +91,9 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .body {
   flex: 1 1 auto;
   min-height: 0;
+  /* A ROW now: the nav rail beside the pages, rather than a menu on top of
+     them. */
+  display: flex;
   /* The containing block for anything absolutely positioned inside a page —
      the launcher, the stage's standby plate. Without it `inset: 0` escapes to
      the viewport and the launcher covers the strip, taking the breadcrumb and
@@ -106,6 +109,9 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 /* --- page switching ------------------------------------------------------
    JS sets data-page on <body>. Exactly one .page is visible.               */
 .page { display: none; }
+/* Beside the rail, not under it: .body is a row now, so a visible page has to
+   claim the remaining width or it collapses to its content. */
+.body > .page { flex: 1 1 auto; min-width: 0; }
 body[data-page="brief"]    .page[data-page="brief"],
 body[data-page="received"] .page[data-page="received"],
 body[data-page="share"]    .page[data-page="share"],
@@ -142,7 +148,7 @@ body.viewer[data-page="brief"] .body { overflow: hidden; }
    it happens to be open, an open menu would otherwise be the one thing left
    on the pilot's knee.                                                     */
 body[data-surface="window"].is-chrome-hidden .strip,
-body[data-surface="window"].is-chrome-hidden .launcher,
+body[data-surface="window"].is-chrome-hidden .nav,
 body[data-surface="window"].is-chrome-hidden .banner,
 body[data-surface="window"].is-chrome-hidden .briefbar,
 body[data-surface="window"].is-chrome-hidden .stage__chrome { display: none !important; }

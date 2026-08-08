@@ -317,6 +317,172 @@ body[data-surface="window"] .wctl { display: flex; align-items: center; gap: 1px
    A full-screen grouped grid, over whatever page you were on. Grouping is
    the part that scales: fourteen destinations in a flat row is a lookup
    problem, under four headings it is not.                                   */
+/* --- navigation rail -------------------------------------------------------
+   The grid launcher cost TWO presses — open it, then pick — and the answer to
+   that is not a better menu, it is not having one. A rail that is always on
+   screen is one press to anywhere.
+
+   It is dark rather than the app's raised grey on purpose: it sits against the
+   photo all flight, and a bright column beside a recon image competes with the
+   thing the app exists to show. The active destination is the only lit surface.
+
+   46px, permanently, taken from the photo's width. That is the whole cost, and
+   the hamburger in the strip buys it back — see .nav.is-collapsed.           */
+.nav {
+  flex: none;
+  width: 2.875rem;
+  background: #22271f;
+  border-right: 1px solid #171a15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding-top: var(--sp-2);
+  overflow: hidden;
+}
+/* Collapsed to nothing, for a pilot who wants the photo edge to edge. The key
+   that brings it back lives in the STRIP, never in here: a control that
+   vanishes with the thing it toggles cannot undo itself. */
+.nav.is-collapsed { width: 0; border-right: 0; padding: 0; }
+
+.dest {
+  flex: none;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  background: rgba(120, 128, 112, .28);
+  color: #dfe4d6;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+}
+.dest:hover { background: rgba(120, 128, 112, .45); }
+.dest.is-active { background: var(--lit); color: var(--ink); }
+.dest__icon { width: 1.0625rem; height: 1.0625rem; fill: none; stroke: currentColor; stroke-width: 1.7; }
+/* Small enough to sit under a 17px icon inside 44px, large enough to read on
+   the ground. It is a caption, not a label — the icon carries the meaning. */
+.dest__label {
+  font-size: .4375rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  line-height: 1;
+}
+.nav__sep {
+  flex: none;
+  height: 1px;
+  width: 60%;
+  background: rgba(223, 228, 214, .22);
+  margin: var(--sp-1) 0;
+}
+
+/* --- breadcrumb + menu key ------------------------------------------------
+   Navigation lives in the strip now. The tab bar is gone: it divided a fixed
+   width by the number of destinations, so it stopped working at six, and it
+   charged 58px of the captured window for an interaction the pilot cannot
+   perform in flight anyway.                                                 */
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+  align-self: stretch;          /* the strip's full height is the target */
+  min-height: var(--touch-min);
+  padding: 0 var(--sp-2) 0 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  letter-spacing: .04em;
+}
+.crumb__page { color: var(--lit); font-weight: 700; }
+.crumb__pos { color: var(--hi); }
+
+.menukey {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Square, and both dimensions are the floor. This was 2.25rem (36px) wide
+     against a 44px floor: a corner target you had to aim at. The geometry
+     test never caught it because it only measured HEIGHT. */
+  width: var(--touch-min);
+  height: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: var(--up);
+  box-shadow: var(--bevel-up);
+  color: var(--ink);
+  cursor: pointer;
+}
+.menukey:active,
+.menukey.is-active { background: var(--dn); box-shadow: var(--bevel-dn); color: var(--lit); }
+.menukey__icon { width: .875rem; height: .875rem; stroke: currentColor; fill: none; stroke-width: 1.6; }
+
+/* --- window controls ------------------------------------------------------
+   Only on the Electron surface. Rendered as an OpenKneeboard web dashboard
+   (body[data-surface="okb"]) there is no window to minimise or close, and a
+   close key that does nothing on a pilot's knee is worse than no key.
+
+   Square at --touch-min, like .menukey beside them. These were 34px wide
+   first, on the reasoning that a window control is a desktop affordance and
+   the 44px floor exists for VR rays — but dev-ui-geometry-test failed them,
+   and it was right to: they sit in the flight strip, and the argument for
+   exempting the one control that can quit the app mid-flight is the weakest
+   place to spend an exemption.                                             */
+.wctl { display: none; }
+body[data-surface="window"] .wctl { display: flex; align-items: center; gap: 1px; margin-left: var(--sp-2); }
+.wctl__key {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--hi);
+  cursor: pointer;
+}
+.wctl__key:hover { background: var(--up); color: var(--ink); }
+.wctl__key:active { background: var(--dn); color: var(--lit); }
+/* Close is the one control here you cannot undo, so it is the one that says
+   so — and it borrows the fault hue only on approach, never at rest, because
+   red at rest would compete with a broken relay for meaning. */
+.wctl__key--close:hover { background: var(--fault); color: var(--lit); }
+.wctl__key--close:active { background: var(--fault-dk); color: var(--lit); }
+.wctl__icon { width: .75rem; height: .75rem; stroke: currentColor; fill: none; stroke-width: 1.4; }
+
+/* The offline affordance. Replaces a full-width bar: being offline does not
+   lose the intel already received, so it never warranted a row of its own —
+   but it does need somewhere to go, which a status word alone is not. */
+.fixkey {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  padding: 0;
+  border: 0;
+  background: var(--fault-dk);
+  box-shadow: inset 0 0 0 1px var(--fault);
+  color: var(--fault);
+  cursor: pointer;
+}
+.fixkey.is-hidden { display: none; }
+.fixkey:active { background: var(--fault); color: var(--lit); }
+.fixkey__icon { width: .875rem; height: .875rem; stroke: currentColor; fill: none; stroke-width: 1.6; }
+
+/* --- launcher -------------------------------------------------------------
+   A full-screen grouped grid, over whatever page you were on. Grouping is
+   the part that scales: fourteen destinations in a flat row is a lookup
+   problem, under four headings it is not.                                   */
 .launcher {
   position: absolute;
   inset: 0;

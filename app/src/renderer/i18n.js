@@ -23,6 +23,8 @@
 })(typeof self !== 'undefined' ? self : globalThis, function () {
   const en = {
     // viewer chrome
+    'nav.toggle': 'HIDE OR SHOW THE MENU',
+    'nav.toggle': 'NASCONDI O MOSTRA IL MENU',
     'tab.brief': 'BRIEF',
     'tab.received': 'RECEIVED',
     'tab.share': 'SHARE',
@@ -234,6 +236,7 @@
   };
 
   const it = {
+    'nav.toggle': 'NASCONDI O MOSTRA IL MENU',
     'tab.brief': 'BRIEF',
     'tab.received': 'RICEVUTE',
     'tab.share': 'CONDIVIDI',

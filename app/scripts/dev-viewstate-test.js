@@ -199,35 +199,29 @@ const cur = (view) => view.snapshot().queue.current;
   console.log('[test] eviction caps history and repairs the stage');
 }
 
-// --- The page launcher -------------------------------------------------------
-// It replaced the tab bar, and open/closed is main's state, not the renderer's.
+// --- The navigation rail -----------------------------------------------------
+// It replaced the grid launcher, which cost two presses to reach anywhere.
+// Collapsed/open is main's state, not the renderer's: phase 4 drives a second
+// surface from this same snapshot, and a rail collapsed in one window's DOM
+// would be invisible to the other.
 {
   const { view } = withClock();
-  assert.strictEqual(view.snapshot().launcherOpen, false, 'starts closed');
+  assert.strictEqual(view.snapshot().navCollapsed, false, 'starts OPEN — one press to anywhere is the point');
 
-  view.toggleLauncher();
-  assert.strictEqual(view.snapshot().launcherOpen, true);
-  view.toggleLauncher();
-  assert.strictEqual(view.snapshot().launcherOpen, false);
+  view.toggleNav();
+  assert.strictEqual(view.snapshot().navCollapsed, true);
+  view.toggleNav();
+  assert.strictEqual(view.snapshot().navCollapsed, false);
 
-  view.setLauncher(true);
-  assert.strictEqual(view.snapshot().launcherOpen, true);
-  // Choosing a destination closes it: the launcher is a way to get somewhere,
-  // never a thing left open on top of the page you just picked.
+  view.setNavCollapsed(true);
+  assert.strictEqual(view.snapshot().navCollapsed, true);
+  // The rail is NAVIGATION, not a menu: picking a page leaves it exactly as
+  // the pilot set it. The old launcher closed on pick because it covered the
+  // page it sent you to; a rail sits beside it and has nothing to get out of
+  // the way of.
   view.setPage('share');
   assert.strictEqual(view.snapshot().page, 'share');
-  assert.strictEqual(view.snapshot().launcherOpen, false, 'picking a page closes the launcher');
-
-  // Opening it is a deliberate act, so it must arm the auto-switch grace
-  // window — an arrival must not yank the page while the menu is open.
-  const { view: v2, advance } = withClock();
-  advance(INTERACTION_GRACE_MS + 1);
-  v2.setLauncher(true);
-  assert.strictEqual(v2.recentlyInteracted(), true, 'opening the launcher counts as interaction');
-  const { switched } = v2.addBatch({ sharedBy: 'alpha', items: items(2) });
-  assert.strictEqual(switched, false, 'an arrival must not switch the page under an open launcher');
-
-  console.log('[test] launcher: toggle, closes on pick, arms grace');
+  assert.strictEqual(view.snapshot().navCollapsed, true, 'picking a page does not reopen the rail');
 }
 
 // --- Share selection ---------------------------------------------------------
@@ -268,9 +262,9 @@ const cur = (view) => view.snapshot().queue.current;
   view.setConnection({ connected: false });
   assert.strictEqual(view.state.page, 'share', 'and it does not interrupt what you were doing');
 
-  view.setLauncher(true);
+  view.setNavCollapsed(true);
   view.setConnection({ connected: false });
-  assert.strictEqual(view.snapshot().launcherOpen, true, 'nor close the launcher');
+  assert.strictEqual(view.snapshot().navCollapsed, true, 'nor reopen the rail');
 
   view.setConnection({ connected: true });
   assert.strictEqual(view.state.page, 'share', 'recovery does not move you either');
@@ -362,8 +356,10 @@ const cur = (view) => view.snapshot().queue.current;
 
   pilot.setPage('setup');
   assert.strictEqual(pilot.snapshot().page, 'brief', 'the page is held too — no wandering into menus');
-  pilot.setLauncher(true);
-  assert.strictEqual(pilot.snapshot().launcherOpen, false, 'and the launcher will not open');
+  // The rail is not held: collapsing it changes nothing the presenter drives,
+  // and a follower who cannot even hide a sidebar reads as a frozen app.
+  pilot.setNavCollapsed(true);
+  assert.strictEqual(pilot.snapshot().navCollapsed, true, 'the rail is still the pilot\'s own');
 
   // The presenter still moves us. That is the entire point of the lock.
   pilot.setFocus({ hash: 'h-a' });

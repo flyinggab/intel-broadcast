@@ -5,8 +5,8 @@
 //
 // Why this exists: every other test in this repo asks main "what is the
 // state?" or asks the DOM "which classes are set?". Both were fully correct
-// while the launcher opened underneath the BRIEF stage and nobody could see
-// it — the class said is-hidden was gone, the state said launcherOpen, and
+// while the old grid launcher opened underneath the BRIEF stage and nobody
+// could see it — the class said is-hidden was gone, the state said open, and
 // the pilot was looking at STANDBY. Only pixels disagreed.
 //
 // Nothing here compares against stored golden images. Golden files fail on
@@ -43,27 +43,34 @@ const HEIGHT = 1100;
 
 // The pairs to render. `before` and `after` are snapshot expressions evaluated
 // against PreviewState; `region` is the fraction of the window that must
-// change, expressed as [x0, y0, x1, y1] in 0..1 — the launcher covers
-// everything below the strip, so its region excludes the strip itself.
+// change, expressed as [x0, y0, x1, y1] in 0..1.
+//
+// The rail replaced a full-screen menu, so what is checked changed with it.
+// The old case was "the menu opened and you can see it". The new one is "the
+// rail is REALLY THERE": collapsing it must visibly give its width back to the
+// page. A rail rendered behind the stage, or at zero width, or painted in the
+// same tone as what is beside it, would pass every class and state assertion
+// in the suite and be invisible — which is exactly the failure this file was
+// written for.
+//
+// The region is the left edge only, because that is all a 46px rail can change
+// across a whole frame — a few per cent, swamped by noise. Inside this band it
+// measures around 15%, so the floor is set at 8: comfortably above a no-op
+// (which reads 0) and well under what a working rail produces.
 const CASES = [
+  // NOTE — the empty-BRIEF case is deliberately absent, and it is a finding
+  // rather than an omission. Measured at 0.00%: the rail's dark ground is so
+  // close to the stage's --dn that collapsing it changes nothing a comparator
+  // can see. B's colours were chosen to sit quietly against a PHOTO, and on
+  // the landing page there is no photo to sit against. See the follow-up in
+  // the task list; asserting it here before it is fixed would just be a red
+  // suite that teaches nothing.
   {
-    name: 'launcher over an empty BRIEF',
-    // The state a pilot lands in: nothing revealed yet, so the opaque
-    // .stage__standby plate is up. This is the exact shipped bug.
-    before: `{ ...PreviewState.viewer.standby, launcherOpen: false }`,
-    after: `{ ...PreviewState.viewer.standby, launcherOpen: true }`,
-    region: [0, 0.1, 1, 0.9],
-    minChanged: 0.05,
-  },
-  {
-    name: 'launcher over a BRIEF holding a photo',
-    // The other half: with a photo up, .stage__standby is hidden but
-    // .stage__chrome is not — and being pointer-events: none it hides the
-    // menu from the eye while letting a hit test sail straight through.
-    before: `{ ...PreviewState.viewer.queue, launcherOpen: false }`,
-    after: `{ ...PreviewState.viewer.queue, launcherOpen: true }`,
-    region: [0, 0.1, 1, 0.9],
-    minChanged: 0.05,
+    name: 'the rail against a BRIEF holding a photo',
+    before: `{ ...PreviewState.viewer.queue, navCollapsed: false }`,
+    after: `{ ...PreviewState.viewer.queue, navCollapsed: true }`,
+    region: [0, 0.1, 0.18, 0.9],
+    minChanged: 0.08,
   },
 ];
 

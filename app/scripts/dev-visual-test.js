@@ -1,8 +1,9 @@
 'use strict';
 
 // Asserts against PIXELS. The rest of the suite asserts against state and
-// class attributes, which is how the launcher shipped opening underneath the
-// BRIEF stage: `launcherOpen` was true, `is-hidden` was gone, the hit test
+// class attributes, which is how the old grid launcher shipped opening
+// underneath the BRIEF stage: its state said open, `is-hidden` was gone, the
+// hit test
 // passed, and the pilot was looking at STANDBY with no way off the page.
 //
 // The rule enforced here is deliberately blunt and needs no golden images:
@@ -74,9 +75,10 @@ child.on('exit', () => {
   for (const r of results) {
     if (r.changed < r.minChanged) {
       console.error(
-        `[visual] FAIL: "${r.name}" — opening the launcher changed ${(r.changed * 100).toFixed(2)}% ` +
-          `of the frame, needs at least ${(r.minChanged * 100).toFixed(0)}%. ` +
-          `The menu is open and not visible. Stacking: ${JSON.stringify(r.stack)}`,
+        `[visual] FAIL: "${r.name}" — collapsing the rail changed ${(r.changed * 100).toFixed(2)}% ` +
+          `of the left edge, needs at least ${(r.minChanged * 100).toFixed(0)}%. ` +
+          'The rail is not visibly there: it is behind the stage, at zero width, or the same tone ' +
+          `as what is beside it. Stacking: ${JSON.stringify(r.stack)}`,
       );
       console.error('[visual]       re-run with --out <dir> to see the frames.');
       failed = true;
@@ -109,7 +111,11 @@ child.on('exit', () => {
       );
       failed = true;
     }
-    const stillShowing = Object.keys(held).filter((k) => held[k]);
+    // The hamburger is EXEMPT. It collapses the rail, and the rail is the
+    // pilot's own even while a presenter holds their view — a follower who
+    // cannot hide a sidebar is being punished for following. Every other
+    // control here would press and do nothing, which is the real failure.
+    const stillShowing = Object.keys(held).filter((k) => k !== 'menukey' && held[k]);
     if (stillShowing.length) {
       console.error(
         `[visual] FAIL: a follower whose controls are held can still see ${stillShowing.join(', ')} — ` +

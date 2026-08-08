@@ -40,11 +40,14 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
 
     // viewer
     page: 'brief',
-    // The page launcher replaced the tab bar. Open/closed is STATE, not a
+    // Navigation is a rail, not a menu. Collapsed/open is STATE, not a
     // renderer detail: phase 4 drives a second surface from this same
-    // snapshot, and a launcher open in the DOM of one window would be
-    // invisible to the other.
-    launcherOpen: false,
+    // snapshot, and a rail collapsed in one window would be invisible to the
+    // other.
+    // The grid launcher is gone; navigation is a permanent rail. What is
+    // stateful now is whether the pilot has COLLAPSED it — default open,
+    // because one press to anywhere is the whole point.
+    navCollapsed: false,
     chromeHidden: false,
     focused: true,
     autoShow: true,
@@ -223,7 +226,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
    * view belongs to the presenter for the duration.
    *
    * While this holds, every local control that would move the view is refused
-   * — paging, changing page, opening the launcher. A brief where each pilot
+   * — paging, changing page, collapsing the rail. A brief where each pilot
    * can wander off is not a brief: the presenter says "look at this" and has
    * no way to know who actually is. Nothing here is a permission model; a
    * follower simply has nothing to decide until the cast ends.
@@ -334,24 +337,20 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
   }
 
   // -- viewer chrome --------------------------------------------------------
-  /** Switching page always closes the launcher: it is a way to get somewhere,
-   *  never a thing you leave open over the page you just chose. */
+  /** Switching page. The rail stays as the pilot left it — it is navigation,
+   *  not a menu, so there is nothing to close on arrival. */
   function setPage(page) {
     if (isFollower()) return; // held on the presenter's page
     noteInteraction();
     state.page = page;
-    state.launcherOpen = false;
   }
-  function setLauncher(open) {
-    // Refused rather than merely hidden: a menu that opens over a brief is a
-    // menu whose destinations cannot be reached, and a key that visibly does
-    // nothing is the exact complaint this app already earned once.
-    if (isFollower()) return;
+  function setNavCollapsed(collapsed) {
     noteInteraction();
-    state.launcherOpen = Boolean(open);
+    state.navCollapsed = Boolean(collapsed);
   }
-  function toggleLauncher() {
-    setLauncher(!state.launcherOpen);
+  function toggleNav() {
+    noteInteraction();
+    state.navCollapsed = !state.navCollapsed;
   }
   function toggleChrome() {
     state.chromeHidden = !state.chromeHidden;
@@ -411,7 +410,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
       reconnect: state.reconnect,
 
       page: state.page,
-      launcherOpen: state.launcherOpen,
+      navCollapsed: state.navCollapsed,
       chromeHidden: state.chromeHidden,
       focused: state.focused,
       autoShow: state.autoShow,
@@ -481,8 +480,8 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     toggleItem,
     setBatchSelected,
     setPage,
-    setLauncher,
-    toggleLauncher,
+    setNavCollapsed,
+    toggleNav,
     toggleChrome,
     setFocused,
     clearBanner,

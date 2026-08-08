@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tac Link — navigation and INTEL proposals</title>
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/base.css" />
+<link rel="stylesheet" href="css/components.css" />
+<style>
+  body { background: #22251f; color: #cfd3c8; font-family: var(--font-ui); padding: 20px 24px 60px; display: block; }
+  h1 { font-size: 20px; letter-spacing: .08em; margin: 0 0 2px; }
+  .sub { font-family: var(--font-mono); font-size: 12px; color: #8d9384; letter-spacing: .06em; margin-bottom: 22px; }
+  h2 { font-size: 14px; letter-spacing: .1em; color: #e8ece6; margin: 24px 0 4px; text-transform: uppercase; }
+  .why { font-size: 13px; line-height: 1.5; color: #a9af9f; max-width: 940px; margin: 0 0 14px; }
+  .why b { color: #e8ece6; }
+  .row { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+  .unit { }
+  .name { font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em; color: #cfd3c8; margin-bottom: 6px; }
+  .name em { color: #98bb62; font-style: normal; }
+  .note { font-size: 12px; line-height: 1.45; color: #8d9384; max-width: 300px; margin-top: 7px; }
+  .dev { width: 300px; height: 360px; background: var(--bg); position: relative; overflow: hidden;
+         box-shadow: 0 0 0 7px #2c2f28, 0 0 0 8px #171a15; }
+  .verdict { border-left: 3px solid #98bb62; padding: 8px 12px; margin: 12px 0 0; background: #262a22;
+             font-size: 13px; line-height: 1.5; max-width: 940px; }
+  /* ---- shared miniature chrome ---- */
+  .mstrip { height: 26px; background: var(--bg); border-bottom: var(--rule); display: flex; align-items: center;
+            gap: 6px; padding: 0 6px; font-family: var(--font-mono); font-size: 9px; color: var(--hi); }
+  .mkey { width: 20px; height: 20px; flex: none; display: grid; place-items: center; background: var(--up);
+          box-shadow: var(--bevel-up); color: var(--ink); cursor: pointer; }
+  .mkey svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+  .mkey.on { background: var(--lit); }
+  .mbody { position: absolute; inset: 26px 0 0 0; display: flex; }
+  .photo { flex: 1; background:
+      linear-gradient(160deg, #6f7a63 0%, #7d876f 45%, #69735d 100%); position: relative; min-width: 0; }
+  .photo::after { content: "02-SECONDARY.JPG"; position: absolute; left: 6px; bottom: 5px;
+      font-family: var(--font-mono); font-size: 8px; color: #dfe4d6; letter-spacing: .06em; }
+
+  /* ---- A: persistent icon rail ---- */
+  .rail2 { flex: none; width: 46px; background: #22271f; border-right: 1px solid #171a15; display: flex;
+           flex-direction: column; align-items: center; padding-top: 4px; gap: 3px;
+           transition: width .12s; overflow: hidden; }
+  /* Collapsed to nothing: the photo takes the whole window. The hamburger that
+     brings it back lives in the strip, so collapsing can never strand you. */
+  .rail2.gone { width: 0; border-right: 0; }
+  .r2 { width: 40px; height: 40px; flex: none; display: flex; flex-direction: column; align-items: center;
+        justify-content: center; gap: 1px; background: rgba(120,128,112,.28); box-shadow: none;
+        color: #dfe4d6; cursor: pointer; }
+  .r2:hover { background: rgba(120,128,112,.45); }
+  .r2 svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+  .r2 span { font-size: 6.5px; font-weight: 700; letter-spacing: .04em; line-height: 1; }
+  .r2.on { background: var(--lit); color: var(--ink); box-shadow: none; }
+  .r2sep { height: 1px; width: 60%; background: rgba(223,228,214,.22); margin: 4px 0; flex: none; }
+
+  /* ---- C: overlay drawer ---- */
+  .drawer { position: absolute; inset: 26px auto 0 0; width: 116px; background: var(--bg);
+            border-right: var(--rule); padding: 4px; display: none; flex-direction: column; gap: 3px; z-index: 4; }
+  .drawer.open { display: flex; }
+  .scrim { position: absolute; inset: 26px 0 0 0; background: rgba(20,22,18,.55); display: none; z-index: 3; }
+  .scrim.open { display: block; }
+
+  /* ---- INTEL filmstrip ---- */
+  .strip2 { flex: none; height: 74px; background: var(--dn); box-shadow: var(--bevel-dn);
+            display: flex; flex-direction: column; }
+  .s2head { display: flex; align-items: center; gap: 4px; padding: 3px 5px; }
+  .seg { display: flex; gap: 0; }
+  .seg button { font-family: var(--font-mono); font-size: 9px; letter-spacing: .08em; padding: 3px 8px;
+                background: var(--up); box-shadow: var(--bevel-up); color: var(--ink); cursor: pointer; }
+  .seg button.on { background: var(--lit); }
+  .s2meta { margin-left: auto; font-family: var(--font-mono); font-size: 8px; color: var(--hi); }
+  .s2act { font-family: var(--font-mono); font-size: 9px; font-weight: 700; padding: 3px 7px;
+           background: var(--go); color: #10140e; cursor: pointer; }
+  .tiles { display: flex; gap: 4px; padding: 0 5px 5px; overflow: hidden; }
+  .tl { width: 52px; height: 34px; flex: none; background: linear-gradient(150deg,#79836b,#5f684f);
+        position: relative; cursor: pointer; box-shadow: var(--bevel-up); }
+  .tl.off { opacity: .3; }
+  .tl.sel { box-shadow: inset 0 0 0 2px var(--go); }
+  .tl b { position: absolute; left: 2px; bottom: 1px; font-family: var(--font-mono); font-size: 7px;
+          color: #e8ece6; font-weight: 400; }
+
+  /* ---- B: sub-tabs in the strip ---- */
+  .subseg { display: flex; margin-left: 4px; }
+  .subseg button { font-family: var(--font-mono); font-size: 9px; letter-spacing: .07em; padding: 2px 7px;
+                   background: var(--up); box-shadow: var(--bevel-up); color: var(--ink); cursor: pointer; }
+  .subseg button.on { background: var(--lit); }
+</style>
+</head>
+<body>
+
+<h1>NAVIGATION &amp; THE INTEL APP</h1>
+<div class="sub">TWO PROPOSALS · CLICK ANYTHING · REAL TOKENS AND SPACING, MINIATURE SCALE</div>
+
+<h2>1 · Switching apps in one press</h2>
+<p class="why">
+  The launcher costs <b>two presses</b>: open the grid, then pick. What removes a press is not a different
+  menu — it is <b>not having a menu</b>. A rail that is always on screen is one press to anywhere.
+  A hamburger drawer is the same two presses as today, just on the other side; it is drawn here so the
+  trade is visible rather than argued.
+  The cost of a rail is <b>40px of width, permanently</b> — on the brief that is width taken from the photo.
+</p>
+
+<div class="row">
+  <div class="unit">
+    <div class="name">A · <em>PERSISTENT RAIL</em> — one press, B&rsquo;s colours</div>
+    <div class="dev" id="devA">
+      <div class="mstrip">
+        <div class="mkey" id="burgerA" title="Collapse the rail"><svg viewBox="0 0 20 20"><path d="M3 6h14M3 10h14M3 14h14"/></svg></div>
+        <span style="color:var(--lit);font-weight:700">BRIEF</span><span>1 / 8</span>
+        <span style="margin-left:auto">HOST · 4</span><span>ONLINE</span>
+      </div>
+      <div class="mbody">
+        <div class="rail2" id="railA">
+          <div class="r2 on" data-a="intel"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/><path d="M6 8h8M6 12h5"/></svg><span>INTEL</span></div>
+          <div class="r2" data-a="card"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/><path d="M7 6h6M7 9h6M7 12h4"/></svg><span>CARD</span></div>
+          <div class="r2" data-a="map"><svg viewBox="0 0 20 20"><path d="M3 5l5-2 4 2 5-2v12l-5 2-4-2-5 2z"/><path d="M8 3v12M12 5v12"/></svg><span>MAP</span></div>
+          <div class="r2sep"></div>
+          <div class="r2" data-a="setup"><svg viewBox="0 0 20 20"><path d="M2 5h16M2 10h16M2 15h16"/><circle cx="7" cy="5" r="1.8" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.8" fill="currentColor" stroke="none"/></svg><span>SETUP</span></div>
+        </div>
+        <div class="photo"></div>
+      </div>
+    </div>
+    <div class="note">Icon plus a small caption, 46px wide — one press to anywhere. The hamburger in the
+      strip <b>collapses it away entirely</b> when you want the photo edge to edge, and brings it back;
+      it stays in the strip so collapsing can never strand you.</div>
+  </div>
+
+  <div class="unit">
+    <div class="name">B · RAIL OVER THE PHOTO</div>
+    <div class="dev" id="devB">
+      <div class="mstrip">
+        <span style="color:var(--lit);font-weight:700">BRIEF</span><span>1 / 8</span>
+        <span style="margin-left:auto">HOST · 4</span><span>ONLINE</span>
+      </div>
+      <div class="mbody">
+        <div class="photo" style="position:relative">
+          <div class="rail2" style="position:absolute;left:0;top:0;bottom:0;background:rgba(28,33,28,.72);border:0">
+            <div class="r2" style="background:rgba(120,128,112,.5);box-shadow:none;color:#e8ece6"><svg viewBox="0 0 20 20"><path d="M3 6h14M3 10h14M3 14h14"/></svg></div>
+            <div class="r2sep"></div>
+            <div class="r2 on"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/><path d="M6 8h8M6 12h5"/></svg></div>
+            <div class="r2" style="background:rgba(120,128,112,.5);box-shadow:none;color:#e8ece6"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/><path d="M7 6h6M7 9h6"/></svg></div>
+            <div class="r2" style="background:rgba(120,128,112,.5);box-shadow:none;color:#e8ece6"><svg viewBox="0 0 20 20"><path d="M3 5l5-2 4 2 5-2v12l-5 2-4-2-5 2z"/></svg></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note">Costs the photo no width — but it sits <b>on</b> the image, and the photo is the
+      product. It also cannot carry labels without covering half the frame.</div>
+  </div>
+
+  <div class="unit">
+    <div class="name">C · HAMBURGER DRAWER — still two presses</div>
+    <div class="dev" id="devC">
+      <div class="mstrip">
+        <div class="mkey" id="burgerC"><svg viewBox="0 0 20 20"><path d="M3 6h14M3 10h14M3 14h14"/></svg></div>
+        <span style="color:var(--lit);font-weight:700">BRIEF</span><span>1 / 8</span>
+        <span style="margin-left:auto">ONLINE</span>
+      </div>
+      <div class="scrim" id="scrimC"></div>
+      <div class="drawer" id="drawerC">
+        <div class="r2 on"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/></svg><span>INTEL</span></div>
+        <div class="r2"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/></svg><span>CARD</span></div>
+        <div class="r2"><svg viewBox="0 0 20 20"><path d="M3 5l5-2 4 2 5-2v12l-5 2-4-2-5 2z"/></svg><span>MAP</span></div>
+        <div class="r2"><svg viewBox="0 0 20 20"><path d="M2 5h16M2 10h16M2 15h16"/></svg><span>SETUP</span></div>
+      </div>
+      <div class="mbody"><div class="photo"></div></div>
+    </div>
+    <div class="note">What was asked for literally. It reads as familiar, and the photo keeps its full
+      width — but open-then-pick is the same two presses the grid already costs.</div>
+  </div>
+</div>
+
+<div class="verdict"><b>Recommendation: A.</b> It is the only one that answers the actual complaint — one press to
+anywhere. B saves 46px by spending it on the one thing the app exists to show, and C is today's cost with
+a different gesture. The hamburger earns its place by <b>collapsing the rail away</b>, so the pilot who
+wants the photo edge to edge gets it and can bring navigation back without hunting for it.</div>
+
+<h2>2 · RECEIVED and SHARE are not apps</h2>
+<p class="why">
+  They are two directions of one thing: <b>what came in</b> and <b>what goes out</b>. Both are about the same
+  queue of photos, and neither is a place you go — they are things you do to the brief you are looking at.
+  Three destinations collapse to one, <b>INTEL</b>, and the launcher loses two entries.
+</p>
+
+<div class="row">
+  <div class="unit">
+    <div class="name">A · <em>ONE INTEL APP</em> — the gallery takes the page</div>
+    <div class="dev" id="devD">
+      <div class="mstrip">
+        <span style="color:var(--lit);font-weight:700">INTEL</span>
+        <div class="subseg" id="dSeg">
+          <button data-v="view">VIEW</button><button class="on" data-v="in">RECEIVED</button><button data-v="out">SHARE</button>
+        </div>
+        <span style="margin-left:auto">ONLINE</span>
+      </div>
+      <div class="mbody">
+        <div class="rail2">
+          <div class="r2"><svg viewBox="0 0 20 20"><path d="M3 6h14M3 10h14M3 14h14"/></svg></div>
+          <div class="r2sep"></div>
+          <div class="r2 on"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/><path d="M6 8h8M6 12h5"/></svg></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/><path d="M7 6h6M7 9h6"/></svg></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><path d="M2 5h16M2 10h16M2 15h16"/></svg></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+          <div class="photo" id="dPhoto" style="display:none"></div>
+          <div id="dGal" style="flex:1;display:flex;flex-direction:column;min-height:0;background:var(--dn)">
+            <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:6px;align-content:start;overflow:hidden" id="dGrid"></div>
+            <div style="flex:none;display:flex;align-items:center;gap:5px;padding:5px 6px;background:var(--bg);border-top:var(--rule)">
+              <span style="font-family:var(--font-mono);font-size:8px;color:var(--hi)" id="dMeta">6 OF 8 IN BRIEF</span>
+              <span class="s2act" id="dAct" style="margin-left:auto;display:none">REVEAL 2</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note">RECEIVED and SHARE are not places — they are what INTEL is <b>showing</b>. Picked
+      from the strip, and when either is in focus the gallery takes the whole page: tiles big enough to
+      tell two recon photos apart, which a 74px strip along the bottom never was. VIEW returns to the
+      photo.</div>
+  </div>
+
+  <div class="unit">
+    <div class="name">B · SUB-TABS IN THE STRIP</div>
+    <div class="dev" id="devE">
+      <div class="mstrip">
+        <span style="color:var(--lit);font-weight:700">INTEL</span>
+        <div class="subseg">
+          <button class="on">VIEW</button><button>IN</button><button>OUT</button>
+        </div>
+        <span style="margin-left:auto">ONLINE</span>
+      </div>
+      <div class="mbody">
+        <div class="rail2">
+          <div class="r2"><svg viewBox="0 0 20 20"><path d="M3 6h14M3 10h14M3 14h14"/></svg></div>
+          <div class="r2sep"></div>
+          <div class="r2 on"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/></svg></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/></svg></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><path d="M2 5h16M2 10h16M2 15h16"/></svg></div>
+        </div>
+        <div class="photo"></div>
+      </div>
+    </div>
+    <div class="note">Closest to today: three full-page views under one destination. Honest and simple,
+      but curating still <b>replaces</b> the photo you were reading — which is the thing worth avoiding.</div>
+  </div>
+
+  <div class="unit">
+    <div class="name">C · NO SEPARATE VIEW AT ALL</div>
+    <div class="dev" id="devF">
+      <div class="mstrip">
+        <span style="color:var(--lit);font-weight:700">INTEL</span><span>2 / 8</span>
+        <span style="margin-left:auto">ONLINE</span>
+      </div>
+      <div class="mbody">
+        <div class="rail2">
+          <div class="r2"><svg viewBox="0 0 20 20"><path d="M3 6h14M3 10h14M3 14h14"/></svg></div>
+          <div class="r2sep"></div>
+          <div class="r2 on"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/></svg></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/></svg></div>
+        </div>
+        <div class="photo" style="display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px">
+          <div style="display:flex;gap:5px">
+            <div style="font-family:var(--font-mono);font-size:9px;padding:4px 8px;background:rgba(28,33,28,.8);color:#e8ece6">DROP</div>
+            <div style="font-family:var(--font-mono);font-size:9px;padding:4px 8px;background:var(--go);color:#10140e">SHARE&nbsp;FOLDER…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note">Curation becomes one key on the photo you are looking at — DROP removes this one.
+      Sharing opens a picker. Fewest surfaces, but no overview: you cannot see what the squad sent
+      without paging through it.</div>
+  </div>
+</div>
+
+<div class="verdict"><b>Recommendation: A.</b> It is the only one where curating and sharing happen
+<i>next to</i> the photo rather than instead of it, and it is the only one that answers "what has been
+received and what am I about to send" at a glance. It costs 74px of height as chrome — which the capture
+already hides, so the kneeboard is unchanged.</div>
+
+
+<h2>3 · Sharing the kneeboard</h2>
+<p class="why">
+  Reworked three times and simpler each time. <b>One press sends the card to the flight.</b> No recipient
+  picker: choosing who gets it is a real want, but it is not what makes this useful on day one, and every
+  way of expressing it costs a control. <b>No hold gesture anywhere</b> — there is none on OpenKneeboard,
+  which is the same reason a route step already ticks on a plain click; a control that works only on the
+  desktop does not exist for a pilot in VR.
+</p>
+
+<div class="row">
+  <div class="unit">
+    <div class="name">SEND · <em>one press, to the flight</em></div>
+    <div class="dev">
+      <div class="mstrip"><div class="mkey"><svg viewBox="0 0 20 20"><path d="M3 6h14M3 10h14M3 14h14"/></svg></div>
+        <span style="color:var(--lit);font-weight:700">CARD</span><span style="margin-left:auto">HOST · 4</span></div>
+      <div class="mbody">
+        <div class="rail2">
+          <div class="r2"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/><path d="M6 8h8M6 12h5"/></svg><span>INTEL</span></div>
+          <div class="r2 on"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/><path d="M7 6h6M7 9h6M7 12h4"/></svg><span>CARD</span></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><path d="M3 5l5-2 4 2 5-2v12l-5 2-4-2-5 2z"/><path d="M8 3v12M12 5v12"/></svg><span>MAP</span></div>
+          <div class="r2sep"></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><path d="M2 5h16M2 10h16M2 15h16"/><circle cx="7" cy="5" r="1.8" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.8" fill="currentColor" stroke="none"/></svg><span>SETUP</span></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:#E9E5DA">
+          <div style="flex:1;padding:6px 7px;color:#1F1C16">
+            <div style="font-size:8px;letter-spacing:.1em;color:#6A6255">CALLSIGN</div>
+            <div style="font-size:12px;font-weight:700">ROMAN 1</div>
+            <div style="height:1px;background:#BFB9A8;margin:5px 0"></div>
+            <div style="background:#3A362D;color:#EDE9DE;font-size:8px;letter-spacing:.1em;padding:2px 5px">ROUTE</div>
+            <div style="font-size:9px;line-height:1.9">DEPART · REJOIN · AAR · <b>HOLD</b> · VARAVI …</div>
+          </div>
+          <div style="flex:none;display:flex;align-items:center;gap:6px;padding:5px 6px;background:var(--dn);box-shadow:var(--bevel-dn)">
+            <span class="s2act" id="sendBtn">SEND TO FLIGHT</span>
+            <span style="font-family:var(--font-mono);font-size:7px;color:var(--hi)" id="sendNote">ALL 3 ON NET</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note">One key, and it names who it reaches so it is never a silent blast. Bindable like
+      every other control, because a lead in VR has no mouse. Press it.</div>
+  </div>
+
+  <div class="unit">
+    <div class="name">RECEIVE · <em>it is just the card now</em></div>
+    <div class="dev">
+      <div class="mstrip"><div class="mkey"><svg viewBox="0 0 20 20"><path d="M3 6h14M3 10h14M3 14h14"/></svg></div>
+        <span style="color:var(--lit);font-weight:700">CARD</span><span style="margin-left:auto">ONLINE</span></div>
+      <div class="mbody">
+        <div class="rail2">
+          <div class="r2"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/><path d="M6 8h8M6 12h5"/></svg><span>INTEL</span></div>
+          <div class="r2 on"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/><path d="M7 6h6M7 9h6M7 12h4"/></svg><span>CARD</span></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><path d="M3 5l5-2 4 2 5-2v12l-5 2-4-2-5 2z"/><path d="M8 3v12M12 5v12"/></svg><span>MAP</span></div>
+          <div class="r2sep"></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><path d="M2 5h16M2 10h16M2 15h16"/><circle cx="7" cy="5" r="1.8" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.8" fill="currentColor" stroke="none"/></svg><span>SETUP</span></div>
+        </div>
+        <div style="flex:1;background:#E9E5DA;padding:6px 7px;color:#1F1C16;min-width:0">
+          <div style="display:flex;align-items:baseline;gap:5px">
+            <div style="font-size:8px;letter-spacing:.1em;color:#6A6255">CALLSIGN</div>
+            <div style="margin-left:auto;font-family:var(--font-mono);font-size:7px;color:#6A6255">FROM GHOSTRIDER 1-1</div>
+          </div>
+          <div style="font-size:12px;font-weight:700">ROMAN 1</div>
+          <div style="height:1px;background:#BFB9A8;margin:5px 0"></div>
+          <div style="background:#3A362D;color:#EDE9DE;font-size:8px;letter-spacing:.1em;padding:2px 5px">ROUTE</div>
+          <div style="font-size:9px;line-height:1.9">DEPART&nbsp;&#10003; · REJOIN&nbsp;&#10003; · AAR · <b>HOLD</b> · VARAVI</div>
+        </div>
+      </div>
+    </div>
+    <div class="note">No banner, no prompt — the card the lead sent <b>is</b> the card. The only mark is
+      one line of provenance on the sheet, which answers "whose plan am I flying?" without interrupting
+      anyone.
+      <br><br><b>The cost, stated:</b> a card can change under a pilot with no warning. That is the point
+      while it is the lead publishing the flight's card — and it is exactly why SEND says who it reaches
+      before it fires.</div>
+  </div>
+
+  <div class="unit">
+    <div class="name">SYNC · <em>only inside a brief</em></div>
+    <div class="dev">
+      <div class="mstrip"><div class="mkey"><svg viewBox="0 0 20 20"><path d="M3 6h14M3 10h14M3 14h14"/></svg></div>
+        <span style="color:var(--lit);font-weight:700">CARD</span><span style="margin-left:auto">ONLINE</span></div>
+      <div style="position:absolute;left:0;right:0;top:26px;z-index:3;background:var(--dn);box-shadow:var(--bevel-dn),inset 3px 0 0 var(--lit);padding:5px 7px">
+        <div style="font-size:9px;font-weight:700;color:var(--lit)">GHOSTRIDER 1-1 IS BRIEFING</div>
+        <div style="font-family:var(--font-mono);font-size:7px;color:var(--hi)">THEIR TICKS · ENDS WHEN THEY STOP</div>
+      </div>
+      <div class="mbody" style="top:64px">
+        <div class="rail2">
+          <div class="r2"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14"/><path d="M6 8h8M6 12h5"/></svg><span>INTEL</span></div>
+          <div class="r2 on"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/><path d="M7 6h6M7 9h6M7 12h4"/></svg><span>CARD</span></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><path d="M3 5l5-2 4 2 5-2v12l-5 2-4-2-5 2z"/><path d="M8 3v12M12 5v12"/></svg><span>MAP</span></div>
+          <div class="r2sep"></div>
+          <div class="r2"><svg viewBox="0 0 20 20"><path d="M2 5h16M2 10h16M2 15h16"/><circle cx="7" cy="5" r="1.8" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.8" fill="currentColor" stroke="none"/></svg><span>SETUP</span></div>
+        </div>
+        <div style="flex:1;background:#E9E5DA;padding:6px 7px;color:#1F1C16;min-width:0">
+          <div style="background:#3A362D;color:#EDE9DE;font-size:8px;letter-spacing:.1em;padding:2px 5px">ROUTE</div>
+          <div style="font-size:9px;line-height:1.9">DEPART&nbsp;&#10003; · REJOIN&nbsp;&#10003; · AAR&nbsp;&#10003; · <b>HOLD</b></div>
+          <div style="font-size:8px;color:#6A6255;margin-top:6px">The lead ticks AAR and it ticks here.
+            Your own ticks come back when the brief ends.</div>
+        </div>
+      </div>
+    </div>
+    <div class="note">Live sync is <b>not a third mechanism</b> — it is brief mode applied to a card. Same
+      <code>/rt</code> socket, same presenter lock, same bar naming who holds your view. Outside a brief
+      the card is yours and so are your ticks.</div>
+  </div>
+</div>
+
+<div class="verdict"><b>Ships as: one press.</b> SEND puts the card on every kneeboard on the net and
+names the count so it is never silent. Receiving is not an event — the card simply becomes the card, with
+one line of provenance. Live sync is brief mode, reusing its socket and its lock rather than growing a
+parallel one.
+<br><br>
+<b>Deferred, not dropped:</b> choosing recipients. It needs an addressed message family and relay-side
+filtering — enforced at the relay, never in the client, or a card has already crossed the wire to
+someone who was not meant to have it. Worth building when a twelve-ship needs to brief one element
+without the other; not worth a control before then.
+<br><br>
+<b>Still to decide:</b> whether a received card is kept after the mission or discarded with the brief.
+Everything here works either way.</div>
+
+<script>
+  // A — rail expands to labels
+  document.getElementById('burgerA').addEventListener('click', () => {
+    document.getElementById('railA').classList.toggle('gone');
+  });
+  document.querySelectorAll('#railA .r2[data-a]').forEach((k) => k.addEventListener('click', () => {
+    document.querySelectorAll('#railA .r2[data-a]').forEach((o) => o.classList.toggle('on', o === k));
+  }));
+
+  // C — drawer
+  const openC = () => { document.getElementById('drawerC').classList.toggle('open');
+                        document.getElementById('scrimC').classList.toggle('open'); };
+  document.getElementById('burgerC').addEventListener('click', openC);
+  document.getElementById('scrimC').addEventListener('click', openC);
+
+  // D — one INTEL app: VIEW is the photo, RECEIVED and SHARE take the page
+  const IN  = ['01-TGT','02-SEC','03-SAM','04-RWY','05-POL','06-BDA','07-EW','08-IR'];
+  const OUT = ['A-RECCE','B-POST','C-TRK','D-FLAK'];
+  let view = 'in';
+  const sel = new Set(['A-RECCE','B-POST']);
+  const off = new Set(['07-EW','08-IR']);
+  function paintD() {
+    document.getElementById('dPhoto').style.display = view === 'view' ? '' : 'none';
+    document.getElementById('dGal').style.display = view === 'view' ? 'none' : 'flex';
+    document.querySelectorAll('#dSeg button').forEach((b) => b.classList.toggle('on', b.dataset.v === view));
+    if (view === 'view') return;
+
+    const grid = document.getElementById('dGrid');
+    grid.textContent = '';
+    const list = view === 'in' ? IN : OUT;
+    for (const n of list) {
+      const t = document.createElement('div');
+      t.style.cssText = 'height:56px;background:linear-gradient(150deg,#79836b,#5f684f);position:relative;cursor:pointer;box-shadow:var(--bevel-up);' +
+        (view === 'in' ? (off.has(n) ? 'opacity:.28;' : '') : (sel.has(n) ? 'box-shadow:inset 0 0 0 2px var(--go);' : ''));
+      const b = document.createElement('b');
+      b.style.cssText = 'position:absolute;left:3px;bottom:2px;font-family:var(--font-mono);font-size:8px;color:#e8ece6;font-weight:400';
+      b.textContent = n;
+      t.append(b);
+      t.addEventListener('click', () => {
+        if (view === 'in') { off.has(n) ? off.delete(n) : off.add(n); }
+        else { sel.has(n) ? sel.delete(n) : sel.add(n); }
+        paintD();
+      });
+      grid.append(t);
+    }
+    document.getElementById('dMeta').textContent =
+      view === 'in' ? `${IN.length - off.size} OF ${IN.length} IN BRIEF` : `${sel.size} OF ${OUT.length} SELECTED`;
+    const act = document.getElementById('dAct');
+    act.style.display = view === 'out' ? '' : 'none';
+    act.textContent = `REVEAL ${sel.size}`;
+  }
+  document.querySelectorAll('#dSeg button').forEach((b) => b.addEventListener('click', () => {
+    view = b.dataset.v; paintD();
+  }));
+  paintD();
+
+  const btn = document.getElementById('sendBtn');
+  btn.addEventListener('click', () => {
+    btn.textContent = 'SENT TO 3';
+    setTimeout(() => { btn.textContent = 'SEND TO FLIGHT'; }, 1100);
+  });
+</script>
+</body>
+</html>
