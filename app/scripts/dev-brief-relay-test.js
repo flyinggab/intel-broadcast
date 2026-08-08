@@ -243,6 +243,20 @@ async function main() {
     assert.strictEqual(got.presenter, 'LEAD', 'stamped from the authenticated socket');
     assert.deepStrictEqual(got.card, card, 'and arrives byte-for-byte as the sender had it');
 
+    // AND NOT BACK TO THE SENDER. Unlike a reveal — where the echo is the
+    // sharer's own render path — every client applies its brief messages the
+    // instant the pilot makes them, so an echo here is the same message
+    // applied twice. That is invisible for a shape, which upserts; a stroke
+    // APPENDS and a card REPLACES.
+    //
+    // It bit hardest on a host, because hosting also runs a client against its
+    // own relay: the host took back the card it had just cast, which reset
+    // every step it had already ticked off.
+    assert.ok(
+      !lead.inbox.some((m) => m.type === 'brief-card'),
+      'a client must not receive its own brief message back — it has already applied it',
+    );
+
     // THE POINT: what crossed the wire is the card's DATA. The receiver renders
     // it with ITS OWN copy of the template, which ships inside the app — so it
     // looks exactly as it does on the sender, stays real text at any surface

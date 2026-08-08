@@ -907,10 +907,21 @@ function renderBrief(s) {
   // action on it: the controls are the presenter's until they stop, so the
   // key would be a button that refuses. Saying who holds them is the whole
   // job — chrome that quietly stops responding reads as a frozen app.
-  const show = mine || theirs;
+  // A card that just went out borrows the same bar. It is the one place the
+  // app already says what is happening on the net, and casting a card changes
+  // nothing else on the sender's own screen — they are still looking at the
+  // card they sent, so without a word here the key looks broken.
+  const sent = !mine && !theirs ? b.sent : null;
+  const show = mine || theirs || Boolean(sent);
   brief.bar.classList.toggle('is-hidden', !show);
   brief.key.classList.toggle('is-hidden', !mine);
-  if (mine) {
+  if (sent) {
+    setText(brief.title, t('card.sent'));
+    // Naming the number is the point: 0 means nobody is on the net, which is
+    // the answer a pilot most needs when they thought they had just shared.
+    setText(brief.meta, t('card.sentTo', { n: sent.n }));
+    delete brief.key.dataset.act;
+  } else if (mine) {
     setText(brief.title, t('brief.youArePresenting'));
     setText(brief.meta, t('brief.withYou', { n: countFollowers(s) }));
     setText(brief.key, t('brief.stop'));

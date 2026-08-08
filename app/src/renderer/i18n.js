@@ -101,6 +101,8 @@
     'okb.stillCaptures': 'WINDOW CAPTURE KEEPS WORKING EITHER WAY',
     'card.from': 'FROM {who}',
     'card.import': 'LOAD A MISSION CARD',
+    'card.sent': 'CARD SENT',
+    'card.sentTo': 'TO {n} ON THE NET',
     'brief.present': 'PRESENT — CAST TO THE FLIGHT',
     'brief.pen': 'PEN',
     'brief.arrow': 'ARROW',
@@ -307,6 +309,8 @@
 
     'card.from': 'DA {who}',
     'card.import': 'CARICA UNA CARD DI MISSIONE',
+    'card.sent': 'CARD INVIATA',
+    'card.sentTo': 'A {n} IN RETE',
     'brief.present': 'PRESENTA — TRASMETTI ALLA FORMAZIONE',
     'brief.pen': 'PENNA',
     'brief.arrow': 'FRECCIA',

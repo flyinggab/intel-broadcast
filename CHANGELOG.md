@@ -59,6 +59,33 @@ that entry.
   app. PRESENT (`Ctrl+Shift+P`) is unchanged, and a presenter is never locked.
 
 ### Fixed
+- **Casting a mission card did nothing at all.** The receive handler had been
+  written into the wrong switch — `handleBriefIntent`, which takes an intent
+  name and a payload and never sees a message — so it was unreachable code
+  referencing a `msg` that did not exist there. Incoming cards fell through
+  `applyBriefMessage`'s `default: return` and were dropped in silence. The
+  press was fine, the frame crossed the relay, the far side simply threw it
+  away. `dev-brief-relay-test` had covered the wire and `dev-card-test` the
+  resolver, and the app's own handler sat untested between them; the new
+  `dev-e2e-card-share-test` presses the key a pilot presses in one instance
+  and reads the card off a second instance's screen, so it asserts the
+  feature rather than a component of it.
+- **Every brief message was applied twice, by everyone.** The relay echoed a
+  realtime frame back to the client that sent it, and each client had already
+  applied its own the instant the pilot made it — local echo is mandatory, a
+  presenter watching their line lag 30-80ms behind the pen would stop trusting
+  the tool. Unlike a reveal, where the echo IS the sharer's render path, this
+  was pure duplication. It was worst on a host, which also runs a client
+  against its own relay and additionally sent by both paths at once: four
+  applications of every frame, and the card a lead had just cast came straight
+  back at them, resetting every step they had already ticked off. Shapes
+  upsert and hid it; strokes append and cards replace, so those did not.
+- **Casting a card gave the sender no sign it had gone.** The card on their
+  screen is the card they sent, so a working key was indistinguishable from a
+  dead one — which is how this was first reported. The brief bar now says
+  `CARD SENT · TO 3 ON THE NET` for three seconds. The count is the point: `0`
+  means nobody is on the net, which is the answer a pilot most needs when they
+  thought they had just shared.
 - **The mission card was silently truncating 16 values, including the
   bullseye.** Card cells carry `text-overflow: ellipsis`, so a value too long
   for its column renders as a shorter one that still looks like a value:

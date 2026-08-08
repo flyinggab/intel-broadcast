@@ -219,7 +219,7 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
     if (msg.type === 'brief-present-start') {
       presenter = { ws, callsign, focus: null };
       onLog(`brief: ${callsign || '(none)'} is presenting`);
-      fanOutRealtime(stampPresenter(msg, callsign));
+      fanOutRealtime(stampPresenter(msg, callsign), ws);
       if (onBrief) onBrief(stampPresenter(msg, callsign));
       return;
     }
@@ -244,7 +244,21 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
       return;
     }
 
-    fanOutRealtime(stamped);
+    // NOT back to the sender. This is the one place the realtime path differs
+    // from the bulk path above, and deliberately: a reveal is echoed to its
+    // sharer because that echo IS their render path. A brief message is not —
+    // every client applies its own the instant the pilot makes it, because a
+    // presenter watching their own line lag 30-80ms behind the pen would stop
+    // trusting the tool. So an echo here is not confirmation, it is the same
+    // message applied twice.
+    //
+    // On a host that is doubly true: hosting also runs a client against its
+    // own relay (that loopback is how the host hears everyone else's brief),
+    // so without this the host applied every message it sent, twice more.
+    // Harmless for a shape, which upserts; a stroke APPENDS, and a card
+    // REPLACES — the host took back the card it had just cast, which reset
+    // the steps they had already ticked off.
+    fanOutRealtime(stamped, ws);
     if (onBrief) onBrief(stamped);
   }
 

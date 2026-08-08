@@ -75,6 +75,12 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
       tool: 'pen', // pen | arrow | ring
       cursor: null, // { u, v, who } — the presenter's pointer, 20 Hz
       inkRevs: {}, // hash -> revision; the ONLY ink that rides the snapshot
+      // A card just went out, and to how many: { n }. Cleared on a timer by
+      // main. Casting a card is the one thing a pilot can do that changes
+      // nothing whatsoever on their OWN screen — the card they are looking at
+      // is the card they sent — so without this the press is indistinguishable
+      // from a broken key, which is exactly how it was first reported.
+      sent: null,
     },
 
     // received — the queue's backing store.
@@ -255,6 +261,13 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
       state.brief.presenter = null;
       state.brief.cursor = null;
     }
+  }
+
+  /** A card went out to `n` other pilots, or null to clear the acknowledgement.
+   *  `n` of 0 is a real answer and stays: "nobody is on the net" is the thing
+   *  a pilot most needs to hear when they thought they had just shared. */
+  function noteCardSent(n) {
+    state.brief.sent = n === null ? null : { n: Math.max(0, n) };
   }
 
   /** Someone else started or stopped presenting. */
@@ -467,6 +480,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     snapshot,
     setPresenting,
     setPresenter,
+    noteCardSent,
     setFocus,
     isFollower,
     setTool,

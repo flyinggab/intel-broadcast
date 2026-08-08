@@ -397,6 +397,50 @@ function applyBriefMessage(msg) {
     case 'brief-clear':
       pushInk(ink.apply({ kind: 'clear', hash: msg.hash, rev: bump(msg.hash) }));
       break;
+    case 'brief-card': {
+      // Our own echo, coming back through the same door every message uses.
+      // The sender already HAS this card: re-taking it would re-resolve it for
+      // nothing and wipe the ticks they have already marked. Casting your plan
+      // to the flight is not a way to lose your place in it.
+      if (msg.local) return;
+
+      // The card DATA arrives, not a picture of it — the layout ships inside
+      // the app, so it renders here with OUR copy of the template and looks
+      // exactly as it does on the sender.
+      //
+      // Validated again, here, even though the sender validated it at import:
+      // a card off the wire is a file from another pilot, and the only thing
+      // standing between it and a pilot's kneeboard is this refusing it whole.
+      const layoutPath = path.join(__dirname, '..', '..', 'resources', 'layouts', `${msg.card.layout}.layout.json`);
+      if (!fs.existsSync(layoutPath)) {
+        console.log(`[card] ${msg.presenter || 'someone'} sent a card needing layout "${msg.card.layout}", which this build does not have`);
+        return;
+      }
+      let resolved;
+      try {
+        const layout = JSON.parse(fs.readFileSync(layoutPath, 'utf8'));
+        const out = resolveCard({ layout, card: msg.card });
+        if (!out.ok) {
+          console.log(`[card] REFUSED a card from ${msg.presenter || 'someone'}, ${out.errors.length} problem(s):`);
+          for (const err of out.errors.slice(0, 6)) console.log(`[card]   ${err}`);
+          return;
+        }
+        resolved = out.card;
+      } catch (err) {
+        console.log(`[card] REFUSED a card from ${msg.presenter || 'someone'}: ${err.message}`);
+        return;
+      }
+      for (const page of resolved.pages) {
+        for (const block of page.blocks) if (block.type === 'image') block.url = `intel://blob/${block.blob}`;
+      }
+      // No banner and no prompt, by design: the card the lead sent IS the
+      // card. The only mark is the line of provenance the sheet carries.
+      cardModel = { ...resolved, from: msg.presenter || '' };
+      cardSource = msg.card;
+      cardTicks = new Map();
+      console.log(`[card] took a card from ${msg.presenter || 'someone'}`);
+      break;
+    }
     default:
       return;
   }
@@ -420,8 +464,24 @@ function bump(hash) {
  */
 function originateBrief(msg) {
   const withMe = { ...msg, presenter: config.callsign || '' };
-  applyBriefMessage(withMe);
-  if (relayClient) relayClient.sendBrief(msg);
+  // `local` marks the echo as OURS and is a separate object from what goes on
+  // the wire, so the flag cannot leak to another pilot. Ink does not care —
+  // applying our own stroke is the whole point — but a card does: taking back
+  // the card we just sent would reset the ticks we have already marked.
+  // Comparing callsigns would not do; two pilots may fly under the same one.
+  applyBriefMessage({ ...withMe, local: true });
+
+  // ONE path to the net, not two. Hosting ALSO runs a client against our own
+  // relay — that loopback is how a host hears everyone else's brief — so a
+  // host that took both paths put every frame on the net twice, and every
+  // other pilot applied it twice.
+  //
+  // The client is preferred where it exists, because the relay then knows the
+  // presenter by SOCKET: `broadcastBrief` can only record the host as "no
+  // socket", and a presenter with no socket never matches the check that
+  // guards presenter-only messages. The server path stays for the seconds
+  // before the loopback is up, and for a host with the relay off.
+  if (relayClient && relayClient.sendBrief(msg)) return;
   if (relayServer) relayServer.broadcastBrief(withMe);
 }
 
@@ -460,6 +520,24 @@ function syncFocus() {
   });
 }
 
+// How long the "card sent" acknowledgement stays up. Long enough to read
+// while looking away at a HOTAS, short enough that it is gone before it can be
+// mistaken for a standing state.
+const CARD_SENT_MS = 3000;
+let cardSentTimer = null;
+
+/** Says a card went out, then takes it back down. */
+function noteCardSent(n) {
+  if (cardSentTimer) clearTimeout(cardSentTimer);
+  view.noteCardSent(n);
+  pushState();
+  cardSentTimer = setTimeout(() => {
+    cardSentTimer = null;
+    view.noteCardSent(null);
+    pushState();
+  }, CARD_SENT_MS);
+}
+
 function handleBriefIntent(intent, payload) {
   const hash = currentHash();
   switch (intent) {
@@ -475,7 +553,9 @@ function handleBriefIntent(intent, payload) {
           return true;
         }
         originateBrief({ type: 'brief-card', card: raw });
-        console.log(`[card] sent to ${Math.max(0, (view.state.peers || []).length - 1)} pilot(s) on net`);
+        const reached = Math.max(0, (view.state.peers || []).length - 1);
+        console.log(`[card] sent to ${reached} pilot(s) on net`);
+        noteCardSent(reached);
         return true;
       }
       const on = Boolean(payload);
@@ -517,37 +597,6 @@ function handleBriefIntent(intent, payload) {
       if (!hash) return true;
       originateBrief({ type: 'brief-clear', hash });
       return true;
-    case 'brief-card': {
-      // The card DATA arrives, not a picture of it — the layout ships inside
-      // the app, so it renders here with OUR copy of the template and looks
-      // exactly as it does on the sender.
-      //
-      // Validated again, here, even though the sender validated it at import:
-      // a card off the wire is a file from another pilot, and the only thing
-      // standing between it and a pilot's kneeboard is this refusing it whole.
-      const layoutPath = path.join(__dirname, '..', '..', 'resources', 'layouts', `${msg.card.layout}.layout.json`);
-      if (!fs.existsSync(layoutPath)) {
-        console.log(`[card] ${msg.presenter || 'someone'} sent a card needing layout "${msg.card.layout}", which this build does not have`);
-        break;
-      }
-      const layout = JSON.parse(fs.readFileSync(layoutPath, 'utf8'));
-      const { ok, errors, card: resolved } = resolveCard({ layout, card: msg.card });
-      if (!ok) {
-        console.log(`[card] REFUSED a card from ${msg.presenter || 'someone'}, ${errors.length} problem(s):`);
-        for (const err of errors.slice(0, 6)) console.log(`[card]   ${err}`);
-        break;
-      }
-      for (const page of resolved.pages) {
-        for (const block of page.blocks) if (block.type === 'image') block.url = `intel://blob/${block.blob}`;
-      }
-      // No banner and no prompt, by design: the card the lead sent IS the
-      // card. The only mark is the line of provenance the sheet carries.
-      cardModel = { ...resolved, from: msg.presenter || '' };
-      cardSource = msg.card;
-      cardTicks = new Map();
-      console.log(`[card] took a card from ${msg.presenter || 'someone'}`);
-      break;
-    }
     case 'brief-snapshot-req': {
       // Both surfaces ask for this, and both must be answered: a dashboard tab
       // that woke up behind the ink has no other way to catch up.
