@@ -24,6 +24,7 @@
   const en = {
     // viewer chrome
     'nav.toggle': 'HIDE OR SHOW THE MENU',
+    'nav.unseen': 'SOMETHING NEW',
     'tab.intel': 'INTEL',
     'view.photo': 'PHOTO',
     'view.received': 'RECEIVED',
@@ -244,6 +245,7 @@
 
   const it = {
     'nav.toggle': 'NASCONDI O MOSTRA IL MENU',
+    'nav.unseen': 'QUALCOSA DI NUOVO',
     'tab.intel': 'INTEL',
     'view.photo': 'FOTO',
     'view.received': 'RICEVUTE',

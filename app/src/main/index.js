@@ -459,6 +459,9 @@ function applyBriefMessage(msg) {
       // yet is worse than no card: it is a confident wrong answer about where
       // the flight is.
       cardTicks = new Map(Object.entries(msg.ticks || {}).map(([k, v]) => [Number(k), v]));
+      // A card raises no banner, by design. Without a mark on the rail it can
+      // land on a pilot's kneeboard with nothing on screen saying so.
+      view.noteCardArrived();
       console.log(
         `[card] took a card from ${msg.presenter || 'someone'}` +
           (cardTicks.size ? `, ${cardTicks.size} step(s) already marked` : ''),

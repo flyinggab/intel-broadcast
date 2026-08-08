@@ -17,6 +17,19 @@ that entry.
 ## Unreleased
 
 ### Added
+- **A mark on the rail when something landed while you were elsewhere** — one
+  dot per destination, on INTEL and on CARD, cleared by going there. An unread
+  badge was carried once and deliberately removed, on the reasoning that "the
+  banner announces arrivals; RECEIVED holds the history". That held for the app
+  it was written for and does not hold for this one: a card raises NO banner,
+  by design, so a lead could cast a card onto a pilot's kneeboard with nothing
+  anywhere on screen saying it had happened. A dot rather than a count — the
+  rail collapses to 44px icons on a knee, where a number is a thing to squint
+  at, and "is there anything over there" is the whole question. The tile also
+  says it in words, because a coloured dot is not information to a pilot using
+  a screen reader. Arriving is what clears it: there is no second gesture and
+  nothing to remember. A mark survives a navigation the app REFUSED — a held
+  follower pressing CARD must not wipe the one thing telling them a card came.
 - **`dev-e2e-card-test`** ticks and unticks a route step in a real window. The
   bug it exists for needed the card DATA, MAIN and the RENDERER to disagree,
   so neither the resolver test nor the geometry test could see it — only the

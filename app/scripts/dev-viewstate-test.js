@@ -402,4 +402,55 @@ const cur = (view) => view.snapshot().queue.current;
   console.log('[test] a follower is held in the brief; presenter stop or vanish releases them');
 }
 
+// ---------------------------------------------------------------------------
+// SOMETHING LANDED WHILE YOU WERE ELSEWHERE. One mark per rail destination.
+// ---------------------------------------------------------------------------
+{
+  // Intel arriving while the pilot is reading the card marks INTEL.
+  const v = createViewState();
+  // setPage counts as an interaction, which is what holds the auto-switch off
+  // here — otherwise the arrival would yank the pilot onto it and it would be
+  // seen, correctly, rather than marked.
+  v.setPage('card');
+  v.addBatch({ sharedBy: 'LEAD', items: [{ filename: 'a.jpg', url: 'u', hash: 'h-a' }] });
+  assert.strictEqual(v.snapshot().page, 'card', 'the pilot was not yanked off the card');
+  assert.strictEqual(v.snapshot().unseen.brief, true, 'intel arrived while away — INTEL is marked');
+  assert.strictEqual(v.snapshot().unseen.card, false, 'and nothing else is');
+
+  // Going there is what clears it, including via a sibling view: a pilot who
+  // walked over to SHARE has plainly seen that intel landed.
+  v.setPage('share');
+  assert.strictEqual(v.snapshot().unseen.brief, false, 'reaching any INTEL view clears the mark');
+
+  // Arriving on the page you are already reading marks nothing. A mark you
+  // watch appear on the page you are looking at is noise.
+  v.setPage('brief');
+  v.addBatch({ sharedBy: 'LEAD', items: [{ filename: 'b.jpg', url: 'u2', hash: 'h-b' }] });
+  assert.strictEqual(v.snapshot().unseen.brief, false, 'already looking at it — nothing to mark');
+
+  // A card is the case that NEEDS this: it raises no banner at all.
+  const w = createViewState();
+  w.setPage('brief');
+  w.noteCardArrived();
+  assert.strictEqual(w.snapshot().unseen.card, true, 'a card arrived while away — CARD is marked');
+  assert.strictEqual(w.snapshot().unseen.brief, false, 'a card does not mark INTEL');
+  w.setPage('card');
+  assert.strictEqual(w.snapshot().unseen.card, false, 'opening CARD clears it');
+  w.noteCardArrived();
+  assert.strictEqual(w.snapshot().unseen.card, false, 'a card landing on the open CARD page marks nothing');
+
+  // A HELD follower cannot navigate, so their mark must survive the refusal —
+  // otherwise the one thing telling them a card arrived is wiped by a press
+  // that did nothing.
+  const f = createViewState();
+  f.setPage('brief');
+  f.noteCardArrived();
+  f.setPresenter('LEAD');
+  assert.strictEqual(f.snapshot().brief.locked, true, 'held, so setPage is refused');
+  f.setPage('card');
+  assert.strictEqual(f.snapshot().unseen.card, true, 'a refused move must not clear the mark');
+
+  console.log('[test] arrivals mark their destination on the rail; going there clears it');
+}
+
 console.log('[dev-viewstate-test] PASS');

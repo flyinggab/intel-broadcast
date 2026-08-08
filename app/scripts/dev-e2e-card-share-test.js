@@ -104,6 +104,34 @@ const SHEET = `
   };
 `;
 
+/**
+ * The rail, and which destinations are marked as holding something new.
+ *
+ * Measures the mark rather than just finding it in the DOM. A dot that exists
+ * at zero size, or hanging off the edge of its tile, is not on the pilot's
+ * screen whatever the markup says — this app has shipped exactly that once,
+ * which is why dev-visual-test asserts against pixels at all.
+ */
+const RAIL = `
+  const tiles = [...document.querySelectorAll('.dest')];
+  return Object.fromEntries(tiles.map((t) => {
+    const d = t.querySelector('.dest__dot');
+    const tr = t.getBoundingClientRect();
+    if (!d) return [t.dataset.dest, { dot: false, title: t.title }];
+    const dr = d.getBoundingClientRect();
+    const cs = getComputedStyle(d);
+    return [t.dataset.dest, {
+      dot: true,
+      title: t.title,
+      w: Math.round(dr.width),
+      h: Math.round(dr.height),
+      inside: dr.left >= tr.left && dr.right <= tr.right && dr.top >= tr.top && dr.bottom <= tr.bottom,
+      shown: cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0,
+      colour: cs.backgroundColor,
+    }];
+  }));
+`;
+
 const pcA = makePc({
   name: 'PC-A',
   callsign: 'GHOSTRIDER 1-1',
@@ -146,7 +174,10 @@ async function main() {
   await sleep(2000);
 
   await run(pcA, `window.viewerAPI.send('set-page', 'card')`);
-  await run(pcB, `window.viewerAPI.send('set-page', 'card')`);
+  // The wingman is deliberately left on INTEL. A card arriving on the page
+  // you are already reading is its own notification; the case that needs
+  // testing is the one where the pilot is looking somewhere else.
+  await run(pcB, `window.viewerAPI.send('set-page', 'brief')`);
   await sleep(800);
 
   // The wingman starts with NOTHING. Without this the test would pass on an
@@ -195,6 +226,46 @@ async function main() {
   console.log(`[e2e] the lead is told: "${ack.title} — ${ack.meta}"`);
 
   await sleep(2500);
+
+  // ---------------------------------------------------------------------------
+  // THE WINGMAN IS ON ANOTHER PAGE, and a card raises no banner by design. The
+  // mark on the rail is the ONLY thing anywhere on their screen saying a card
+  // just landed on their kneeboard.
+  // ---------------------------------------------------------------------------
+  const railAfter = await probe(pcB, 'rail', RAIL);
+  if (!railAfter.card || !railAfter.card.dot) {
+    throw new Error(
+      'a card arrived while the wingman was on INTEL and nothing marked CARD on the rail — ' +
+        'with no banner for cards, they have no way to know it happened',
+    );
+  }
+  if (railAfter.brief.dot) {
+    throw new Error('INTEL is marked, but nothing arrived there — the mark must name the right destination');
+  }
+  if (railAfter.setup.dot) throw new Error('SETUP is marked; nothing ever arrives there');
+  // On screen, not merely in the markup.
+  const dot = railAfter.card;
+  if (!dot.shown || dot.w < 4 || dot.h < 4) {
+    throw new Error(`the mark is ${dot.w}x${dot.h}, shown=${dot.shown} — it is not on the pilot's screen`);
+  }
+  if (!dot.inside) {
+    throw new Error('the mark hangs outside its tile, where the rail can clip it away');
+  }
+  console.log(`[e2e] the mark measures ${dot.w}x${dot.h} ${dot.colour}, inside its tile`);
+  if (!/NEW|NUOVO/i.test(railAfter.card.title)) {
+    throw new Error(
+      `the marked tile reads "${railAfter.card.title}" — a coloured dot says nothing to a pilot ` +
+        'using a screen reader, and it is the whole message',
+    );
+  }
+  console.log(`[e2e] CARD is marked on the wingman's rail: "${railAfter.card.title}"`);
+
+  // GOING THERE IS HOW IT CLEARS. No second gesture, nothing to remember.
+  await run(pcB, `window.viewerAPI.send('set-page', 'card')`);
+  await sleep(600);
+  const railSeen = await probe(pcB, 'railSeen', RAIL);
+  if (railSeen.card.dot) throw new Error('the wingman opened CARD and the mark is still there');
+  console.log('[e2e] and walking over to CARD clears it');
 
   const got = await probe(pcB, 'after', SHEET);
   if (got.steps === 0) {

@@ -15,8 +15,12 @@
 // v0.4 model: BRIEF is the kneeboard. All received photos form ONE flat
 // queue, newest batch first; an arrival PREPENDS. RECEIVED does not "open"
 // batches any more — it curates the queue: every item carries `selected`,
-// and deselected items are simply not in it. There is no unread state and no
-// badge; the banner announces every arrival instead.
+// and deselected items are simply not in it. There is no per-photo unread
+// state — the banner announces every arrival and RECEIVED holds the history.
+// What there IS, since cards started arriving, is one mark per RAIL
+// DESTINATION saying something landed while the pilot was on another page.
+// See `unseen` below for why that is not a reversal of the badge that was
+// removed: a card raises no banner, so nothing else says it arrived at all.
 //
 // Pure Node, no Electron: unit-testable, and the push side is injected.
 
@@ -26,6 +30,11 @@ const DEFAULT_MAX_BATCHES = 25;
 // the pilot interacted in the last 8s, so a reveal can't yank the page out
 // from under someone mid-read.
 const INTERACTION_GRACE_MS = 8000;
+
+// The pages that ARE the INTEL app. One destination on the rail, three views
+// inside it, so a mark set by arriving intel is cleared by reaching any of
+// them — a pilot who walked over to SHARE has plainly seen that intel landed.
+const INTEL_PAGES = ['brief', 'received', 'share'];
 
 function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.now() } = {}) {
   const state = {
@@ -53,6 +62,22 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     autoShow: true,
     locale: 'en', // display language; both renderers translate through it
     banner: null, // { who, count, switched, at } — at keys the renderer's dismiss timer
+
+    // SOMETHING LANDED WHILE YOU WERE ELSEWHERE — one mark per destination on
+    // the rail, cleared by going there.
+    //
+    // An unread badge was carried once and deliberately removed, on the
+    // reasoning that "the banner announces arrivals; RECEIVED holds the
+    // history". That was true of the app it was written for, and is not true
+    // of this one: a card arriving raises NO banner, by the owner's explicit
+    // design, so a lead could cast a card onto a pilot's kneeboard with
+    // nothing anywhere on screen saying it had happened.
+    //
+    // It is a DOT and not a count. The rail collapses to 44px icons on a
+    // pilot's knee, where a number is a thing to squint at; and the question
+    // it answers is "is there anything over there", which a number does not
+    // answer any better. The page itself holds the detail.
+    unseen: { brief: false, card: false },
 
     // Brief mode. See design/brief-mode/HANDOFF.md.
     //
@@ -204,6 +229,10 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     // Any arrival supersedes the previous banner; `at` keys the renderer's
     // auto-dismiss timer so a later state push cannot extend an old banner.
     state.banner = { who: entry.sharedBy, count: entry.items.length, switched, at: now() };
+    // Read AFTER the auto-switch above, not before: if the intel took the
+    // stage by itself, the pilot is now looking straight at it and marking it
+    // unseen would be false.
+    if (!INTEL_PAGES.includes(state.page)) state.unseen.brief = true;
     repairCurrent(); // eviction may have dropped the batch `current` was in
     state.counters.received += 1;
     return { entry, switched };
@@ -356,6 +385,32 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     if (isFollower()) return; // held on the presenter's page
     noteInteraction();
     state.page = page;
+    // Arriving IS how you view it. The mark exists to say "something landed
+    // while you were elsewhere", so walking over there answers it — there is
+    // no second gesture to dismiss, and nothing a pilot has to remember to do.
+    seePage(page);
+  }
+
+  /** Clears the mark on whichever destination `page` belongs to. */
+  function seePage(page) {
+    if (INTEL_PAGES.includes(page)) state.unseen.brief = false;
+    else if (page === 'card') state.unseen.card = false;
+  }
+
+  /**
+   * A card arrived from another pilot.
+   *
+   * Marked only when the pilot is looking somewhere else — a card landing on
+   * the CARD page is its own notification, and a mark you watch appear on the
+   * page you are already reading is noise.
+   *
+   * Cards are the case that NEEDS this: intel arriving raises a banner, and a
+   * card deliberately does not, by the owner's design. Without a mark on the
+   * rail a card can land on a pilot's kneeboard with nothing on screen saying
+   * so anywhere.
+   */
+  function noteCardArrived() {
+    if (state.page !== 'card') state.unseen.card = true;
   }
   function setNavCollapsed(collapsed) {
     noteInteraction();
@@ -429,6 +484,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
       autoShow: state.autoShow,
       locale: state.locale,
       banner: state.banner,
+      unseen: { ...state.unseen },
       brief: {
         ...state.brief,
         // A brief is live whenever anyone is presenting. There is no longer a
@@ -481,6 +537,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     setPresenting,
     setPresenter,
     noteCardSent,
+    noteCardArrived,
     setFocus,
     isFollower,
     setTool,

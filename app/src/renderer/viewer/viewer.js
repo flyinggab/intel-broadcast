@@ -186,7 +186,11 @@ function renderNav(s) {
   menukey.setAttribute('aria-label', t('nav.toggle'));
   menukey.title = t('nav.toggle');
 
-  const signature = `${s.page}|${s.locale}`;
+  const unseen = s.unseen || {};
+  // The marks are part of what the rail LOOKS like, so they belong in the
+  // signature. Left out, the rail would keep whichever marks it was built
+  // with and a card arriving would light nothing until the page changed.
+  const signature = `${s.page}|${s.locale}|${unseen.brief ? 1 : 0}${unseen.card ? 1 : 0}`;
   if (signature === renderedNav) return;
   renderedNav = signature;
 
@@ -230,10 +234,20 @@ function renderNav(s) {
       label.textContent = t(d.label);
       tile.append(label);
     }
-    // Both, always. `title` is what a hover says, and the SETUP key carries no
-    // caption at all — an icon with no word anywhere is a guess.
-    tile.setAttribute('aria-label', t(d.label));
-    tile.title = t(d.label);
+    // SOMETHING LANDED HERE WHILE YOU WERE ELSEWHERE. A dot, not a count: the
+    // rail collapses to 44px icons on a pilot's knee, and the question it
+    // answers is "is there anything over there" — the page holds the detail.
+    const marked = Boolean(unseen[d.id]);
+    if (marked) {
+      const dot = document.createElement('span');
+      dot.className = 'dest__dot';
+      tile.append(dot);
+    }
+    // Said out loud too. A coloured dot is not information to a pilot using a
+    // screen reader, and it is the whole message here.
+    const say = marked ? `${t(d.label)} — ${t('nav.unseen')}` : t(d.label);
+    tile.setAttribute('aria-label', say);
+    tile.title = say;
     nav.append(tile);
   }
 }

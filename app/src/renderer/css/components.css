@@ -374,6 +374,23 @@ body[data-surface="window"] .wctl { display: flex; align-items: center; gap: 1px
 }
 .dest:hover { background: rgba(120, 128, 112, .45); }
 .dest.is-active { background: var(--lit); color: var(--ink); }
+/* SOMETHING LANDED WHILE YOU WERE ELSEWHERE.
+   Positioned against the tile, so it sits in the same corner whether the rail
+   is collapsed to icons or open with captions. The ring is the point: this
+   goes over a tile that is sometimes dark and sometimes lit, and a bare dot
+   disappears into the lit one. */
+.dest { position: relative; }
+.dest__dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--go);
+  box-shadow: 0 0 0 1.5px var(--dn);
+  pointer-events: none;
+}
 .dest__icon { width: 1.0625rem; height: 1.0625rem; fill: none; stroke: currentColor; stroke-width: 1.7; }
 /* Small enough to sit under a 17px icon inside 44px, large enough to read on
    the ground. It is a caption, not a label — the icon carries the meaning. */
