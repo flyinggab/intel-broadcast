@@ -685,7 +685,11 @@ function cardBlock(block) {
       const row = document.createElement('div');
       row.className = 'card__step';
       if (step.state === 'current') row.classList.add('card__step--current');
-      if (step.done || step.state === 'done') row.classList.add('card__step--done');
+      // `done` ONLY. This used to also accept state === 'done', which meant a
+      // step the card called done could never be unticked — the tick writes
+      // `done`, `state` still said done, and the OR kept the row flown for
+      // ever. card.js folds both into `done` now; `state` says CURRENT.
+      if (step.done) row.classList.add('card__step--done');
       for (const [cls, text] of [
         ['card__step-name', step.name],
         ['card__step-ref', step.ref],

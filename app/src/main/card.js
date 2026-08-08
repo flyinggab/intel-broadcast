@@ -171,8 +171,19 @@ function resolveBlock(block, card, where, errors) {
           gate: spec.gate ? renderString(spec.gate, row, card, `${where}[${i}].gate`, errors) : '',
           note: spec.note ? renderString(spec.note, row, card, `${where}[${i}].note`, errors) : '',
           state: spec.state ? renderString(spec.state, row, card, `${where}[${i}].state`, errors) : '',
-          // The hold-to-tick target writes this. Read-only here.
-          done: block.complete ? present(get(row, block.complete)) : false,
+          // WHETHER A STEP IS FLOWN LIVES IN EXACTLY ONE FIELD, and this is it.
+          //
+          // A card can say so two ways — a `complete` flag, or a state of
+          // "done" — and both are folded in here rather than left for the
+          // renderer to OR together. When it did OR them, a step the card
+          // called done could never be UNticked: the pilot's tick writes
+          // `done`, but `state` still read "done" and won, so the first three
+          // legs of the example card looked simply unclickable.
+          //
+          // `state` keeps only what it alone can say: which step is CURRENT.
+          done:
+            (block.complete ? present(get(row, block.complete)) : false) ||
+            (spec.state ? renderString(spec.state, row, card, `${where}[${i}].state`, errors) === 'done' : false),
         })),
       };
     }

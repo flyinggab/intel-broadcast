@@ -17,6 +17,10 @@ that entry.
 ## Unreleased
 
 ### Added
+- **`dev-e2e-card-test`** ticks and unticks a route step in a real window. The
+  bug it exists for needed the card DATA, MAIN and the RENDERER to disagree,
+  so neither the resolver test nor the geometry test could see it — only the
+  round trip does.
 - **`dev-card-geometry-test`** renders the real card in Electron with the real
   B612 and fails on any value wider than the box it lands in, naming it:
   `"N29 09'58.8 E53 07'38.6" needs 254px, has 214px`. This is the string-width
@@ -75,6 +79,14 @@ that entry.
 - Comms agency names are one word — MOTHER, not MOTHER (CVN-71); SHELL, not
   SHELL KC-135. On a kneeboard the agency is the callsign and the parenthetical
   is explanatory text charging the column for it.
+- **Route steps the card marked flown could not be unticked.** The first three
+  legs of a card simply did not respond, with no error — the click was received
+  and handled. A card can say a leg is flown two ways, a `complete` flag or a
+  state of `"done"`, and the renderer accepted either while the pilot's tick
+  wrote only `done`: the tick set `done: false`, `state` still said `"done"`,
+  and the OR kept the row flown for ever. Whether a step is flown now lives in
+  exactly one field, folded in when the card is resolved; `state` keeps only
+  what it alone can say, which step is CURRENT.
 - **A table's columns now line up down the page.** Rows were independent flex
   lines that each sized themselves, so a row missing a value slid everything
   after it left: a tanker with no altitude put its heading where the row above
