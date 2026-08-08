@@ -29,9 +29,13 @@ const el = (id) => document.getElementById(id);
 // round caps.
 const DESTINATIONS = [
   {
+    // ONE destination for all of it. RECEIVED and SHARE were never places
+    // you GO — they are two directions of the same queue, what came in and
+    // what goes out, and both are things you do to the brief you are already
+    // looking at. They are sub-views now, picked from the strip.
     id: 'brief',
     group: 'intel',
-    label: 'tab.brief',
+    label: 'tab.intel',
     icon: [['rect', { x: 3, y: 2, width: 14, height: 16 }], ['path', { d: 'M6 7h8M6 11h8M6 15h5' }]],
   },
   {
@@ -47,38 +51,18 @@ const DESTINATIONS = [
     ],
   },
   {
-    id: 'received',
-    group: 'intel',
-    label: 'tab.received',
-    icon: [
-      ['path', { d: 'M10 2v9M6 8l4 4 4-4', 'stroke-linecap': 'round' }],
-      ['path', { d: 'M3 14h14v4H3z' }],
-    ],
-  },
-  {
-    id: 'share',
-    group: 'intel',
-    label: 'tab.share',
-    icon: [
-      ['path', { d: 'M10 13V4M6 7l4-4 4 4', 'stroke-linecap': 'round' }],
-      ['path', { d: 'M3 14h14v4H3z' }],
-    ],
-  },
-  {
     id: 'setup',
     group: 'system',
     label: 'tab.setup',
-    // A gear, and no caption: SETUP is the one destination nobody has to be
-    // told the name of, and it sits apart from the flight surfaces anyway.
+    // A real cog, not a sun. The first attempt was a circle with radial lines,
+    // which is exactly what a brightness glyph is: thin rays SEPARATE from a
+    // disc. A gear's teeth are wide and part of the body, so the outline
+    // alternates between an outer and an inner radius with flat tooth tops.
+    // No caption: SETUP is the one destination nobody has to be told the name
+    // of, and it sits apart from the flight surfaces anyway.
     icon: [
-      ['circle', { cx: 10, cy: 10, r: 2.6 }],
-      [
-        'path',
-        {
-          d: 'M10 2.6v2M10 15.4v2M17.4 10h-2M4.6 10h-2M15.2 4.8l-1.4 1.4M6.2 13.8l-1.4 1.4M15.2 15.2l-1.4-1.4M6.2 6.2L4.8 4.8',
-          'stroke-linecap': 'round',
-        },
-      ],
+      ['path', { d: 'M8.04 1.83L11.96 1.83L11.45 3.97L13.24 4.71L14.39 2.84L17.16 5.61L15.29 6.76L16.03 8.55L18.17 8.04L18.17 11.96L16.03 11.45L15.29 13.24L17.16 14.39L14.39 17.16L13.24 15.29L11.45 16.03L11.96 18.17L8.04 18.17L8.55 16.03L6.76 15.29L5.61 17.16L2.84 14.39L4.71 13.24L3.97 11.45L1.83 11.96L1.83 8.04L3.97 8.55L4.71 6.76L2.84 5.61L5.61 2.84L6.76 4.71L8.55 3.97Z', 'stroke-linejoin': 'round' }],
+      ['circle', { cx: 10, cy: 10, r: 2.8 }],
     ],
   },
 ];
@@ -90,6 +74,7 @@ const strip = { net: el('strip-net'), relay: el('strip-relay') };
 const crumb = { root: el('crumb'), page: el('crumb-page'), pos: el('crumb-pos') };
 const menukey = el('menukey');
 const nav = el('nav');
+const views = el('views');
 const banner = {
   root: el('banner'),
   who: el('banner-who'),
@@ -159,8 +144,21 @@ function renderStrip(s) {
   // The breadcrumb replaced the callsign here: the callsign is identity, which
   // settings owns and the squad sees, while WHERE YOU ARE is the thing the
   // strip has to answer now that there is no tab bar to answer it.
-  const dest = DESTINATIONS.find((d) => d.id === s.page);
-  setText(crumb.page, dest ? t(dest.label) : '');
+  // INTEL's three views live under one destination, so the crumb names the
+  // VIEW while the rail names the app.
+  const INTEL_VIEWS = ['brief', 'received', 'share'];
+  const inIntel = INTEL_VIEWS.includes(s.page);
+  views.classList.toggle('is-hidden', !inIntel);
+  for (const key of views.querySelectorAll('[data-view]')) {
+    key.classList.toggle('is-on', key.dataset.view === s.page);
+  }
+  // Inside INTEL the crumb's page name says nothing the rail and the view keys
+  // do not already say — the rail is lit on INTEL and one key is lit on the
+  // view. Three names for one place, and at --ui-scale 1.4 the Italian ones
+  // pushed the strip 37px past the window. The position stays: that is the one
+  // thing nothing else reports.
+  const dest = DESTINATIONS.find((d) => d.id === s.page) || (inIntel ? DESTINATIONS[0] : null);
+  setText(crumb.page, inIntel ? '' : dest ? t(dest.label) : '');
   // Position is only meaningful where there is a queue to be positioned in.
   const q = s.queue;
   setText(crumb.pos, s.page === 'brief' && q.current ? `${q.pos + 1} / ${q.total}` : '');
@@ -214,7 +212,8 @@ function renderNav(s) {
     lastGroup = d.group;
 
     const tile = document.createElement('button');
-    tile.className = 'dest' + (d.id === s.page ? ' is-active' : '');
+    const active = d.id === s.page || (d.id === 'brief' && ['received', 'share'].includes(s.page));
+    tile.className = 'dest' + (active ? ' is-active' : '');
     tile.dataset.dest = d.id;
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1005,6 +1004,11 @@ const send = (intent, payload) => window.viewerAPI && window.viewerAPI.send(inte
 // The hamburger collapses the rail. It is the only thing left in the strip
 // that navigates, because the rail itself is one press to anywhere.
 menukey.addEventListener('click', () => send('toggle-nav'));
+
+views.addEventListener('click', (event) => {
+  const key = event.target.closest('[data-view]');
+  if (key) send('set-page', key.dataset.view);
+});
 
 nav.addEventListener('click', (event) => {
   const tile = event.target.closest('.dest[data-dest]');

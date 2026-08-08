@@ -48,10 +48,18 @@
         <path d="M3 6h14M3 10h14M3 14h14"/>
       </svg>
     </button>
-    <button class="crumb" id="crumb" aria-haspopup="menu" aria-expanded="false">
+    <button class="crumb" id="crumb">
       <span class="crumb__page" id="crumb-page"></span>
       <span class="crumb__pos" id="crumb-pos"></span>
     </button>
+    <!-- INTEL's three views. Not navigation — RECEIVED and SHARE are what
+         INTEL is SHOWING, so they belong beside the page name rather than in
+         the rail. Hidden everywhere else. -->
+    <span class="views is-hidden" id="views">
+      <button class="views__key" data-view="brief" data-i18n="view.photo">PHOTO</button>
+      <button class="views__key" data-view="received" data-i18n="view.received">RECEIVED</button>
+      <button class="views__key" data-view="share" data-i18n="view.share">SHARE</button>
+    </span>
     <span class="strip__seg strip__seg--grow" id="strip-net"></span>
     <!-- The status and its remedy travel together. The strip is
          space-between, so left loose the key drifted to the far edge and read

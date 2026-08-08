@@ -41,7 +41,15 @@
    drag. Sized to its text it was a handle the width of "HOST · 4 ON NET",
    and at boot — before the status has anything to say — it was nothing at
    all, which on a frameless window means an unmovable one. */
-.strip__seg--grow { flex: 1; text-align: center; }
+.strip__seg--grow {
+  flex: 1;
+  text-align: center;
+  /* Shrinkable. Without this the nowrap status text sets a floor the strip
+     cannot go below, and adding INTEL's three view keys pushed the whole strip
+     25px past the window at --ui-scale 1.4. Status is the thing that should
+     give: it ellipsises, the controls stay whole. */
+  min-width: 0;
+}
 /* Status and remedy as one unit, so the key sits against the word it fixes. */
 .strip__conn { display: flex; align-items: center; gap: var(--sp-2); flex: none; }
 .strip__seg--fault { color: var(--fault); font-weight: 700; }
@@ -1047,3 +1055,31 @@ body[data-page="share"] .page.share { display: flex; }
 }
 .cast svg { width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.6; }
 .cast.is-on { background: var(--lit); }
+
+/* --- INTEL's three views ---------------------------------------------------
+   RECEIVED and SHARE stopped being destinations: they are what INTEL is
+   showing. That puts them beside the page name in the strip rather than in the
+   rail, and it is why each one still takes the WHOLE page when picked — a
+   filmstrip along the bottom was tried in the mockup and rejected, because two
+   recon photos are indistinguishable at that size and telling them apart is
+   the entire job.                                                           */
+.views { display: flex; flex: none; align-items: center; }
+/* Empty inside INTEL, so it must not hold width open. */
+.crumb__page:empty { display: none; }
+.views.is-hidden { display: none; }
+.views__key {
+  flex: none;
+  /* Both axes clear the floor: "FOTO" is short enough in Italian that the key
+     came out 43.4px wide, which the geometry test now catches. */
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: 0 var(--sp-2);
+  background: var(--up);
+  box-shadow: var(--bevel-up);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--fs-cap);
+  letter-spacing: .07em;
+  cursor: pointer;
+}
+.views__key.is-on { background: var(--lit); }

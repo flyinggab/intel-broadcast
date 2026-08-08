@@ -119,6 +119,9 @@ const click = (selector) => runInViewer(`document.querySelector(${JSON.stringify
 // getting anywhere costs a single press — which is why it replaced the menu.
 async function goTo(dest) {
   if (probe.navCollapsed) await click('#menukey');
+  // RECEIVED and SHARE are no longer destinations — they are views of INTEL,
+  // picked from the strip. Still one press either way.
+  if (dest === 'received' || dest === 'share') return click(`.views__key[data-view="${dest}"]`);
   await click(`.dest[data-dest="${dest}"]`);
 }
 
