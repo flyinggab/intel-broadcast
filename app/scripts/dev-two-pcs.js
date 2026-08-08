@@ -8,6 +8,8 @@
 //   node scripts/dev-two-pcs.js --manual   second one left unpaired, so you can
 //                                          practise pasting the code yourself
 //   node scripts/dev-two-pcs.js --port 9100
+//   node scripts/dev-two-pcs.js --card path/to/other.card.json
+//   node scripts/dev-two-pcs.js --no-card
 //
 // Ctrl+C closes both.
 //
@@ -41,6 +43,17 @@ const manual = args.includes('--manual');
 const portArg = args.indexOf('--port');
 const RELAY_PORT = portArg !== -1 ? Number(args[portArg + 1]) : 8787;
 
+// A mission card on the HOST only, so the two PCs differ the way two pilots
+// do: the lead has the card, the wingman does not. That asymmetry is the
+// whole point when testing card sharing — with a card on both you cannot
+// tell a successful send from a card that was already there.
+const cardArg = args.indexOf('--card');
+const CARD_PATH =
+  cardArg !== -1 && args[cardArg + 1] && !args[cardArg + 1].startsWith('--')
+    ? path.resolve(args[cardArg + 1])
+    : path.join(APP_DIR, '..', 'design', 'kneeboard', 'foxhunt2-roman1.card.json');
+const noCard = args.includes('--no-card');
+
 // Under the OS temp dir, not the repo: these are throwaway machines, and a
 // stray userData folder inside app/ would end up in a build.
 const ROOT = path.join(os.tmpdir(), 'taclink-two-pcs');
@@ -60,7 +73,7 @@ function lanAddress() {
 
 const CODE = squad.encodeSquadCode(lanAddress(), RELAY_PORT, TOKEN);
 
-function makePc({ name, callsign, config }) {
+function makePc({ name, callsign, config, card = null }) {
   const dir = path.join(ROOT, name);
   fs.mkdirSync(dir, { recursive: true });
   const configPath = path.join(dir, 'config.json');
@@ -68,12 +81,14 @@ function makePc({ name, callsign, config }) {
     configPath,
     JSON.stringify({ callsign, missionName: 'roman-sead-joker1', ...config }, null, 2),
   );
-  return { name, callsign, dir, configPath };
+  return { name, callsign, dir, configPath, card };
 }
 
 const pcA = makePc({
   name: 'PC-A',
   callsign: 'GHOSTRIDER 1-1',
+  // The lead has the card; the wingman does not. See CARD_PATH above.
+  card: noCard ? null : CARD_PATH,
   // okb OFF: these are throwaway machines under the OS temp dir, and this
   // script deletes them on exit. An instance that registers an OpenKneeboard
   // plugin from a directory that is about to vanish leaves a dangling entry
@@ -98,7 +113,13 @@ function launch(pc) {
   const child = spawn(ELECTRON_BIN, ['.', '--no-sandbox', `--user-data-dir=${pc.dir}`], {
     cwd: APP_DIR,
     detached: true, // its own process group, so Ctrl+C can take the whole thing down
-    env: { ...process.env, INTEL_BROADCAST_LOCAL_CONFIG_PATH: pc.configPath },
+    env: {
+      ...process.env,
+      INTEL_BROADCAST_LOCAL_CONFIG_PATH: pc.configPath,
+      // Only the host gets one. Deleted rather than set empty, because an
+      // empty string would still count as "a card path was given".
+      ...(pc.card ? { INTEL_BROADCAST_CARD_PATH: pc.card } : {}),
+    },
   });
   const tag = `[${pc.name}]`;
   const relay = (stream, out) => {
@@ -130,7 +151,7 @@ process.on('SIGTERM', shutdown);
 console.log(`
   Two instances, one machine — treated as two different PCs.
 
-    ${pcA.name}  ${pcA.callsign}   hosts the relay on port ${RELAY_PORT}
+    ${pcA.name}  ${pcA.callsign}   hosts the relay on port ${RELAY_PORT}${pcA.card ? ' · has the CARD' : ''}
     ${pcB.name}  ${pcB.callsign}   ${manual ? 'NOT paired — pair it yourself' : 'joins it with the squad code'}
 
   Squad code
