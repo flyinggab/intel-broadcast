@@ -68,12 +68,12 @@
         "ref": "WP1 'FORMA'",
         "alt": "100",
         "speed": "450G",
-        "note": "~13nm @ FL100 — lead check speed",
+        "note": "~13nm @ FL100 \u2014 lead check speed",
         "state": "done"
       },
       {
         "name": "AAR",
-        "ref": "WP2 — SHELL",
+        "ref": "WP2 \u2014 SHELL",
         "alt": "220",
         "speed": "400T",
         "note": ">06:57 > 2min > 07:09",
@@ -84,7 +84,7 @@
         "ref": "WP3",
         "alt": "016",
         "speed": "250i",
-        "note": ">07:15L — TRAIL — PUSH >07:22L",
+        "note": ">07:15L \u2014 TRAIL \u2014 PUSH >07:22L",
         "state": "current"
       },
       {
@@ -92,32 +92,32 @@
         "ref": "FENCE > WP4 > FEET DRY",
         "alt": "001",
         "speed": "450G",
-        "note": "OFF-SET CARD .5x1.5 — NOE"
+        "note": "OFF-SET CARD .5x1.5 \u2014 NOE"
       },
       {
         "name": "POP-UP",
-        "ref": "WP6 — TRAIL 0.5",
+        "ref": "WP6 \u2014 TRAIL 0.5",
         "alt": "210",
         "speed": "MIL",
-        "note": "LEVEL BY WP7 — drop WTs"
+        "note": "LEVEL BY WP7 \u2014 drop WTs"
       },
       {
         "name": "IP",
-        "ref": "WP7 — CENTURION — FAO3",
+        "ref": "WP7 \u2014 CENTURION \u2014 FAO3",
         "alt": "210",
         "speed": "450G",
-        "note": "TOT 07:40L — \"CENTURION\""
+        "note": "TOT 07:40L \u2014 \"CENTURION\""
       },
       {
         "name": "LAZ",
-        "ref": "WP8 — AT THE LAKE @FAO3",
+        "ref": "WP8 \u2014 AT THE LAKE @FAO3",
         "alt": "210",
         "speed": "250i",
-        "note": "\"LASING\" — FAO 2 for ref"
+        "note": "\"LASING\" \u2014 FAO 2 for ref"
       },
       {
         "name": "END LAZ",
-        "ref": "WP9 — LZX or before",
+        "ref": "WP9 \u2014 LZX or before",
         "alt": "210",
         "speed": "250i",
         "note": "CHECK SHACK"
@@ -173,40 +173,40 @@
     "primary": [
       {
         "ch": "1",
-        "name": "MOTHER (CVN-71)",
+        "name": "MOTHER",
         "freq": "127.500",
         "tacan": "71X"
       },
       {
         "ch": "2",
-        "name": "OVERLORD (AWACS)",
+        "name": "OVERLORD",
         "freq": "251.000"
       },
       {
         "ch": "3",
-        "name": "TEXACO (AAR)",
+        "name": "TEXACO",
         "freq": "251.200",
         "tacan": "55X"
       },
       {
         "ch": "4",
-        "name": "SHELL (AAR)",
+        "name": "SHELL",
         "freq": "251.400",
         "tacan": "56X"
       },
       {
         "ch": "5",
-        "name": "JOKER 1 (DEAD)",
+        "name": "JOKER 1",
         "freq": "127.600"
       },
       {
         "ch": "6",
-        "name": "JOKER 2 / VIPER",
+        "name": "JOKER 2",
         "freq": "127.700"
       },
       {
         "ch": "7",
-        "name": "LAVAN (DIVERT)",
+        "name": "LAVAN",
         "freq": "250.750",
         "tacan": "116Y"
       },
@@ -236,7 +236,7 @@
     ],
     "fields": [
       {
-        "name": "SHELL KC-135",
+        "name": "SHELL",
         "tacan": "56X",
         "alt": "FL220 / 400T",
         "hdg": "090/270",
@@ -244,19 +244,19 @@
         "next": true
       },
       {
-        "name": "TEXACO KC-135",
+        "name": "TEXACO",
         "tacan": "55X",
         "alt": "FL240 / 400T",
         "hdg": "090/270"
       },
       {
-        "name": "CVN-71 HOME",
+        "name": "MOTHER",
         "tacan": "71X",
         "alt": "0 ft",
         "hdg": "333/153"
       },
       {
-        "name": "LAVAN ALT",
+        "name": "LAVAN",
         "tacan": "116Y",
         "hdg": "110/290"
       }
@@ -269,7 +269,7 @@
       "Complete AAR then hold in TRAIL.",
       "Push 07:22L through FENCE at WP4.",
       "NOE, TAC card, pop-up gate WP6.",
-      "IP CENTURION (WP7) — laze at WP8 / FAO3, confirm shack, escape RTB."
+      "IP CENTURION (WP7) \u2014 laze at WP8 / FAO3, confirm shack, escape RTB."
     ],
     "tot": "07:40L"
   },

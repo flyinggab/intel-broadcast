@@ -260,6 +260,18 @@
    the block, "OVERLORD (AWACS)" at 128px — lost every time to fixed-basis
    neighbours. The frequency and channel know exactly how wide they need to be;
    letting them size to content hands the remainder to the name. */
+/* A comms cell may not shrink below its own text.
+   `min-width: 0` (the default here, so a cell can ellipsis instead of forcing
+   its track wider) meant uniform flex-shrink squeezed cells past their content
+   EVEN WHEN THE ROW HAD ROOM: a TANKER row carries 205px of text in a 429px
+   column and was still clipping four values, because the flex bases sum well
+   past the row and every cell gave up the same proportion. `min-content` makes
+   a cell hold its text and lets the slack go to whoever actually needs it.
+
+   If a row genuinely does not fit, this turns silent truncation into visible
+   overflow — which dev-card-geometry-test catches and a pilot can SEE. That is
+   the right trade: an ellipsis reads as a value, an overflow does not. */
+.card__comms .card__cell { min-width: min-content; }
 .card__comms .card__w-sm,
 .card__comms .card__w-xs { flex: 0 1 auto; }
 .card__comms .card__cell--mono { white-space: nowrap; }

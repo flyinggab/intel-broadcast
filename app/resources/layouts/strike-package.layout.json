@@ -184,6 +184,12 @@
               "value": "{hdg|dash}",
               "width": "sm",
               "style": "mono"
+            },
+            {
+              "value": "{time|blank}",
+              "width": "sm",
+              "style": "mono",
+              "emphasis": "strong"
             }
           ]
         },

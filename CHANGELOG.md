@@ -78,10 +78,18 @@ that entry.
   eastings, which is the reference every bearing and range call is made from.
   The S-A threat list lost MANPAD the same way, and five route legs lost their
   tails. All 16 now render in full.
-- The TANKER · DIVERT row lost its time column. Five cells needed 447px in a
-  429px column and no allocation fitted all three comms blocks at once; the
-  time is available from the ATO and the game plan, the on-station geometry is
-  not.
+- **A comms cell could shrink below its own text even with room to spare.**
+  Uniform `flex-shrink` against `min-width: 0` squeezed cells past their
+  content: a TANKER row carries 205px of text in a 429px column and was still
+  clipping four values. Column fractions were the wrong lever — the widths they
+  were derived from were circular, since `scrollWidth` on a cell that fits
+  reports what it was given, not what its text wants. `min-width: min-content`
+  on a comms cell fixed every remaining clip at once, and turns any genuine
+  overflow into something visible rather than an ellipsis that reads as a
+  value.
+- Comms agency names are one word — MOTHER, not MOTHER (CVN-71); SHELL, not
+  SHELL KC-135. On a kneeboard the agency is the callsign and the parenthetical
+  is explanatory text charging the column for it.
 
 ### Added
 - **`dev-card-geometry-test`** renders the real card in Electron with the real

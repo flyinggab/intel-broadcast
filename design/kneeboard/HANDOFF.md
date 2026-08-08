@@ -10,7 +10,7 @@ Two things remain, both recorded in §7:
 - the **height budget is not enforced at import**; `card.js` carries the
   measured model but it comes out ~132px light, so it is documented and
   disabled rather than wrong;
-- the **TANKER time column was dropped** to make the row fit (see §7).
+- nothing else; the TANKER time column is back (see §7).
 **Supersedes** the earlier version of this file. Two decisions in it were wrong
 and are corrected in §1: the legibility floor, and the PLAN / CARD page split.
 
@@ -259,12 +259,23 @@ must never trap a pilot, and the route to SETUP must always survive.
   as a shorter, entirely plausible value — no error, nothing visibly broken,
   and a pilot reading a bullseye missing its eastings.
 
-  Fixed: the header band sizes to content rather than equal quarters; the route
-  gave 14px of name to its ref; the comms columns are allocated from measured
-  need rather than thirds; and the **TANKER time column was dropped**, because
-  five cells per row needed 447px in a 429px column and no allocation fitted
-  all three blocks at once. That was the owner's call between merging
-  altitude/heading, dropping the time, and giving TANKER a full-width row.
+  Fixed: the header band sizes to content rather than equal quarters, and the
+  route gave 14px of step name to its ref.
+
+  The comms block took three goes and the first two were wrong. Re-allocating
+  the column fractions only moved the clipping between columns, because the
+  "need" being measured was **circular**: `scrollWidth` on a cell that fits
+  reports the width the cell was GIVEN, not the width its text wants. Measured
+  properly, with a `Range` over each cell's text, a TANKER row carries 205px of
+  text in a 429px column — it was never short of space. The cells were being
+  squeezed below their own content by uniform `flex-shrink` against
+  `min-width: 0`, even with the room to spare. `min-width: min-content` on a
+  comms cell fixed all of it at once.
+
+  Agency names are **one word**: MOTHER, not MOTHER (CVN-71); SHELL, not
+  SHELL KC-135. On a kneeboard the agency IS the callsign and the parenthetical
+  is explanatory text that costs the column its width. That is the owner's
+  call, and it is what let the TANKER time column come back.
 
 - **The height budget is not enforced.** `card.js` has `pageHeight()` with
   constants measured off the real render, but it totals ~132px less than the

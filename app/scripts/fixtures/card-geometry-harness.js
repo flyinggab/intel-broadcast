@@ -91,10 +91,24 @@ app.whenReady().then(async () => {
             });
           }
         }
+        // TRUE content width, via a Range over the cell's text. scrollWidth is
+        // circular here: on a cell that FITS it returns the width the cell was
+        // given, not the width its text wants — so shortening a value did not
+        // change the "need" at all, and fractions derived from it were really
+        // derived from the previous allocation.
+        const textWidth = (cell) => {
+          if (!cell.firstChild) return 0;
+          const range = document.createRange();
+          range.selectNodeContents(cell);
+          const w = range.getBoundingClientRect().width;
+          range.detach();
+          const cs = getComputedStyle(cell);
+          return Math.ceil(w + parseFloat(cs.paddingLeft || 0) + parseFloat(cs.paddingRight || 0));
+        };
         const comms = [...document.querySelectorAll('.card__comms .card__section')].map((sec) => {
           const rows = [...sec.querySelectorAll('.card__row')];
           const need = Math.max(0, ...rows.map((r) =>
-            [...r.children].reduce((sum, c) => sum + c.scrollWidth, 0) + (r.children.length - 1) * 6));
+            [...r.children].reduce((sum, c) => sum + textWidth(c), 0) + (r.children.length - 1) * 5));
           return { title: (sec.querySelector('.card__head-title') || {}).textContent || '?',
                    col: Math.round(sec.getBoundingClientRect().width),
                    rowBox: rows[0] ? Math.round(rows[0].clientWidth) : 0, need };
