@@ -168,6 +168,40 @@ async function main() {
   if (naming.tiles.length) throw new Error('the library is showing behind the naming panel');
   console.log(`[e2e] a valid template is offered for naming, prefilled "${naming.naming.name}"`);
 
+  // AND SAVE IS FINDABLE. The panel shares the library's tile grid, and as an
+  // ordinary grid item it was dealt one 165px column out of 518 — the field,
+  // CANCEL and SAVE crushed into a third of the page. Nothing was hidden and
+  // nothing was clipped; SAVE was simply somewhere a pilot would not look,
+  // which is how it got reported as missing.
+  const geom = await probe('namingGeom', `
+    const p = document.querySelector('.tplask');
+    const libEl = document.getElementById('lib');
+    const save = document.getElementById('tpl-save');
+    const pr = p.getBoundingClientRect(), lr = libEl.getBoundingClientRect(), sr = save.getBoundingClientRect();
+    return {
+      panelW: Math.round(pr.width), libW: Math.round(lr.width),
+      saveW: Math.round(sr.width), saveH: Math.round(sr.height),
+      saveVisible: save.offsetParent !== null,
+      saveInView: sr.bottom <= lr.bottom + 1 && sr.right <= lr.right + 1,
+      hitsSave: (() => { const el = document.elementFromPoint(sr.left + sr.width / 2, sr.top + sr.height / 2); return Boolean(el && save.contains(el)); })(),
+      // The width of ONE tile track. The panel must be wider than that, which
+      // is precisely the difference between replacing the tiles and being one.
+      track: Math.round(parseFloat(getComputedStyle(libEl).gridTemplateColumns.split(' ')[0]) || 0),
+    };
+  `);
+  if (!geom.saveVisible || !geom.saveInView) throw new Error('SAVE is off the visible area of the panel');
+  if (!geom.hitsSave) throw new Error('SAVE is covered by something — a press would land elsewhere');
+  // Against the TRACK, not the library: the panel is deliberately capped so a
+  // one-field form does not run the full width of a wide window. What must
+  // never happen is it being dealt a single tile column.
+  if (geom.track && geom.panelW <= geom.track * 1.5) {
+    throw new Error(
+      `the naming panel is ${geom.panelW}px and one tile track is ${geom.track}px — it is being laid out ` +
+        'as a TILE in the library grid rather than replacing the tiles, which buries SAVE in a narrow column',
+    );
+  }
+  console.log(`[e2e] SAVE is hittable; panel ${geom.panelW}px against a ${geom.track}px tile track`);
+
   // Nothing saved yet: cancelling must leave no trace.
   await run(`window.viewerAPI.send('template-cancel')`);
   await sleep(500);

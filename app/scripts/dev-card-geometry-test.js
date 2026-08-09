@@ -72,6 +72,24 @@ child.on('exit', () => {
       console.error(`[card-geometry] FAIL: ${r.card} — no .card__rows found, so alignment proves nothing`);
       failed = true;
     }
+    // Content hanging OUTSIDE the box it belongs to. A different failure from
+    // clipping and invisible to that check: nothing is truncated, the text
+    // just sits past its own border. A comms grid with the wrong number of
+    // tracks does exactly this — the ferry template's second block hung 215px
+    // outside itself and `clipped` reported nothing, because no cell was cut.
+    if (r.escaped && r.escaped.length) {
+      console.error(`[card-geometry] FAIL: ${r.card} — ${r.escaped.length} row(s) hang outside their block:`);
+      for (const e of r.escaped.slice(0, 8)) {
+        console.error(`  ${e.block}: "${e.text}" sits ${e.over}px past the block's right edge`);
+      }
+      console.error(
+        '  Nothing is clipped here — the text is simply outside the border it belongs to, which is\n' +
+          '  what a block laid into a track narrower than its content does. Check that the column\n' +
+          '  count in the CSS is not fixed to the number of blocks one particular template happens to have.',
+      );
+      failed = true;
+    }
+
     if (r.misaligned && r.misaligned.length) {
       console.error(`[card-geometry] FAIL: ${r.card} — ${r.misaligned.length} column(s) do not line up:`);
       for (const m of r.misaligned) {

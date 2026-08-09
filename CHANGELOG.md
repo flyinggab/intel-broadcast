@@ -105,6 +105,22 @@ that entry.
   app. PRESENT (`Ctrl+Shift+P`) is unchanged, and a presenter is never locked.
 
 ### Fixed
+- **A card block could sit outside its own border.** The comms row was a grid
+  of three fixed tracks, and the ratios were measured against the shipped
+  strike card's three comms blocks. Any template with a different number got
+  the wrong tracks: the ferry sample's second block landed in the narrow middle
+  one and every row in it hung 215px past the box — and the shipped `cas-9line`
+  did the same. Nothing was clipped, so the geometry check saw nothing wrong;
+  the text was simply outside the box it belonged to. The row now takes as many
+  columns as the template has, each floored at its own content width.
+  `dev-card-geometry-test` gained the check that catches this, verified by
+  reverting the fix and watching it go red on both cards.
+- **SAVE was buried when naming an imported template.** The panel shares the
+  library's tile grid and was being dealt one 165px column out of 518, so the
+  name field, CANCEL and SAVE were crushed into a third of the page. Nothing
+  was hidden or clipped — SAVE was simply somewhere nobody would look. It now
+  replaces the tiles rather than being one, and the e2e measures it against a
+  tile track so it cannot silently become one again.
 - **Casting a mission card did nothing at all.** The receive handler had been
   written into the wrong switch — `handleBriefIntent`, which takes an intent
   name and a payload and never sees a message — so it was unreachable code

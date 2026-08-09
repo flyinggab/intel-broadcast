@@ -272,7 +272,25 @@
    Guessing these numbers moved the clipping from TANKER to COMM 1 and back
    twice. Run dev-card-geometry-test after touching them; it prints what each
    column has and what its widest row needs. */
-.card__comms { display: grid; grid-template-columns: 1.94fr 1fr 3.09fr; gap: 6px; align-items: start; }
+/* AS MANY COLUMNS AS THE TEMPLATE HAS, sized to what they hold.
+   This was `1.94fr 1fr 3.09fr` — three tracks, and the ratios were measured
+   against the shipped strike card's three comms blocks. That is fine until a
+   template has a different number of them: a template with TWO put its second
+   block in the 1fr track, the widest track went unused, and every row in that
+   block hung 215px outside its own border. Nothing was clipped, so the
+   geometry check saw nothing wrong — the text simply escaped the box.
+
+   `min-content` is the floor that fixes it: a column may never be narrower
+   than what it holds, and the slack is shared. A row that genuinely does not
+   fit still overflows visibly rather than truncating silently, which is the
+   rule the whole card follows. */
+.card__comms {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(min-content, 1fr);
+  gap: 6px;
+  align-items: start;
+}
 .card__comms .card__section { border: 1px solid var(--pp-rule); min-width: 0; }
 .card__comms .card__row { gap: 5px; }
 /* Three comms columns share 893px, so the agency name — the longest string in

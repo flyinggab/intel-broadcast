@@ -147,7 +147,33 @@ app.whenReady().then(async () => {
             if (new Set(xs).size > 1) misaligned.push({ title, col: i, xs: [...new Set(xs)] });
           }
         }
+        // CONTENT THAT ESCAPES ITS OWN BLOCK. A different failure from the
+        // clipping check above, and invisible to it: nothing is truncated, the
+        // text simply hangs outside the border it belongs to. That is what a
+        // comms grid with the wrong number of tracks does — a template with two
+        // comms blocks put its second in a track sized for the shipped card's
+        // narrow middle column, and every row in it sat 215px past the box
+        // while the clipping check reported nothing, because no cell was cut.
+        //
+        // NOTE FOR THE NEXT EDIT: this whole block is injected as a template
+        // literal, so a backtick anywhere in it — even inside a comment —
+        // closes the literal and the harness stops parsing. Use plain words.
+        const escaped = [];
+        for (const sec of sheet.querySelectorAll('.card__section, .card__stations, .card__band')) {
+          const box = sec.getBoundingClientRect();
+          for (const inner of sec.querySelectorAll('.card__row, .card__step, .card__cell, .card__field')) {
+            const r = inner.getBoundingClientRect();
+            if (r.right > box.right + 1) {
+              escaped.push({
+                block: (sec.querySelector('.card__head-title') || {}).textContent || String(sec.className).split(' ')[0],
+                text: inner.textContent.trim().slice(0, 40),
+                over: Math.round(r.right - box.right),
+              });
+            }
+          }
+        }
         return {
+          escaped,
           misaligned,
           tables: sheet.querySelectorAll('.card__rows').length,
           blocks,

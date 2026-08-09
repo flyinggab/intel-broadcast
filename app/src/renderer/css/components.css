@@ -1142,7 +1142,13 @@ body[data-page="share"] .page.share { display: flex; }
 }
 .tpl__remove:hover { color: var(--fault); }
 
-/* --- naming a template on the way in --------------------------------------- */
+/* --- naming a template on the way in ---------------------------------------
+   FULL WIDTH. These share .lib's tile grid, and as an ordinary grid item the
+   panel was dealt one 165px column out of 518 — the name field, CANCEL and
+   SAVE all crushed into a third of the page, which is how SAVE became a thing
+   a pilot had to go looking for. They are not tiles; they replace the tiles. */
+.tplask,
+.tplbad { grid-column: 1 / -1; }
 .tplask { padding: var(--sp-3); max-width: 26rem; }
 .tplask__title { margin: 0; font-weight: 700; letter-spacing: .06em; color: var(--lit); }
 .tplask__file {
