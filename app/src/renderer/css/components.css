@@ -929,9 +929,28 @@ body[data-page="share"] .page.share { display: flex; }
 /* Release notes. A <pre> because the text arrives with real line breaks and
    is written as textContent — it is a remote string and never becomes markup.
    Scrolls rather than growing: a pilot two versions behind gets both sets. */
+/* The UPDATE page is a flex column so the notes can take whatever is left
+   below the button — a changelog is the thing a pilot actually reads before
+   deciding to restart, and it was getting 12rem while two thirds of the page
+   sat empty. This rule lives in components.css deliberately: base.css sets
+   the active page to `display: block`, and this file loads after it, so the
+   same specificity wins here rather than needing an !important. */
+body[data-setup="update"] .page[data-setup="update"] {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+#update-notes-wrap {
+  flex: 1 1 auto;
+  min-height: 0;   /* or the pane refuses to shrink and pushes the page taller */
+  display: flex;
+  flex-direction: column;
+}
+
 .notes {
   margin: 0;
-  max-height: 12rem;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   background: var(--dn); box-shadow: var(--bevel-dn);
   padding: var(--sp-3) var(--sp-4);

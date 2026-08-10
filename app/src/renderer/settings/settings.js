@@ -60,10 +60,7 @@ const log = {
 
 const passthrough = { toggle: el('tg-passthrough'), hint: el('passthrough-hint') };
 const update = {
-  stepInstalled: el('up-step-installed'),
-  stateInstalled: el('up-state-installed'),
-  stepLatest: el('up-step-latest'),
-  stateLatest: el('up-state-latest'),
+  current: el('up-current'),
   action: el('btn-update-action'),
   hint: el('update-hint'),
   notesWrap: el('update-notes-wrap'),
@@ -186,7 +183,10 @@ function renderOkb(o) {
  * meaning anything (see the --go note in tokens.css).
  */
 function renderUpdate(u, version) {
-  setStep(update.stepInstalled, 'done', String(version || '').toUpperCase());
+  // No step rows. "INSTALLED" was reporting that the installed version is
+  // installed, and "LATEST" said what the button already says — the button
+  // carries the version it is offering, and the hint carries everything else.
+  setText(update.current, String(version || '').toUpperCase());
 
   let action = 'check';
   let label = 'up.actCheck';
@@ -194,37 +194,32 @@ function renderUpdate(u, version) {
   let owed = false;
 
   if (!u.supported) {
-    setStep(update.stepLatest, '', t('up.unsupported'));
-    hint = 'up.hintUnsupported';
+    [hint] = ['up.hintUnsupported'];
     update.action.disabled = true;
   } else {
     update.action.disabled = Boolean(u.checking || u.downloading);
     if (u.checking) {
-      setStep(update.stepLatest, 'running', t('up.checking'));
       [label, hint] = ['up.actChecking', 'up.hintIdle'];
     } else if (u.error) {
-      setStep(update.stepLatest, 'running', t('up.failed'));
       [label, hint] = ['up.actCheck', 'up.hintFailed'];
     } else if (u.downloaded) {
-      setStep(update.stepLatest, 'done', t('up.ready', { v: u.version || '' }));
       [action, label, hint, owed] = ['install', 'up.actRestart', 'up.hintReady', true];
     } else if (u.downloading) {
-      setStep(update.stepLatest, 'running', t('up.downloading', { n: u.percent || 0 }));
+      // The percentage lives on the button now that there is no status row to
+      // put it in — it is the thing moving, so it belongs on the thing pressed.
       [label, hint] = ['up.actDownloading', 'up.hintDownloading'];
     } else if (u.available) {
-      setStep(update.stepLatest, 'running', String(u.version || '').toUpperCase());
       [action, label, hint, owed] = ['download', 'up.actDownload', 'up.hintAvailable', true];
     } else {
-      setStep(update.stepLatest, 'done', t('up.current'));
-      hint = 'up.hintCurrent';
+      [hint] = ['up.hintCurrent'];
     }
   }
 
   update.action.dataset.action = action;
   update.action.classList.toggle('key--cta', owed);
   update.action.classList.toggle('key--primary', !owed);
-  setText(update.action, t(label, { v: u.version || '' }));
-  setText(update.hint, t(hint));
+  setText(update.action, t(label, { v: u.version || '', n: u.percent || 0 }));
+  setText(update.hint, t(hint, { v: u.version || '' }));
 
   // Release notes are a remote string: textContent, never innerHTML.
   const notes = typeof u.notes === 'string' ? u.notes : '';

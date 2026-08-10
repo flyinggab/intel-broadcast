@@ -466,18 +466,9 @@
                so they are stripped to plain text in main and written with
                textContent here. -->
           <section class="page page--pad stack" data-setup="update">
-            <span class="cap" data-i18n="cap.update">Version</span>
+            <span class="cap" data-i18n="cap.currentVersion">Current version</span>
 
-            <div class="step" id="up-step-installed">
-              <i class="step__mark"></i><span class="step__n">01</span>
-              <span class="step__title" data-i18n="up.installed">INSTALLED</span>
-              <span class="step__state" id="up-state-installed"></span>
-            </div>
-            <div class="step" id="up-step-latest">
-              <i class="step__mark"></i><span class="step__n">02</span>
-              <span class="step__title" data-i18n="up.latest">LATEST</span>
-              <span class="step__state" id="up-state-latest"></span>
-            </div>
+            <div class="field field--mono" id="up-current"></div>
 
             <button class="key key--primary" id="btn-update-action"></button>
             <span class="meta" id="update-hint"></span>
