@@ -14,6 +14,20 @@ that entry.
 
 ---
 
+## v0.9.1 — 2026-08-10
+
+### Changed
+- **Nothing, deliberately.** Cut so the in-app updater can be exercised
+  against a real GitHub release: v0.9.0 is the first build that carries an
+  updater at all, so there was no earlier version that could offer it
+  anything. Install v0.9.0, open SETUP → UPDATE, and this is what it should
+  find — download, changelog, and RESTART TO INSTALL.
+- The release body is this section, which is also what the panel shows: the
+  notes a pilot reads before deciding to restart are the hand-written ones,
+  not a list of commit subjects.
+
+---
+
 ## v0.9.0 — 2026-08-07
 
 ### Added
