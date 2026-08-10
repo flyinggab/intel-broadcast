@@ -269,6 +269,7 @@
           <button class="rail__item is-active" data-setup="net" data-i18n="rail.network">NETWORK</button>
           <button class="rail__item" data-setup="keys" data-i18n="rail.keybinds">KEYBINDS</button>
           <button class="rail__item" data-setup="okb" data-i18n="rail.kneeboard">KNEEBOARD</button>
+          <button class="rail__item" data-setup="update" data-i18n="rail.update">UPDATE</button>
           <button class="rail__item" data-setup="log" data-i18n="rail.log">LOG</button>
           <div class="rail__spacer"></div>
           <div class="rail__lang">
@@ -454,6 +455,37 @@
 
             <div class="meta" data-i18n="okb.addTab">RESTART OPENKNEEBOARD, THEN ADD A TAB &rarr; TAC LINK</div>
             <div class="meta" data-i18n="okb.stillCaptures">WINDOW CAPTURE KEEPS WORKING EITHER WAY</div>
+          </section>
+
+          <!-- ========================================= UPDATE =============== -->
+          <!-- Rows are STATUS, one button is the CONTROL, and its label
+               follows whichever step needs doing — the same shape as NETWORK
+               and KNEEBOARD. Nothing here downloads or restarts on its own:
+               an update that restarts the app mid-sortie is worse than a
+               stale version. Release notes come from a GitHub release body,
+               so they are stripped to plain text in main and written with
+               textContent here. -->
+          <section class="page page--pad stack" data-setup="update">
+            <span class="cap" data-i18n="cap.update">Version</span>
+
+            <div class="step" id="up-step-installed">
+              <i class="step__mark"></i><span class="step__n">01</span>
+              <span class="step__title" data-i18n="up.installed">INSTALLED</span>
+              <span class="step__state" id="up-state-installed"></span>
+            </div>
+            <div class="step" id="up-step-latest">
+              <i class="step__mark"></i><span class="step__n">02</span>
+              <span class="step__title" data-i18n="up.latest">LATEST</span>
+              <span class="step__state" id="up-state-latest"></span>
+            </div>
+
+            <button class="key key--primary" id="btn-update-action"></button>
+            <span class="meta" id="update-hint"></span>
+
+            <div id="update-notes-wrap" class="is-hidden">
+              <span class="cap" data-i18n="cap.whatsNew">What's new</span>
+              <pre class="notes" id="update-notes"></pre>
+            </div>
           </section>
 
           <!-- ============================================ LOG ============== -->

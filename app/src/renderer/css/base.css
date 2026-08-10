@@ -126,7 +126,8 @@ body[data-page="setup"]    .page[data-page="setup"] { display: block; }
 body[data-setup="net"]  .page[data-setup="net"],
 body[data-setup="keys"] .page[data-setup="keys"],
 body[data-setup="log"]  .page[data-setup="log"],
-body[data-setup="okb"]  .page[data-setup="okb"] { display: block; }
+body[data-setup="okb"]  .page[data-setup="okb"],
+body[data-setup="update"] .page[data-setup="update"] { display: block; }
 
 .page--flush { padding: 0; height: 100%; }
 .page--pad   { padding: var(--sp-3); }

@@ -59,6 +59,16 @@ const log = {
 };
 
 const passthrough = { toggle: el('tg-passthrough'), hint: el('passthrough-hint') };
+const update = {
+  stepInstalled: el('up-step-installed'),
+  stateInstalled: el('up-state-installed'),
+  stepLatest: el('up-step-latest'),
+  stateLatest: el('up-state-latest'),
+  action: el('btn-update-action'),
+  hint: el('update-hint'),
+  notesWrap: el('update-notes-wrap'),
+  notes: el('update-notes'),
+};
 const okb = {
   toggle: el('tg-okb'),
   hint: el('okb-hint'),
@@ -166,6 +176,62 @@ function renderOkb(o) {
   mark(okb.stepTab, okb.stateTab, o.connected, o.connected ? 'okb.tabOpen' : 'okb.tabWaiting');
 }
 
+/**
+ * The update panel. Rows are status, one button is the control, and its label
+ * follows whichever step needs doing — the NETWORK panel's shape.
+ *
+ * `.key--cta` only while something is OWED. An update waiting to be fetched or
+ * installed is exactly "there is an action waiting on you here"; "check again"
+ * on an up-to-date app is not, and a green key that never goes away stops
+ * meaning anything (see the --go note in tokens.css).
+ */
+function renderUpdate(u, version) {
+  setStep(update.stepInstalled, 'done', String(version || '').toUpperCase());
+
+  let action = 'check';
+  let label = 'up.actCheck';
+  let hint = 'up.hintIdle';
+  let owed = false;
+
+  if (!u.supported) {
+    setStep(update.stepLatest, '', t('up.unsupported'));
+    hint = 'up.hintUnsupported';
+    update.action.disabled = true;
+  } else {
+    update.action.disabled = Boolean(u.checking || u.downloading);
+    if (u.checking) {
+      setStep(update.stepLatest, 'running', t('up.checking'));
+      [label, hint] = ['up.actChecking', 'up.hintIdle'];
+    } else if (u.error) {
+      setStep(update.stepLatest, 'running', t('up.failed'));
+      [label, hint] = ['up.actCheck', 'up.hintFailed'];
+    } else if (u.downloaded) {
+      setStep(update.stepLatest, 'done', t('up.ready', { v: u.version || '' }));
+      [action, label, hint, owed] = ['install', 'up.actRestart', 'up.hintReady', true];
+    } else if (u.downloading) {
+      setStep(update.stepLatest, 'running', t('up.downloading', { n: u.percent || 0 }));
+      [label, hint] = ['up.actDownloading', 'up.hintDownloading'];
+    } else if (u.available) {
+      setStep(update.stepLatest, 'running', String(u.version || '').toUpperCase());
+      [action, label, hint, owed] = ['download', 'up.actDownload', 'up.hintAvailable', true];
+    } else {
+      setStep(update.stepLatest, 'done', t('up.current'));
+      hint = 'up.hintCurrent';
+    }
+  }
+
+  update.action.dataset.action = action;
+  update.action.classList.toggle('key--cta', owed);
+  update.action.classList.toggle('key--primary', !owed);
+  setText(update.action, t(label, { v: u.version || '' }));
+  setText(update.hint, t(hint));
+
+  // Release notes are a remote string: textContent, never innerHTML.
+  const notes = typeof u.notes === 'string' ? u.notes : '';
+  update.notesWrap.classList.toggle('is-hidden', notes.length === 0);
+  setText(update.notes, notes);
+}
+
 function isDirty() {
   if (modeDirty) return true;
   if (!lastSnapshot) return false;
@@ -237,6 +303,7 @@ function render(s) {
   else setStep(net.stepFunnel, '', t('ts.off'));
 
   renderOkb(s.okb || {});
+  renderUpdate(s.update || {}, s.version);
 
   // Pilots on net. Callsigns are remote-supplied strings: textContent only.
   setText(net.count, String(s.peers.length));
@@ -414,6 +481,10 @@ el('btn-open-log').addEventListener('click', () => send('open-log'));
 el('btn-copy-path').addEventListener('click', () => send('copy-log-path'));
 
 // One visible control, whose action follows the step that needs doing.
+update.action.addEventListener('click', () => {
+  if (!update.action.disabled) send('update-action', update.action.dataset.action);
+});
+
 okb.toggle.addEventListener('click', () => {
   send('set-okb-enabled', !okb.toggle.classList.contains('is-on'));
 });

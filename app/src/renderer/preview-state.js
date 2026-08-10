@@ -115,6 +115,11 @@
 
     funnel: { installed: true, loggedIn: true, funnelOn: true, dnsName: 'gab-pc.tail9f2b.ts.net', since: T0 - 17 * 60000 },
     okb: { enabled: true, supported: true, installed: true, registered: true, connected: false, url: 'http://127.0.0.1:8788/viewer.html' },
+    update: {
+      supported: true, checking: false, available: true, downloading: false, downloaded: false,
+      percent: 0, version: '0.9.0', error: null,
+      notes: '0.9.0\n· Kneeboard cards: one page at 893x1263, paper palette\n· OpenKneeboard tab reaches the app over a loopback socket\n\n0.8.4\n· A follower\'s view belongs to the presenter',
+    },
     counters: { sent: 12, received: 5, drops: 0 },
     logPath: '/home/pilot/.config/taclink/taclink.log',
     version: '0.4.0-preview',

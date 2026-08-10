@@ -926,6 +926,20 @@ body[data-page="share"] .page.share { display: flex; }
 .key--cta:active { background: var(--go-dn); box-shadow: var(--bevel-dn); }
 .key--cta[disabled] { background: var(--up); color: var(--muted); box-shadow: var(--bevel-dn); }
 
+/* Release notes. A <pre> because the text arrives with real line breaks and
+   is written as textContent — it is a remote string and never becomes markup.
+   Scrolls rather than growing: a pilot two versions behind gets both sets. */
+.notes {
+  margin: 0;
+  max-height: 12rem;
+  overflow-y: auto;
+  background: var(--dn); box-shadow: var(--bevel-dn);
+  padding: var(--sp-3) var(--sp-4);
+  font-family: var(--font-mono); font-size: var(--fs-micro);
+  line-height: 1.6; color: var(--hi);
+  white-space: pre-wrap; word-break: break-word;
+}
+
 /* --- log tail ------------------------------------------------------------ */
 .tail {
   background: var(--dn); box-shadow: var(--bevel-dn);

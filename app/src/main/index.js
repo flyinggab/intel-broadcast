@@ -24,6 +24,7 @@ const tailscale = require('./tailscale');
 const okb = require('./okb');
 const { resolveCard, markCurrentStep, blankCardFor } = require('./card');
 const { createTemplateStore } = require('./templateStore');
+const { createUpdater } = require('./updater');
 const { createOkbServer } = require('./okbServer');
 // SETUP is a page of the viewer, so there is no settings window module any
 // more: what survived is the config writer and the folder dialog.
@@ -134,6 +135,38 @@ function currentPhotosFolder() {
   return config.photosFolder || path.join(BUNDLED_PHOTOS_DIR, config.missionName);
 }
 
+
+// ---------------------------------------------------------------------------
+// Updates
+// ---------------------------------------------------------------------------
+
+let updater = null;
+
+/**
+ * Wires the updater, if this build can use one.
+ *
+ * `electron-updater` is required lazily and in a try/catch for the same reason
+ * `uiohook-napi` is: an unguarded require of a native-ish optional module took
+ * the whole app down once already. A dev run (unpackaged) has no update to
+ * apply, so it degrades to "unsupported" and the panel says so.
+ */
+function startUpdater() {
+  let autoUpdater = null;
+  try {
+    if (app.isPackaged) ({ autoUpdater } = require('electron-updater'));
+  } catch (err) {
+    console.log(`[update] electron-updater unavailable: ${err.message}`);
+  }
+  updater = createUpdater({
+    autoUpdater,
+    onLog: (msg) => console.log(`[update] ${msg}`),
+    // Every state move re-renders SETUP, which is how a download percentage
+    // reaches the panel without the renderer polling anything.
+    onChange: () => pushState(),
+  });
+  // One check on launch. Nothing downloads from it — the pilot presses.
+  if (updater.snapshot().supported) updater.check();
+}
 
 // ---------------------------------------------------------------------------
 // Kneeboard cards
@@ -750,6 +783,7 @@ function settingsSnapshot(base) {
     squadCode: hostSquadCode(),
     hotkeys: config.hotkeys,
     card: cardForSnapshot(),
+    update: updater ? updater.snapshot() : { supported: false },
     okb: okbState,
     // The squad code is a password and must never appear here.
     logTail: recentLines(12),
@@ -1507,6 +1541,13 @@ async function handleSettingsIntent(intent, payload) {
       );
       return;
     }
+    case 'update-action':
+      if (updater) {
+        if (payload === 'download') updater.download();
+        else if (payload === 'install') updater.install();
+        else updater.check();
+      }
+      return;
     case 'set-okb-enabled':
       applyNewConfig(saveSettingsValues({ okb: { ...config.okb, enabled: Boolean(payload) } }));
       return;
@@ -1626,6 +1667,7 @@ app.whenReady().then(() => {
   });
   refreshTemplates();
   loadCard();
+  startUpdater();
   if (isHost()) startHost();
   startClient();
   cleanupLeftoverFunnel().then(() => refreshTailscaleState({ reconcile: true }));
