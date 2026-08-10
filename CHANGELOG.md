@@ -14,7 +14,7 @@ that entry.
 
 ---
 
-## Unreleased
+## v0.9.0 — 2026-08-07
 
 ### Added
 - **Card templates are a library you can add to.** TEMPLATES is a second view

@@ -31,7 +31,26 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "release $TAG already exists — reusing it"
+            exit 0
+          fi
+
+          # The release BODY is what the in-app update panel shows as the
+          # changelog (electron-updater reads it as releaseNotes), so it is
+          # the hand-written CHANGELOG section for this tag — not a generated
+          # commit list. Falls back to generated notes if the section is
+          # missing, because a release with no notes is worse than machine
+          # ones.
+          awk -v tag="${TAG}" '
+            $0 ~ "^## " tag " " { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > /tmp/notes.md
+
+          if [ -s /tmp/notes.md ]; then
+            echo "using the CHANGELOG section for $TAG"
+            gh release create "$TAG" --title "$TAG" --notes-file /tmp/notes.md
           else
+            echo "no CHANGELOG section for $TAG — falling back to generated notes"
             gh release create "$TAG" --title "$TAG" --generate-notes
           fi
 

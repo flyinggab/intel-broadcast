@@ -1,8 +1,8 @@
 {
   "name": "taclink",
-  "version": "0.8.3",
+  "version": "0.9.0",
   "private": true,
-  "description": "Tac Link — EFB for DCS with shared tactical intel and live briefing",
+  "description": "Tac Link \u2014 EFB for DCS with shared tactical intel and live briefing",
   "main": "src/main/index.js",
   "author": "flyinggab",
   "repository": "https://github.com/flyinggab/intel-broadcast",
