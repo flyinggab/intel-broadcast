@@ -14,6 +14,24 @@ that entry.
 
 ---
 
+## v0.9.2 — 2026-08-10
+
+### Changed
+- **The changelog gets the rest of the UPDATE page.** It was boxed into 12rem
+  while two thirds of the page sat empty, and the release notes are the thing
+  a pilot actually reads before deciding to restart. The pane now takes
+  whatever is left below the button and scrolls internally, so the button
+  stays put however long the release body runs. Measured against a real 186-line
+  release body: the pane is 752px, it scrolls, the page does not.
+- **The UPDATE panel lost its status rows.** "INSTALLED" was reporting that
+  the installed version is installed, and "LATEST" said what the button
+  already says — the button carries the version it is offering. What remains
+  is the current version, one button, one hint and the notes. The download
+  percentage moved onto the button, since it is both the thing moving and the
+  thing you press.
+
+---
+
 ## v0.9.1 — 2026-08-10
 
 ### Changed
