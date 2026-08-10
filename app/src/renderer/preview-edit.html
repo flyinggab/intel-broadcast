@@ -70,6 +70,11 @@
   .ed.open i { display: inline-block; width: 1px; height: 8px; background: #3F6B22; vertical-align: -1px;
                margin-left: 1px; }
   .fixed { color: #6A6255; }
+  .ed.foc { box-shadow: inset 0 0 0 1.5px #3F6B22; background: #F2EFE6; }
+
+  table.keys { border-collapse: collapse; margin: 6px 0 0; font-size: 12.5px; }
+  table.keys td { padding: 3px 14px 3px 0; vertical-align: baseline; color: #a9af9f; }
+  table.keys td:first-child { font-family: var(--font-mono); color: #e8ece6; white-space: nowrap; }
 
 </style>
 </head>
@@ -183,7 +188,7 @@
       </div>
     </div>
     <p class="note">Edits in place, on the sheet — not in a side panel, so you are looking at the card as it
-      will read. <b>Enter</b> or clicking away commits; <b>Esc</b> puts the old value back.</p>
+      will read. No on-screen keyboard: you type on a real one.</p>
   </div>
 </div>
 
@@ -194,7 +199,61 @@
   CARD, and while it is on the ticks stop taking clicks — one thing a click can mean at a time.
 </div>
 
-<h2>2 · Where the change goes</h2>
+<h2>2 · The keyboard does the moving</h2>
+<p class="why">
+  Filling a card is dozens of short values in a row, and reaching for the mouse between each one is the whole
+  cost of the job. <b>Click once to get in, then never touch the mouse again.</b>
+</p>
+
+<div class="row">
+  <div>
+    <div class="name">D · <em>Tab</em> — the next value, anywhere on the sheet</div>
+    <div class="dev">
+      <div class="mstrip"><span class="ham"><i></i></span>TAC LINK · CARD · EDIT</div>
+      <div class="mbody">
+        <div class="lrail"><b><s></s>INTEL</b><b class="on"><s></s>CARD</b><span class="sp"></span><b><s></s></b></div>
+        <div class="work">
+          <div class="scr"><div class="sheet">
+            <div class="band">
+              <d><l>CALLSIGN</l><v><span class="ed">COLT 2-1</span></v></d>
+              <d><l>FUEL</l><v><span class="ed">7000</span></v></d>
+              <d><l>ROUTE</l><v><span class="ed">AL DHAFRA</span> <span class="fixed">→</span> <span class="ed">KHASAB</span></v></d>
+            </div>
+            <h>LEGS</h>
+            <div class="r"><u><span class="ed">CLIMB</span></u><q><span class="ed">WP1</span></q><q><span class="ed open">26000<i></i></span> <span class="fixed">/</span> <span class="ed foc">350</span></q></div>
+            <div class="r"><u><span class="ed">CRUISE</span></u><q><span class="ed">WP2</span></q><q><span class="ed">24000</span> <span class="fixed">/</span> <span class="ed">400</span></q></div>
+            <h style="margin-top:4px">RADIO</h>
+            <div class="r"><u><span class="ed">KHASAB APP</span></u><q><span class="ed">119.900</span></q><q><span class="ed">112X</span></q></div>
+          </div></div>
+          <div class="abar2">
+            <k class="on">CARD</k><k>TMPL</k><span class="sep"></span><k>DATA</k><k class="hot">EDIT</k>
+            <span class="gap"></span><k class="go">CAST</k>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">Tab commits <b>26000</b> and opens <b>350</b> — the next value in reading order, which
+      carries on across block boundaries to the end of the sheet.</p>
+  </div>
+
+  <div style="max-width: 560px">
+    <div class="name">the whole set</div>
+    <table class="keys">
+      <tr><td>Tab / Shift-Tab</td><td>commit, and open the next / previous value anywhere on the sheet</td></tr>
+      <tr><td>↑ ↓</td><td>the same column, one row up or down — for filling a table column straight down</td></tr>
+      <tr><td>← →</td><td>the value before or after this one in the same row</td></tr>
+      <tr><td>Enter</td><td>commit and drop to the row below, like a spreadsheet: a route table is filled in columns</td></tr>
+      <tr><td>Esc</td><td>put the old value back and close</td></tr>
+    </table>
+    <p class="note" style="max-width:520px">
+      Arrows move by GRID position, not reading order, which is why they are worth having as well as Tab:
+      inside a table, ↓ from an altitude lands on the next leg's altitude, not on its note. Where a block has
+      no such neighbour — the header band, a prose list — ↑↓ fall back to the same thing Tab does.
+    </p>
+  </div>
+</div>
+
+<h2>3 · Where the change goes</h2>
 <p class="why">
   An edit changes the card <b>this app is holding</b>, immediately and permanently — it survives a restart, the
   way a chosen template and ticked steps already do. <b>The file you imported is never written to.</b> You
