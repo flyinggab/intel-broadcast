@@ -80,4 +80,13 @@ async function browseLayout(parent) {
   return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
 }
 
-module.exports = { saveSettingsValues, browseFolder, browseCard, browseLayout };
+/** Where to write a card out. The only way one leaves the app as a file. */
+async function saveCardAs(parent, suggested) {
+  const result = await dialog.showSaveDialog(parent && !parent.isDestroyed() ? parent : undefined, {
+    defaultPath: typeof suggested === 'string' && suggested ? suggested : 'mission.card.json',
+    filters: [{ name: 'Mission card', extensions: ['json'] }],
+  });
+  return result.canceled || !result.filePath ? null : result.filePath;
+}
+
+module.exports = { saveSettingsValues, browseFolder, browseCard, browseLayout, saveCardAs };

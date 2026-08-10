@@ -12,7 +12,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { resolveCard, markCurrentStep } = require('../src/main/card');
+const { resolveCard, markCurrentStep, get } = require('../src/main/card');
 
 const LAYOUT = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', 'resources', 'layouts', 'strike-package.layout.json'), 'utf8'),
@@ -273,6 +273,65 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
   assert.strictEqual(currentOf(markCurrentStep(all)), -1, 'a finished mission has no current step');
 
   console.log(`[test] current is derived: step ${firstUnflown} now, moves with every tick, gone when all are flown`);
+}
+
+// ---------------------------------------------------------------------------
+// EVERY RENDERED VALUE KNOWS WHERE IT CAME FROM. This is what makes the sheet
+// editable: a span maps a stretch of rendered text back to the one place in
+// the card data that produced it.
+// ---------------------------------------------------------------------------
+{
+  const { card: m } = resolveCard({ layout: LAYOUT, card: CARD });
+  const page = m.pages.find((p) => p.id === 'card');
+
+  // A path like route.steps[3].alt, resolved against the RAW card.
+  const at = (path) => get(CARD, path.replace(/\[(\d+)\]/g, '.$1'));
+
+  let checked = 0;
+  const check = (text, spans, label) => {
+    for (const sp of spans || []) {
+      const shown = text.slice(sp.s, sp.e);
+      const actual = at(sp.path);
+      checked += 1;
+      if (actual === undefined) {
+        // Only a filtered token may render from nothing, and only as its mark.
+        assert.ok(shown === '' || shown === '—' || shown === 'none',
+          `${label}: span "${shown}" claims ${sp.path}, which is not in the card`);
+      } else {
+        assert.strictEqual(shown, String(actual),
+          `${label}: the sheet shows "${shown}" but ${sp.path} holds "${actual}"`);
+      }
+    }
+  };
+
+  for (const b of page.blocks) {
+    if (b.type === 'fields') b.items.forEach((it, i) => check(it.value, it.spans, `fields[${i}]`));
+    if (b.type === 'steps') {
+      b.rows.forEach((r, i) => ['name', 'ref', 'gate', 'note'].forEach((k) => check(r[k], r.spans[k], `steps[${i}].${k}`)));
+    }
+    if (b.type === 'table') b.rows.forEach((r, i) => r.cells.forEach((c, j) => check(c.value, c.spans, `${b.title}[${i}][${j}]`)));
+    if (b.type === 'stations') b.cells.forEach((c, i) => check(c.value, c.spans.value, `stations[${i}]`));
+  }
+  assert.ok(checked > 40, `only ${checked} spans checked — this proves little`);
+
+  // THE COMPOSITE CASE, which is the whole reason spans exist rather than one
+  // path per cell: a route gate is TWO values with the template's slash
+  // between them, and both have to be reachable.
+  const steps = page.blocks.find((b) => b.type === 'steps');
+  const gate = steps.rows[0];
+  assert.strictEqual(gate.spans.gate.length, 2, '"{alt} / {speed}" is two editable values, not one');
+  assert.ok(gate.spans.gate[0].path.endsWith('.alt'), `first span is ${gate.spans.gate[0].path}`);
+  assert.ok(gate.spans.gate[1].path.endsWith('.speed'), `second span is ${gate.spans.gate[1].path}`);
+  // The slash between them belongs to the template and is NOT inside a span.
+  const between = gate.gate.slice(gate.spans.gate[0].e, gate.spans.gate[1].s);
+  assert.ok(between.includes('/'), `the template's own text should sit between the spans, got "${between}"`);
+
+  // Rows are addressed absolutely, or an edit would have nowhere to land.
+  assert.ok(/^route\.steps\[0\]\.alt$/.test(gate.spans.gate[0].path), `expected an absolute row path, got ${gate.spans.gate[0].path}`);
+  assert.strictEqual(steps.repeat, 'route.steps', 'a repeated block names the array rows are added to');
+  assert.ok(steps.max > 0, 'and a cap on how many it may hold');
+
+  console.log(`[test] ${checked} rendered values map back to their place in the data, joins included`);
 }
 
 console.log('[dev-card-test] PASS');

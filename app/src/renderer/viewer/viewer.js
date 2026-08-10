@@ -267,6 +267,14 @@ function renderNav(s) {
  */
 function renderTemplates(s) {
   if (!lib) return;
+
+  // THE NAMING PANEL IS NOT REBUILT WHILE THE PILOT IS TYPING INTO IT. Same
+  // rule as the card sheet, and for the same reason: any state push at all
+  // rebuilds this — a peer connecting, the funnel polling — and every one
+  // would reset the name field to the file's own name mid-word, for a reason
+  // having nothing to do with the import.
+  if (s.templatePending && lib.querySelector('.tplask')) return;
+
   lib.textContent = '';
 
   if (s.templateError) {
@@ -799,13 +807,94 @@ function loadInk(snap) {
 
 const card = { root: el('card'), sheet: el('card-sheet') };
 
+// Mirrors s.editing for the duration of a render. Not state: it is read off
+// the snapshot at the top of every render, like everything else here.
+let editingNow = false;
+// A value to re-open after main pushes the next snapshot. Committing an edit
+// rebuilds the sheet, so the element the pilot was in no longer exists —
+// without this, Tab would commit and land nowhere.
+let wantFocus = null;
+
+/**
+ * Writes a resolved value into a node, split into its editable pieces.
+ *
+ * With EDIT off this is `textContent = value` and nothing else — byte for
+ * byte what it has always been, which is why read mode cannot regress.
+ *
+ * With EDIT on the value is cut at the spans the resolver measured. The gaps
+ * BETWEEN spans are the template's own text — the slash in `24000 / 350`, the
+ * arrow in `AL DHAFRA → KHASAB` — and stay untouchable, because they are the
+ * shape of the card and not the mission.
+ */
+function writeValue(node, text, spans) {
+  if (!editingNow || !spans || !spans.length) {
+    node.textContent = text;
+    return;
+  }
+  node.textContent = '';
+  let at = 0;
+  for (const sp of spans) {
+    if (sp.s > at) node.append(document.createTextNode(text.slice(at, sp.s)));
+    const box = document.createElement('span');
+    box.className = 'card__ed';
+    box.dataset.path = sp.path;
+    const piece = text.slice(sp.s, sp.e);
+    box.textContent = piece;
+    // A value the card does not carry yet renders as nothing, and nothing is
+    // not clickable. It still has to be reachable — filling in a blank is the
+    // main thing a pilot is here to do.
+    if (!piece) box.classList.add('card__ed--empty');
+    node.append(box);
+    at = sp.e;
+  }
+  if (at < text.length) node.append(document.createTextNode(text.slice(at)));
+}
+
+/** The key that takes one row away. Only in EDIT mode, and only on a block
+ *  that actually repeats — a header band has no rows to remove. */
+function rowKill(repeat, index) {
+  const kill = document.createElement('button');
+  kill.className = 'card__rowkill';
+  kill.dataset.rowRemove = repeat;
+  kill.dataset.rowIndex = String(index);
+  kill.textContent = '\u00d7';
+  kill.setAttribute('aria-label', t('card.removeRow', { n: index + 1 }));
+  kill.title = t('card.removeRow', { n: index + 1 });
+  return kill;
+}
+
+/**
+ * The add key for a repeated block, and the count against its cap.
+ *
+ * The cap is the template's, not the app's: the layout author is the one who
+ * knows how many rows fit a fixed 893x1263 sheet. At the cap the key is GONE
+ * rather than present and refusing — the rule the rest of this app follows.
+ */
+function rowKeys(block) {
+  const bar = document.createElement('div');
+  bar.className = 'card__rowbar';
+  const count = document.createElement('span');
+  count.className = 'card__rowcount';
+  const n = (block.rows || block.items || []).length;
+  count.textContent = t('card.rows', { n, max: block.max });
+  bar.append(count);
+  if (n < block.max) {
+    const add = document.createElement('button');
+    add.className = 'card__rowadd';
+    add.dataset.rowAdd = block.repeat;
+    add.textContent = t('card.addRow');
+    bar.append(add);
+  }
+  return bar;
+}
+
 /** One `.card__cell` from a resolved cell. */
 function cardCell(cell) {
   const node = document.createElement('span');
   node.className = `card__cell card__w-${cell.width}`;
   if (cell.style === 'mono') node.classList.add('card__cell--mono');
   if (cell.emphasis) node.classList.add(`card__cell--${cell.emphasis}`);
-  node.textContent = cell.value;
+  writeValue(node, cell.value, cell.spans);
   return node;
 }
 
@@ -848,7 +937,7 @@ function cardBlock(block) {
       const value = document.createElement('span');
       value.className = 'card__field-value';
       if (item.style === 'mono') value.classList.add('card__cell--mono');
-      value.textContent = item.value;
+      writeValue(value, item.value, item.spans);
       field.append(label, value);
       band.append(field);
     }
@@ -871,10 +960,10 @@ function cardBlock(block) {
       station.className = 'card__station';
       const value = document.createElement('div');
       value.className = 'card__station-value';
-      value.textContent = cell.value;
+      writeValue(value, cell.value, cell.spans && cell.spans.value);
       const label = document.createElement('div');
       label.className = 'card__station-label';
-      label.textContent = cell.label;
+      writeValue(label, cell.label, cell.spans && cell.spans.label);
       station.append(value, label);
       row.append(station);
     }
@@ -897,21 +986,22 @@ function cardBlock(block) {
       // `done`, `state` still said done, and the OR kept the row flown for
       // ever. card.js folds both into `done` now; `state` says CURRENT.
       if (step.done) row.classList.add('card__step--done');
-      for (const [cls, text] of [
-        ['card__step-name', step.name],
-        ['card__step-ref', step.ref],
-        ['card__step-gate', step.gate],
-        ['card__step-note', step.note],
+      for (const [cls, key] of [
+        ['card__step-name', 'name'],
+        ['card__step-ref', 'ref'],
+        ['card__step-gate', 'gate'],
+        ['card__step-note', 'note'],
       ]) {
         const cell = document.createElement('span');
         cell.className = cls;
-        cell.textContent = text;
+        writeValue(cell, step[key], step.spans && step.spans[key]);
         row.append(cell);
       }
       // A plain click marks the step. The design called for hold-to-commit,
       // on the reasoning that a stray tap under turbulence must never mark a
       // step flown — the owner chose the simpler control for now, and a tick
       // is reversible by clicking again, which is what makes that safe.
+      if (editingNow && block.repeat) row.append(rowKill(block.repeat, index));
       const tick = document.createElement('button');
       tick.className = 'card__tick';
       tick.dataset.step = String(index);
@@ -922,6 +1012,7 @@ function cardBlock(block) {
       row.append(tick);
       section.append(row);
     });
+    if (editingNow && block.repeat) section.append(rowKeys(block));
     return section;
   }
 
@@ -933,14 +1024,16 @@ function cardBlock(block) {
     // is for: a column meaning the same thing all the way down.
     const rows = document.createElement('div');
     rows.className = 'card__rows';
-    for (const row of block.rows) {
+    block.rows.forEach((row, index) => {
       const line = document.createElement('div');
       line.className = 'card__row';
       if (row.marked) line.classList.add('card__row--marked');
       for (const cell of row.cells) line.append(cardCell(cell));
+      if (editingNow && block.repeat) line.append(rowKill(block.repeat, index));
       rows.append(line);
-    }
+    });
     section.append(rows);
+    if (editingNow && block.repeat) section.append(rowKeys(block));
     return section;
   }
 
@@ -949,12 +1042,16 @@ function cardBlock(block) {
     section.append(cardHead(block.title, '', block.badge));
     const list = document.createElement('ul');
     list.className = 'card__prose-list';
-    for (const entry of block.items) {
+    block.items.forEach((entry, i) => {
       const item = document.createElement('li');
-      item.textContent = entry;
+      // A prose entry IS its value — no template string between the data and
+      // the screen — so the whole line is one editable piece.
+      const path = block.itemPaths && block.itemPaths[i];
+      writeValue(item, entry, path ? [{ s: 0, e: entry.length, path }] : null);
       list.append(item);
-    }
+    });
     section.append(list);
+    if (editingNow) section.append(rowKeys(block));
     return section;
   }
 
@@ -1012,6 +1109,20 @@ function sizeCard() {
 function renderCard(s) {
   if (!card.sheet) return;
   const model = s.card;
+  // Read off the snapshot, every render. Not state: main decides whether EDIT
+  // is on, this file only draws the consequence.
+  editingNow = Boolean(s.editing);
+  card.root.classList.toggle('card--editing', editingNow);
+
+  // THE SHEET IS NOT REBUILT WHILE THE PILOT IS TYPING INTO IT. Any state
+  // push at all rebuilds this — a peer connecting, the funnel polling, intel
+  // landing — and every one of those would otherwise throw away a half-typed
+  // value mid-keystroke, for a reason having nothing to do with the card.
+  //
+  // Committing is safe: commitEditor closes the editor BEFORE it sends, so
+  // the push it causes finds nothing open and rebuilds normally.
+  if (card.sheet.querySelector('.card__ed--open')) return;
+
   card.sheet.textContent = '';
 
   if (!model || !model.pages || !model.pages.length) {
@@ -1068,6 +1179,14 @@ function renderCard(s) {
     card.sheet.append(row);
   }
   sizeCard();
+
+  // Re-open whatever the pilot Tabbed to. The sheet was rebuilt under them by
+  // the commit that got here, so the element they were heading for is new.
+  if (editingNow && wantFocus) {
+    const next = byPath(wantFocus);
+    wantFocus = null;
+    if (next) openEditor(next);
+  }
 }
 
 /**
@@ -1089,8 +1208,20 @@ function renderActionBar(s) {
   // Each view gets its OWN verb and only its own. Loading data into the
   // library, or importing a template while looking at the sheet, are both
   // keys that would sit there meaning nothing.
-  el('card-import').classList.toggle('is-hidden', s.page !== 'card');
+  const onSheet = s.page === 'card';
+  const hasCard = Boolean(s.card && s.card.pages && s.card.pages.length && !s.card.blank);
+  el('card-import').classList.toggle('is-hidden', !onSheet);
   el('template-import').classList.toggle('is-hidden', s.page !== 'templates');
+  // EDIT and EXPORT need a card to act on, and EDIT is refused while casting
+  // — absent rather than present-and-refusing, the rule the rest of this app
+  // follows. The same exclusion is enforced in main, because the hotkey
+  // reaches the same intent without passing through here.
+  const casting = Boolean(s.brief && s.brief.presenting);
+  el('card-edit').classList.toggle('is-hidden', !onSheet || !hasCard || casting);
+  el('card-edit').classList.toggle('is-on', Boolean(s.editing));
+  el('card-edit').setAttribute('aria-label', t(s.editing ? 'card.editStop' : 'card.edit'));
+  el('card-edit').title = t(s.editing ? 'card.editStop' : 'card.edit');
+  el('card-export').classList.toggle('is-hidden', !onSheet || !hasCard);
 }
 
 function renderBrief(s) {
@@ -1100,6 +1231,14 @@ function renderBrief(s) {
   const theirs = Boolean(b.presenter) && !mine;
 
   stage.cast.classList.toggle('is-live', mine);
+  // The count comes with it. Knowing whether anyone is actually watching was
+  // the point of the whole lock model, so it must not vanish with the bar —
+  // it belongs on the key that starts and stops the thing anyway.
+  const castSays = mine
+    ? `${t('brief.stop')} — ${t('brief.withYou', { n: countFollowers(s) })}`
+    : t('brief.present');
+  stage.cast.setAttribute('aria-label', castSays);
+  stage.cast.title = castSays;
   brief.tools.classList.toggle('is-hidden', !mine);
   stage.ink.classList.toggle('is-live', mine);
 
@@ -1130,21 +1269,23 @@ function renderBrief(s) {
   // app already says what is happening on the net, and casting a card changes
   // nothing else on the sender's own screen — they are still looking at the
   // card they sent, so without a word here the key looks broken.
+  // NO BAR FOR THE PRESENTER. The cast key lit IS the statement that you are
+  // casting, and pressing it again is how you stop — a bar repeating that with
+  // its own STOP key was a second control for one action.
+  //
+  // The FOLLOWER's bar stays. It answers a different question — who is holding
+  // your controls — and exists because chrome that silently stops responding
+  // reads as a frozen app.
   const sent = !mine && !theirs ? b.sent : null;
-  const show = mine || theirs || Boolean(sent);
+  const show = theirs || Boolean(sent);
   brief.bar.classList.toggle('is-hidden', !show);
-  brief.key.classList.toggle('is-hidden', !mine);
+  brief.key.classList.add('is-hidden');
   if (sent) {
     setText(brief.title, t('card.sent'));
     // Naming the number is the point: 0 means nobody is on the net, which is
     // the answer a pilot most needs when they thought they had just shared.
     setText(brief.meta, t('card.sentTo', { n: sent.n }));
     delete brief.key.dataset.act;
-  } else if (mine) {
-    setText(brief.title, t('brief.youArePresenting'));
-    setText(brief.meta, t('brief.withYou', { n: countFollowers(s) }));
-    setText(brief.key, t('brief.stop'));
-    brief.key.dataset.act = 'stop';
   } else if (theirs) {
     setText(brief.title, t('brief.following', { who: (b.presenter || '').toUpperCase() }));
     // A pilot who does not have the presenter's photo is looking at a
@@ -1269,6 +1410,8 @@ abar.root.addEventListener('click', (event) => {
   if (view) return send('set-page', view.dataset.view);
   if (event.target.closest('#card-import')) return send('card-import');
   if (event.target.closest('#template-import')) return send('template-import');
+  if (event.target.closest('#card-export')) return send('card-export');
+  if (event.target.closest('#card-edit')) return send('card-edit-mode', !el('card-edit').classList.contains('is-on'));
 });
 
 // The library. Delegated, because the tiles are rebuilt on every push.
@@ -1301,6 +1444,170 @@ nav.addEventListener('click', (event) => {
   if (!tile) return;
   const dest = DESTINATIONS.find((d) => d.id === tile.dataset.dest);
   if (dest) send('set-page', dest.id);
+});
+
+
+// --- editing the card -------------------------------------------------------
+// Click a value, type, and move with the keyboard. There is no on-screen
+// keyboard by design: writing a card is something you do at a desk before you
+// fly, which is what keeps this consistent with brief mode having no TEXT tool
+// (typing has no place in VR — PROTOCOL.md).
+
+/** Every editable piece on the sheet, in READING order. */
+const editables = () => [...card.sheet.querySelectorAll('.card__ed')];
+
+/** Opens one for typing. Renderer-local: nothing has changed yet, so this
+ *  must NOT push state — a re-render would destroy the element mid-keystroke. */
+function openEditor(node) {
+  if (!node) return;
+  const live = card.sheet.querySelector('.card__ed--open');
+  if (live && live !== node) commitEditor(live);
+  node.classList.add('card__ed--open');
+  node.dataset.was = node.textContent;
+  node.contentEditable = 'plaintext-only';
+  node.focus();
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function closeEditor(node) {
+  node.contentEditable = 'false';
+  node.classList.remove('card__ed--open');
+  delete node.dataset.was;
+}
+
+/** Sends the change, if there is one. Main re-resolves and pushes back. */
+function commitEditor(node, focusNext = null) {
+  if (!node) return;
+  const text = node.textContent;
+  const was = node.dataset.was;
+  const path = node.dataset.path;
+  closeEditor(node);
+
+  if (text !== was && path) {
+    // Main re-resolves and pushes a new sheet, so the element the pilot is
+    // moving to does not exist yet. renderCard opens it once it does.
+    wantFocus = focusNext || null;
+    send('card-edit', { path, value: text });
+    return;
+  }
+  // Nothing changed, so nothing is pushed and the DOM stays as it is —
+  // move straight there.
+  if (focusNext) openEditor(byPath(focusNext));
+}
+
+const byPath = (path) => card.sheet.querySelector(`.card__ed[data-path="${CSS.escape(path)}"]`);
+
+/** The value before or after this one, in reading order across the sheet. */
+function step(node, delta) {
+  const all = editables();
+  const at = all.indexOf(node);
+  return at === -1 ? null : all[at + delta] || null;
+}
+
+/**
+ * The value one row up or down in the SAME COLUMN.
+ *
+ * By geometry, not by counting cells: a row with a missing value has fewer
+ * cells than its neighbour, so an index would drift across the table. Nearest
+ * left edge is what a pilot means by "the one below this".
+ */
+function verticalNeighbour(node, delta) {
+  const row = node.closest('.card__row, .card__step, .card__prose-list li');
+  const section = node.closest('.card__section');
+  if (!row || !section) return null;
+  const rows = [...section.querySelectorAll('.card__row, .card__step, .card__prose-list li')];
+  const next = rows[rows.indexOf(row) + delta];
+  if (!next) return null;
+  const x = node.getBoundingClientRect().left;
+  const candidates = [...next.querySelectorAll('.card__ed')];
+  if (!candidates.length) return null;
+  return candidates.reduce((best, c) =>
+    Math.abs(c.getBoundingClientRect().left - x) < Math.abs(best.getBoundingClientRect().left - x) ? c : best);
+}
+
+/** The value before or after this one WITHIN its row. */
+function horizontalNeighbour(node, delta) {
+  const row = node.closest('.card__row, .card__step, .card__band, .card__prose-list li');
+  if (!row) return null;
+  const inRow = [...row.querySelectorAll('.card__ed')];
+  const at = inRow.indexOf(node);
+  return at === -1 ? null : inRow[at + delta] || null;
+}
+
+card.sheet.addEventListener('click', (event) => {
+  const add = event.target.closest('[data-row-add]');
+  const kill = event.target.closest('[data-row-remove]');
+  if (add || kill) {
+    // Commit whatever is open FIRST. A real press blurs the editor on
+    // mousedown and gets here with nothing open, but relying on that ordering
+    // would mean a row press silently doing nothing whenever it does not
+    // hold — the sheet is not rebuilt while an editor is open, by design.
+    commitEditor(card.sheet.querySelector('.card__ed--open'));
+    if (add) return send('card-row-add', add.dataset.rowAdd);
+    return send('card-row-remove', { repeat: kill.dataset.rowRemove, index: Number(kill.dataset.rowIndex) });
+  }
+  const box = event.target.closest('.card__ed');
+  if (box && !box.classList.contains('card__ed--open')) openEditor(box);
+});
+
+card.sheet.addEventListener('keydown', (event) => {
+  const node = event.target.closest('.card__ed--open');
+  if (!node) return;
+
+  // Esc puts the old value back. Nothing is sent, so nothing changed.
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    node.textContent = node.dataset.was;
+    closeEditor(node);
+    return;
+  }
+  // Tab is READING order — the next value anywhere on the sheet, carrying on
+  // across block boundaries.
+  if (event.key === 'Tab') {
+    event.preventDefault();
+    const next = step(node, event.shiftKey ? -1 : 1);
+    return commitEditor(node, next && next.dataset.path);
+  }
+  // Enter commits and drops a row, the spreadsheet convention — a route table
+  // is filled in columns, not in rows.
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    const down = verticalNeighbour(node, 1) || step(node, 1);
+    return commitEditor(node, down && down.dataset.path);
+  }
+  // The arrows move by GRID position, which is why they earn their place
+  // alongside Tab: down from an altitude lands on the next leg's altitude,
+  // not on its note. Where a block has no such neighbour they fall back to
+  // reading order rather than dead-ending.
+  const arrows = { ArrowDown: [verticalNeighbour, 1], ArrowUp: [verticalNeighbour, -1],
+                   ArrowRight: [horizontalNeighbour, 1], ArrowLeft: [horizontalNeighbour, -1] };
+  if (arrows[event.key]) {
+    const [find, delta] = arrows[event.key];
+    // Left and right inside the text are how you fix a typo, so they only
+    // move between values when the caret is already at the end it is heading
+    // for. Up and down always move.
+    if (find === horizontalNeighbour) {
+      const sel = window.getSelection();
+      const at = sel && sel.isCollapsed ? sel.anchorOffset : -1;
+      const len = node.textContent.length;
+      if (at === -1 || (delta > 0 ? at !== len : at !== 0)) return;
+    }
+    const target = find(node, delta) || step(node, delta);
+    if (!target) return;
+    event.preventDefault();
+    commitEditor(node, target.dataset.path);
+  }
+});
+
+// Clicking away commits, the same as Tab. A value left open when the pilot
+// looks elsewhere should be saved, not silently dropped.
+card.sheet.addEventListener('focusout', (event) => {
+  const node = event.target.closest && event.target.closest('.card__ed--open');
+  if (node) commitEditor(node);
 });
 
 banner.close.addEventListener('click', () => send('banner-dismiss'));

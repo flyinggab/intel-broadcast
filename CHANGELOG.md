@@ -14,6 +14,63 @@ that entry.
 
 ---
 
+## Unreleased
+
+### Added
+- **A card's data can be edited on the sheet itself.** EDIT is a key in CARD's
+  group of the bottom bar, off by default and off again when you leave CARD:
+  click a value, type, move with the keyboard. The unit is the TOKEN, not the
+  cell — `{alt} / {speed}` is two editable values with the template's slash
+  fixed between them, so a route gate is editable rather than being the one
+  thing you cannot touch. Measured across the shipped templates, 57 of 61
+  cells are one token and four are joins like that.
+- **The keyboard does the moving.** Tab and Shift-Tab in reading order across
+  the whole sheet; up and down by GRID position, so down from an altitude
+  lands on the next leg's altitude and not on its note; left and right within
+  a row, but only once the caret is already at that end, so they still fix a
+  typo; Enter commits and drops a row, the spreadsheet convention, because a
+  route table is filled in columns; Esc puts the old value back. No on-screen
+  keyboard: writing a card is a desk activity, which is what keeps this
+  consistent with brief mode having no TEXT tool.
+- **Rows can be added and removed**, capped by the template — `max` on a
+  repeated block, defaulting to 20, because the layout author is the one who
+  knows how many rows fit a fixed sheet. At the cap the add key is gone rather
+  than present and refusing. Ticks REINDEX on every insert and removal: they
+  are keyed by row index, so without that, removing a leg slides a tick onto a
+  different one and the app confidently misreports where the flight is.
+- **EXPORT** writes the card out as a `.card.json`. It exists only for handing
+  one to someone out of band — casting already shares the values.
+
+### Changed
+- **Edits are permanent and the imported file is never written to.** The app
+  keeps its own working copy and prefers it; the file a pilot imported is
+  theirs, and reaching back into their folder to rewrite it is not ours to do
+  silently. Importing a different card replaces the working copy.
+- **Casting and editing exclude each other**, both ways, enforced in main and
+  not merely by hiding a key — the hotkey reaches the same intent. While EDIT
+  is on the route ticks stop taking clicks: one thing a click can mean at a
+  time.
+- **The presenter's bar is gone.** The cast key lit IS the statement that you
+  are casting and pressing it again is how you stop, so a bar repeating that
+  with its own STOP key was a second control for one action. The follower
+  count moved onto the cast key rather than vanishing with it — whether anyone
+  is actually watching is the point of the whole lock model. The FOLLOWER's
+  bar stays: it answers a different question, and chrome that silently stops
+  responding reads as a frozen app.
+
+### Fixed
+- **A state push no longer throws away what a pilot is typing.** Any push at
+  all rebuilt the card sheet and the template naming panel — a peer
+  connecting, the funnel polling, intel landing — and every one would have
+  wiped a half-typed value mid-keystroke for a reason having nothing to do
+  with the card. Neither is rebuilt while it holds an open editor.
+- **A path from a template can no longer reach Object.prototype.** Edit paths
+  are built from a template's own tokens, and a template is a file another
+  pilot wrote: `{__proto__}` in one would have written onto every object in
+  the process. Refused at the parse.
+
+---
+
 ## v0.9.2 — 2026-08-10
 
 ### Changed

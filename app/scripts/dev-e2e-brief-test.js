@@ -141,15 +141,23 @@ async function main() {
   // --- PRESENT -------------------------------------------------------------
   await click('#brief-cast');
   await waitFor('PRESENTING', () => probe.brief.casting, 8000);
-  if (!probe.brief.barShown) throw new Error('presenting must state itself');
-  if (!/PRESENTING/i.test(probe.brief.barTitle)) throw new Error(`bar should say presenting, got "${probe.brief.barTitle}"`);
+  // NO BAR FOR THE PRESENTER, deliberately. The cast key lit IS the statement
+  // that you are casting and pressing it again is how you stop, so a bar
+  // repeating that with its own STOP key was a second control for one action.
+  // The bar still belongs to the FOLLOWER, who needs telling who holds their
+  // controls — that is asserted further down.
+  if (probe.brief.barShown) throw new Error('the presenter gets no bar: the cast key says it and stops it');
   if (!probe.brief.toolsShown) throw new Error('the tool strip must appear for the presenter');
   if (!probe.brief.inkLive) throw new Error('the canvas must take the pointer while presenting');
-  if (!/STOP/i.test(probe.brief.barKey)) throw new Error(`the way out must be one key, got "${probe.brief.barKey}"`);
+  // The follower COUNT moved onto the cast key rather than vanishing with the
+  // bar — whether anyone is actually watching is the point of the lock model.
+  if (!/\d/.test(probe.brief.castSays || '')) {
+    throw new Error(`the cast key must say how many are with you, got "${probe.brief.castSays}"`);
+  }
   // A presenter is not "following" anyone, so the clean-view marker — which
   // explains a page turning by itself — would be nonsense here.
   if (probe.brief.markShown) throw new Error('the presenter must not be told they are following themselves');
-  console.log('[e2e] PRESENT lights the bar, the tools, the canvas and the cast key');
+  console.log(`[e2e] PRESENT lights the tools, the canvas and the cast key ("${probe.brief.castSays}") — and no bar`);
 
   // --- HIT TESTING, not .click() -------------------------------------------
   // Every assertion above uses element.click(), which dispatches straight at
@@ -289,7 +297,10 @@ async function main() {
 
   // --- STOP ----------------------------------------------------------------
   await run(`document.body.classList.remove('is-chrome-hidden');`);
-  await click('#briefbar-key');
+  // THE CAST KEY IS THE WAY OUT. It was a STOP key on a bar of its own, which
+  // meant two controls for one action — the key that starts a brief is the key
+  // that ends it, and the bar it lived on is gone.
+  await click('#brief-cast');
   await waitFor('presenting to stop', () => !probe.brief.casting, 8000);
   if (probe.brief.barShown) throw new Error('the bar must clear when the brief ends');
   if (probe.brief.toolsShown) throw new Error('the tools must go with it');

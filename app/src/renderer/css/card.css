@@ -359,3 +359,45 @@
 }
 .card__blank-what { font-size: 15px; font-weight: 700; letter-spacing: .06em; color: var(--pp-ink); }
 .card__blank-why { font-size: 11px; color: var(--pp-tertiary); letter-spacing: .08em; }
+
+/* --- editing on the sheet --------------------------------------------------
+   The unit is the TOKEN, not the cell: `{alt} / {speed}` renders as two
+   editable pieces with the template's slash between them, and the slash is
+   not editable because it is the shape of the card, not the mission.        */
+.card__ed {
+  box-shadow: inset 0 -1px 0 var(--pp-secondary);
+  cursor: text;
+  border-radius: 1px;
+}
+.card__ed:hover { background: var(--pp-raised); }
+/* A value the card does not carry yet renders as nothing, and nothing cannot
+   be clicked. Filling in a blank is the main thing a pilot is here to do. */
+.card__ed--empty { display: inline-block; min-width: 22px; min-height: 1em; }
+.card__ed--open {
+  background: #FFFDF5;
+  box-shadow: inset 0 0 0 1.5px var(--pp-go);
+  outline: none;
+  padding: 0 2px;
+}
+
+/* Row keys. Only in EDIT mode — a sheet a pilot is flying has no business
+   carrying a delete key next to every leg. */
+.card__rowbar { display: flex; align-items: center; gap: 8px; padding: 3px 8px 0; }
+.card__rowcount {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; color: var(--pp-tertiary);
+}
+.card__rowadd {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em;
+  background: var(--pp-recessed); color: var(--pp-ink);
+  border: 1px solid var(--pp-rule); padding: 2px 8px; cursor: pointer;
+}
+.card__rowadd:hover { background: var(--pp-raised); }
+.card__rowkill {
+  flex: none; width: 18px; height: 18px; margin-left: 4px;
+  background: none; border: 0; cursor: pointer; line-height: 1;
+  color: var(--pp-tertiary); font-size: 15px;
+}
+.card__rowkill:hover { color: var(--pp-threat); }
+/* The ticks stop taking clicks while EDIT is on: one thing a click can mean
+   at a time. Main refuses the intent too — this is only so it LOOKS inert. */
+.card--editing .card__tick { opacity: .35; pointer-events: none; }

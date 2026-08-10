@@ -77,7 +77,32 @@ function present(value) {
  * where a frequency should be is indistinguishable from a frequency of blank.
  */
 function renderString(template, scope, card, where, errors) {
+  return renderRich(template, scope, card, where, errors).text;
+}
+
+/**
+ * Renders a template string AND says where each rendered piece came from.
+ *
+ * This is what makes the sheet editable. A cell renders to a flat string, and
+ * without this nothing can map the text a pilot clicked back to the one place
+ * in the card data that produced it. Each span is {s, e, path}: character
+ * offsets into the SAME text renderString returns, plus the absolute data
+ * path. So read mode is byte-identical to before — the string is untouched —
+ * and edit mode splits it by the offsets.
+ *
+ * THE UNIT IS THE TOKEN, NOT THE CELL. `{alt} / {speed}` yields two spans with
+ * the template's slash between them, which is why a route gate is editable at
+ * all. Measured across the shipped templates, 57 of 61 cells are one token and
+ * four are joins like that one — a cell-level design would have made every
+ * route gate on every card un-editable.
+ *
+ * ABSOLUTE paths, because an edit has to name a place in the card, not a place
+ * in a row nobody else can see. Inside a repeat, `scopePath` is the row —
+ * `route.legs[3]` — and `{alt}` becomes `route.legs[3].alt`.
+ */
+function renderRich(template, scope, card, where, errors, scopePath = null) {
   let out = '';
+  const spans = [];
   let last = 0;
   const text = String(template);
   TOKEN.lastIndex = 0;
@@ -85,9 +110,16 @@ function renderString(template, scope, card, where, errors) {
   while (match) {
     out += text.slice(last, match.index);
     const [full, dottedPath, filter] = match;
-    let value = get(scope, dottedPath);
-    if (value === undefined) value = get(card, dottedPath);
 
+    const inScope = scopePath !== null && get(scope, dottedPath) !== undefined;
+    let value = get(scope, dottedPath);
+    let onCard = false;
+    if (value === undefined) {
+      value = get(card, dottedPath);
+      onCard = value !== undefined;
+    }
+
+    const start = out.length;
     if (value === undefined) {
       if (filter && filter in FILTERS) out += FILTERS[filter];
       else if (filter) errors.push(`${where}: unknown filter "${filter}" in ${full}`);
@@ -97,10 +129,20 @@ function renderString(template, scope, card, where, errors) {
     } else {
       out += String(value);
     }
+
+    // Where an edit to this piece would land. A token that resolved in the row
+    // belongs to the row. One that resolved on the card belongs to the card.
+    // One that resolved NOWHERE — a `{note|blank}` on a row that has no note —
+    // is decided by whether it is dotted: every template writes row fields as
+    // bare names and card fields as paths, so `{note|blank}` creates the row's
+    // note rather than a stray card-level one.
+    const rowField = inScope || (!onCard && scopePath !== null && !dottedPath.includes('.'));
+    spans.push({ s: start, e: out.length, path: rowField ? `${scopePath}.${dottedPath}` : dottedPath });
+
     last = match.index + full.length;
     match = TOKEN.exec(text);
   }
-  return out + text.slice(last);
+  return { text: out + text.slice(last), spans };
 }
 
 /** Validates the semantic vocabulary on one column/item spec. */
@@ -112,6 +154,49 @@ function checkVocabulary(spec, where, errors) {
   for (const banned of ['color', 'colour', 'font', 'size', 'px', 'weight']) {
     if (banned in spec) errors.push(`${where}: a template may not say "${banned}" — style belongs to the EFB`);
   }
+}
+
+// How many rows a repeated block may hold. The cap belongs to the TEMPLATE,
+// not the app: the layout author is the one who knows how many rows fit the
+// fixed 893x1263 sheet, and a card that grows past it overflows onto nothing.
+// The default is deliberately generous but finite — an uncapped block is a
+// card that can be made unreadable one row at a time.
+const DEFAULT_MAX_ROWS = 20;
+function rowCap(block) {
+  return Number.isInteger(block.max) && block.max > 0 ? block.max : DEFAULT_MAX_ROWS;
+}
+
+/**
+ * The keys a row of this block needs — the BARE tokens in its spec.
+ *
+ * This exists so a row added on the sheet can be seeded with them, empty. The
+ * alternative was to give the shipped templates fallbacks on every field, and
+ * that would have traded away a rule worth keeping: a missing value with no
+ * fallback is an ERROR, because a blank where a frequency should be is
+ * indistinguishable from a frequency of blank. An added row is the one case
+ * where blank is genuinely the answer, so the app supplies the keys rather
+ * than the template lowering its guard for every card forever.
+ *
+ * Bare only. A dotted token like {flight.callsign} reads from the card, not
+ * from the row, and seeding `flight.callsign` onto a row would shadow it.
+ */
+function rowFieldsOf(block) {
+  const specs = [block.row, block.cell, ...(block.columns || [])].filter(Boolean);
+  const names = new Set();
+  for (const spec of specs) {
+    for (const text of Object.values(spec)) {
+      if (typeof text !== 'string') continue;
+      TOKEN.lastIndex = 0;
+      let m = TOKEN.exec(text);
+      while (m) {
+        if (!m[1].includes('.')) names.add(m[1]);
+        m = TOKEN.exec(text);
+      }
+    }
+  }
+  // `complete` is a bare path too — the flag that says a step is flown.
+  if (typeof block.complete === 'string' && !block.complete.includes('.')) names.add(block.complete);
+  return [...names];
 }
 
 /** The rows a `repeat` produces, or null with an error logged. */
@@ -129,9 +214,13 @@ function resolveBlock(block, card, where, errors) {
     case 'fields': {
       const items = (block.items || []).map((item, i) => {
         checkVocabulary(item, `${where}.items[${i}]`, errors);
+        // The label is the template's own word ("CALLSIGN") and carries no
+        // spans; only the value can be edited.
+        const value = renderRich(item.value, card, card, `${where}.items[${i}].value`, errors);
         return {
           label: item.label ? renderString(item.label, card, card, `${where}.items[${i}].label`, errors) : '',
-          value: renderString(item.value, card, card, `${where}.items[${i}].value`, errors),
+          value: value.text,
+          spans: value.spans,
           width: item.width || 'flex',
           style: item.style || null,
           emphasis: item.emphasis || null,
@@ -149,11 +238,18 @@ function resolveBlock(block, card, where, errors) {
         band: block.band || null,
         title: block.title ? renderString(block.title, card, card, `${where}.title`, errors) : '',
         wrap: Number.isInteger(block.wrap) ? block.wrap : rows.length,
-        cells: rows.map((row, i) => ({
-          value: spec.value ? renderString(spec.value, row, card, `${where}[${i}].value`, errors) : '',
-          label: spec.label ? renderString(spec.label, row, card, `${where}[${i}].label`, errors) : '',
-          state: spec.state ? renderString(spec.state, row, card, `${where}[${i}].state`, errors) : '',
-        })),
+        cells: rows.map((row, i) => {
+          const at = `${block.repeat}[${i}]`;
+          const value = spec.value ? renderRich(spec.value, row, card, `${where}[${i}].value`, errors, at) : { text: '', spans: [] };
+          const label = spec.label ? renderRich(spec.label, row, card, `${where}[${i}].label`, errors, at) : { text: '', spans: [] };
+          return {
+            value: value.text,
+            label: label.text,
+            // `state` is a class, never text on screen, so it has nothing to edit.
+            state: spec.state ? renderString(spec.state, row, card, `${where}[${i}].state`, errors) : '',
+            spans: { value: value.spans, label: label.spans },
+          };
+        }),
       };
     }
 
@@ -165,11 +261,20 @@ function resolveBlock(block, card, where, errors) {
         type: 'steps',
         title: block.title ? renderString(block.title, card, card, `${where}.title`, errors) : '',
         subtitle: block.subtitle ? renderString(block.subtitle, card, card, `${where}.subtitle`, errors) : '',
-        rows: rows.map((row, i) => ({
-          name: spec.name ? renderString(spec.name, row, card, `${where}[${i}].name`, errors) : '',
-          ref: spec.ref ? renderString(spec.ref, row, card, `${where}[${i}].ref`, errors) : '',
-          gate: spec.gate ? renderString(spec.gate, row, card, `${where}[${i}].gate`, errors) : '',
-          note: spec.note ? renderString(spec.note, row, card, `${where}[${i}].note`, errors) : '',
+        rows: rows.map((row, i) => {
+          const at = `${block.repeat}[${i}]`;
+          const part = (key) =>
+            spec[key] ? renderRich(spec[key], row, card, `${where}[${i}].${key}`, errors, at) : { text: '', spans: [] };
+          const name = part('name');
+          const ref = part('ref');
+          const gate = part('gate');
+          const note = part('note');
+          return {
+          name: name.text,
+          ref: ref.text,
+          gate: gate.text,
+          note: note.text,
+          spans: { name: name.spans, ref: ref.spans, gate: gate.spans, note: note.spans },
           state: spec.state ? renderString(spec.state, row, card, `${where}[${i}].state`, errors) : '',
           // WHETHER A STEP IS FLOWN LIVES IN EXACTLY ONE FIELD, and this is it.
           //
@@ -184,7 +289,13 @@ function resolveBlock(block, card, where, errors) {
           done:
             (block.complete ? present(get(row, block.complete)) : false) ||
             (spec.state ? renderString(spec.state, row, card, `${where}[${i}].state`, errors) === 'done' : false),
-        })),
+          };
+        }),
+        // The array a row is added to or removed from, and how many the
+        // template will allow. See `max` in validateLayout.
+        repeat: block.repeat,
+        max: rowCap(block),
+        rowFields: rowFieldsOf(block),
       };
     }
 
@@ -201,13 +312,20 @@ function resolveBlock(block, card, where, errors) {
           // `mark` is a per-row boolean path — the template does not know
           // which row is the next tanker, only that the card flags one.
           marked: block.mark ? present(get(row, block.mark)) : false,
-          cells: (block.columns || []).map((col) => ({
-            value: renderString(col.value, row, card, `${where}[${i}]`, errors),
-            width: col.width || 'flex',
-            style: col.style || null,
-            emphasis: col.emphasis || null,
-          })),
+          cells: (block.columns || []).map((col) => {
+            const cell = renderRich(col.value, row, card, `${where}[${i}]`, errors, `${block.repeat}[${i}]`);
+            return {
+              value: cell.text,
+              spans: cell.spans,
+              width: col.width || 'flex',
+              style: col.style || null,
+              emphasis: col.emphasis || null,
+            };
+          }),
         })),
+        repeat: block.repeat,
+        max: rowCap(block),
+        rowFields: rowFieldsOf(block),
       };
     }
 
@@ -234,6 +352,11 @@ function resolveBlock(block, card, where, errors) {
           }
           return String(entry);
         }),
+        // A prose entry IS its value — there is no template string between the
+        // data and the screen — so the path is the entry itself.
+        itemPaths: (list || []).map((_e, i) => `${block.bind ? `${block.bind}.` : ''}${listPath}[${i}]`),
+        repeat: block.bind ? `${block.bind}.${listPath}` : listPath,
+        max: rowCap(block),
       };
     }
 

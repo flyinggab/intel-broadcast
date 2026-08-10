@@ -24,11 +24,12 @@ const tailscale = require('./tailscale');
 const okb = require('./okb');
 const { resolveCard, markCurrentStep, blankCardFor } = require('./card');
 const { createTemplateStore } = require('./templateStore');
+const cardEdit = require('./cardEdit');
 const { createUpdater } = require('./updater');
 const { createOkbServer } = require('./okbServer');
 // SETUP is a page of the viewer, so there is no settings window module any
 // more: what survived is the config writer and the folder dialog.
-const { saveSettingsValues, browseFolder, browseCard, browseLayout } = require('./settingsConfig');
+const { saveSettingsValues, browseFolder, browseCard, browseLayout, saveCardAs } = require('./settingsConfig');
 
 const BUNDLED_PHOTOS_DIR = path.join(__dirname, '..', '..', 'photos');
 
@@ -213,6 +214,34 @@ let chosenTemplateId = null;
 // reach a DOM except the handful of fields the naming panel shows.
 let pendingLayout = null;
 
+// EDIT MODE. Off by default and off again the moment the pilot leaves CARD:
+// this sheet rides on a knee for a whole flight, and the ticks are already a
+// plain click — if every value were live too, one stray tap during a merge
+// rewrites a frequency and nothing says so.
+let editing = false;
+
+/**
+ * The app's OWN copy of the card.
+ *
+ * Edits are permanent the moment they are made and survive a restart, the way
+ * ticks and the chosen template already do — but THE FILE THE PILOT IMPORTED
+ * IS NEVER WRITTEN TO. They loaded it; it is theirs; reaching back into their
+ * folder to rewrite it is not ours to do silently. So the app keeps this and
+ * prefers it, and EXPORT is how an edited card leaves as a file.
+ */
+function workingCardPath() {
+  return path.join(app.getPath('userData'), 'card.working.json');
+}
+
+function saveWorkingCard() {
+  if (!cardSource) return;
+  try {
+    fs.writeFileSync(workingCardPath(), JSON.stringify(cardSource, null, 2));
+  } catch (err) {
+    console.log(`[card] could not save the working copy: ${err.message}`);
+  }
+}
+
 /**
  * Loads the card named in config and resolves it against its layout.
  *
@@ -220,26 +249,31 @@ let pendingLayout = null;
  * none of them are recoverable, because a half-rendered card still looks like
  * the mission. The pilot sees CARD REFUSED and the log says why.
  */
-function loadCard() {
+function loadCard({ fresh = false } = {}) {
   cardModel = null;
   cardSource = null;
   cardTicks = new Map();
   const cardPath = process.env.INTEL_BROADCAST_CARD_PATH || config.cardPath;
-  if (!cardPath) return;
+  // The app's own copy wins, because it is the one carrying the pilot's edits.
+  // `fresh` is an import saying "replace it" — the only thing that discards
+  // edits, and it is the pilot handing over a different card.
+  const working = workingCardPath();
+  const from = !fresh && fs.existsSync(working) ? working : cardPath;
+  if (!from) return;
   try {
-    const card = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
+    const card = JSON.parse(fs.readFileSync(from, 'utf8'));
     cardSource = card;
     // Through the LIBRARY, so a card built on a template the pilot imported
     // loads exactly like one built on a template that ships.
     const layout = templates && templates.get(card.layout);
     if (!layout) {
-      console.log(`[card] ${cardPath}: no template named "${card.layout}"`);
+      console.log(`[card] ${from}: no template named "${card.layout}"`);
       cardModel = { error: true, pages: [], missingTemplate: card.layout };
       return;
     }
     const { ok, errors, card: resolved } = resolveCard({ layout, card });
     if (!ok) {
-      console.log(`[card] ${cardPath} REFUSED, ${errors.length} problem(s):`);
+      console.log(`[card] ${from} REFUSED, ${errors.length} problem(s):`);
       for (const err of errors.slice(0, 12)) console.log(`[card]   ${err}`);
       cardModel = { error: true, pages: [] };
       return;
@@ -254,10 +288,11 @@ function loadCard() {
     }
     cardModel = resolved;
     chosenTemplateId = card.layout;
+    if (from !== working) saveWorkingCard();
     const pages = resolved.pages.map((p) => p.id).join(', ');
-    console.log(`[card] loaded ${cardPath} (${resolved.pages.length} page(s): ${pages})`);
+    console.log(`[card] loaded ${from} (${resolved.pages.length} page(s): ${pages})`);
   } catch (err) {
-    console.log(`[card] could not read ${cardPath}: ${err.message}`);
+    console.log(`[card] could not read ${from}: ${err.message}`);
     cardModel = { error: true, pages: [] };
   }
 }
@@ -367,6 +402,36 @@ function refreshTemplates() {
     console.log(`[template] skipping ${one.file} (${one.source}): ${one.errors[0]}`);
   }
   view.setTemplates(all);
+}
+
+/**
+ * Re-resolves the card after its DATA changed, and persists it.
+ *
+ * Through the same resolveCard a fresh load uses, so a pilot editing a value
+ * sees exactly what a receiver would — including a refusal, if they have
+ * managed to type something the template cannot render.
+ */
+function recardAfterEdit() {
+  if (!cardSource) return;
+  const layout = templates && templates.get(cardSource.layout);
+  if (!layout) return;
+  const { ok, errors, card: resolved } = resolveCard({ layout, card: cardSource });
+  if (!ok) {
+    console.log(`[card] the edit leaves a card this template cannot render, ${errors.length} problem(s):`);
+    for (const err of errors.slice(0, 6)) console.log(`[card]   ${err}`);
+    return;
+  }
+  for (const page of resolved.pages) {
+    for (const block of page.blocks) if (block.type === 'image') block.url = `intel://blob/${block.blob}`;
+  }
+  cardModel = { ...resolved, from: cardModel && cardModel.from ? cardModel.from : '' };
+  saveWorkingCard();
+}
+
+/** The steps block's row array and cap, for add/remove and tick reindexing. */
+function stepsBlock() {
+  const page = cardModel && cardModel.pages ? cardModel.pages.find((p) => p.id === 'card') : null;
+  return page ? page.blocks.find((b) => b.type === 'steps') : null;
 }
 
 /** Puts a template on the sheet. With no data for it, that is the empty
@@ -694,6 +759,11 @@ function handleBriefIntent(intent, payload) {
       // the same binding. It sends the DATA; the layout is already on the
       // other end, shipped inside the app.
       if (view.state.page === 'card') {
+        // The owner's rule, both directions: you cannot cast mid-edit.
+        if (editing) {
+          console.log('[card] not while you are editing');
+          return true;
+        }
         const raw = currentCardSource();
         if (!raw) {
           console.log('[card] nothing to send — no card loaded');
@@ -708,6 +778,10 @@ function handleBriefIntent(intent, payload) {
         return true;
       }
       const on = Boolean(payload);
+      if (on && editing) {
+        console.log('[brief] not while you are editing');
+        return true;
+      }
       view.setPresenting(on, config.callsign || '');
       if (on) {
         originateBrief({ type: 'brief-present-start' });
@@ -783,6 +857,7 @@ function settingsSnapshot(base) {
     squadCode: hostSquadCode(),
     hotkeys: config.hotkeys,
     card: cardForSnapshot(),
+    editing,
     update: updater ? updater.snapshot() : { supported: false },
     okb: okbState,
     // The squad code is a password and must never appear here.
@@ -1341,6 +1416,10 @@ function handleViewerIntent(intent, payload) {
     case 'ready':
       break;
     case 'set-page':
+      // EDIT belongs to the CARD page. Walking away is the ordinary way to
+      // stop, and a mode still running on a page you cannot see is a mode
+      // that will surprise you when you come back.
+      if (!['card', 'templates'].includes(payload)) editing = false;
       view.setPage(payload);
       if (payload === 'setup') startTailscalePolling();
       else stopTailscalePolling();
@@ -1358,7 +1437,63 @@ function handleViewerIntent(intent, payload) {
         } else if (payload === 'close') viewer.window.close();
       }
       break;
+    case 'card-edit': {
+      // One value, named by the absolute path the resolver handed the renderer.
+      if (!editing || !cardSource) break;
+      const { path: at, value } = payload || {};
+      if (typeof at !== 'string' || typeof value !== 'string') break;
+      if (cardEdit.setAt(cardSource, at, value)) recardAfterEdit();
+      noteActivity();
+      break;
+    }
+    case 'card-row-add': {
+      if (!editing || !cardSource) break;
+      const block = (cardModel.pages || [])
+        .flatMap((p) => p.blocks)
+        .find((b) => b.repeat === payload);
+      if (!block) break;
+      const added = cardEdit.addRow(cardSource, block.repeat, block.max, block.rowFields);
+      if (!added.ok) {
+        console.log(`[card] no row added: ${added.reason}`);
+        break;
+      }
+      recardAfterEdit();
+      noteActivity();
+      break;
+    }
+    case 'card-row-remove': {
+      if (!editing || !cardSource) break;
+      const { repeat, index } = payload || {};
+      const block = (cardModel.pages || []).flatMap((p) => p.blocks).find((b) => b.repeat === repeat);
+      if (!block) break;
+      const gone = cardEdit.removeRow(cardSource, repeat, Number(index));
+      if (!gone.ok) {
+        console.log(`[card] no row removed: ${gone.reason}`);
+        break;
+      }
+      // A tick is keyed by row index, so removing a row above a ticked step
+      // slides that tick onto a different leg unless the ticks move with it.
+      if (block.type === 'steps') cardTicks = cardEdit.reindexTicks(cardTicks, Number(index), -1);
+      recardAfterEdit();
+      noteActivity();
+      break;
+    }
+    case 'card-edit-mode': {
+      // Refused while this pilot is casting, and casting is refused while
+      // this is on — enforced HERE and not only by hiding a key, because the
+      // hotkey reaches the same intent.
+      const on = Boolean(payload);
+      if (on && view.state.brief.presenting) {
+        console.log('[card] not while you are casting');
+        break;
+      }
+      editing = on;
+      noteActivity();
+      break;
+    }
     case 'card-tick': {
+      // Not while editing: one thing a click can mean at a time.
+      if (editing) break;
       // Not on a template being previewed empty. Its rows are placeholders,
       // and a tick there would go out to the net stamped with the hash of
       // whatever card is still loaded — marking a step on somebody else's
@@ -1419,6 +1554,19 @@ function handleViewerIntent(intent, payload) {
       // The picker lives on SHARE now, next to the gallery it feeds.
       return void browseFolder(viewer && viewer.window).then((folder) => {
         if (folder) applyNewConfig(saveSettingsValues({ photosFolder: folder }));
+      });
+    case 'card-export':
+      // The only way a card leaves as a file. Casting already shares the
+      // values, so this is for handing one to someone out of band.
+      if (!cardSource) break;
+      return void saveCardAs(viewer && viewer.window, payload).then((file) => {
+        if (!file) return;
+        try {
+          fs.writeFileSync(file, JSON.stringify(cardSource, null, 2));
+          console.log(`[card] exported to ${file}`);
+        } catch (err) {
+          console.log(`[card] could not export: ${err.message}`);
+        }
       });
     case 'template-import':
       // Inspected, NOT saved. The naming step sits between the two: a template
@@ -1483,7 +1631,7 @@ function handleViewerIntent(intent, payload) {
       return void pickFile(browseCard, payload).then((file) => {
         if (!file) return;
         applyNewConfig(saveSettingsValues({ cardPath: file }));
-        loadCard();
+        loadCard({ fresh: true });
         view.setPage('card');
         pushState();
       });
@@ -1760,6 +1908,9 @@ function attachViewerProbe() {
              barShown: !document.getElementById('briefbar').classList.contains('is-hidden'),
              barTitle: document.getElementById('briefbar-title').textContent,
              barKey: document.getElementById('briefbar-key').textContent,
+             // The presenter has no bar any more, so what the CAST KEY says is
+             // the thing worth probing: it carries the follower count now.
+             castSays: document.getElementById('brief-cast').title,
              markShown: !document.getElementById('brief-mark').classList.contains('is-hidden'),
              toolsShown: !document.getElementById('brief-tools').classList.contains('is-hidden'),
              casting: document.getElementById('brief-cast').classList.contains('is-live'),
