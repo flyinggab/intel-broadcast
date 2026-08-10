@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tac Link — editing card data on the sheet</title>
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/base.css" />
+<link rel="stylesheet" href="css/components.css" />
+<style>
+  body { background: #22251f; color: #cfd3c8; font-family: var(--font-ui); padding: 20px 24px 60px; display: block; }
+  h1 { font-size: 20px; letter-spacing: .08em; margin: 0 0 2px; }
+  .sub { font-family: var(--font-mono); font-size: 12px; color: #8d9384; letter-spacing: .06em; margin-bottom: 22px; }
+  h2 { font-size: 14px; letter-spacing: .1em; color: #e8ece6; margin: 30px 0 4px; text-transform: uppercase; }
+  .why { font-size: 13px; line-height: 1.55; color: #a9af9f; max-width: 980px; margin: 0 0 14px; }
+  .why b { color: #e8ece6; }
+  .why code { font-family: var(--font-mono); font-size: 12px; color: #b8beaa; }
+  .row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+  .name { font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em; color: #cfd3c8; margin-bottom: 6px; }
+  .name em { color: #98bb62; font-style: normal; }
+  .note { font-size: 12px; line-height: 1.45; color: #8d9384; max-width: 300px; margin-top: 7px; }
+  .dev { width: 300px; height: 330px; background: var(--bg); position: relative; overflow: hidden;
+         box-shadow: 0 0 0 7px #2c2f28, 0 0 0 8px #171a15; display: flex; flex-direction: column; }
+  .verdict { border-left: 3px solid #98bb62; padding: 9px 12px; margin: 14px 0 0; background: #262a22;
+             font-size: 13px; line-height: 1.55; max-width: 980px; }
+  .ask { border-left: 3px solid #c8a33c; padding: 9px 12px; margin: 14px 0 0; background: #2a271e;
+         font-size: 13px; line-height: 1.55; max-width: 980px; }
+  .ask b, .verdict b { color: #e8ece6; }
+
+  .mstrip { height: 22px; flex: none; background: var(--bg); border-bottom: var(--rule); display: flex;
+            align-items: center; gap: 6px; padding-right: 6px; font-family: var(--font-mono);
+            font-size: 9px; color: var(--hi); }
+  .mstrip .ham { width: 26px; height: 22px; display: grid; place-items: center; color: #cfd3c8; }
+  .mstrip .ham i { display: block; width: 11px; height: 1px; background: currentColor; box-shadow: 0 3px 0 currentColor, 0 -3px 0 currentColor; }
+  .mbody { flex: 1; display: flex; min-height: 0; }
+  .lrail { flex: none; width: 26px; background: #22271f; border-right: 1px solid #171a15;
+           display: flex; flex-direction: column; align-items: center; gap: 2px; padding-top: 3px; }
+  .lrail b { width: 24px; height: 30px; display: grid; place-items: center; gap: 1px; align-content: center;
+             background: rgba(120,128,112,.28); color: #dfe4d6; font-size: 5px; letter-spacing: .04em; font-weight: 700; }
+  .lrail b.on { background: var(--lit); color: var(--ink); }
+  .lrail b s { display: block; width: 11px; height: 11px; border: 1px solid currentColor; text-decoration: none; }
+  .lrail .sp { flex: 1; }
+  .work { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .scr { flex: 1; min-height: 0; overflow: hidden; }
+
+  .abar2 { flex: none; height: 26px; background: var(--bg); border-top: var(--rule); display: flex;
+           align-items: center; gap: 3px; padding: 0 4px; }
+  .abar2 k { height: 22px; min-width: 22px; padding: 0 3px; display: grid; place-items: center; background: var(--up);
+             box-shadow: var(--bevel-up); color: #cfd3c8; font-size: 7px; font-family: var(--font-mono); }
+  .abar2 k.on { background: var(--lit); color: var(--ink); box-shadow: none; }
+  .abar2 k.go { color: #98bb62; }
+  .abar2 k.hot { background: #4a5c30; color: #e8ece6; box-shadow: none; }
+  .abar2 .sep { width: 1px; height: 13px; background: #171a15; margin: 0 3px; }
+  .abar2 .gap { flex: 1; }
+
+  /* the paper sheet */
+  .sheet { height: 100%; background: #E9E5DA; color: #1F1C16; padding: 5px 6px; font-size: 7.5px; overflow: hidden; }
+  .sheet h { display: block; background: #3A362D; color: #EDE9DE; font-size: 6px; letter-spacing: .12em;
+             padding: 2px 4px; font-weight: 400; margin: 0 0 3px; }
+  .sheet .r { display: flex; gap: 5px; padding: 2px 3px; border-bottom: 1px solid #D6D1C4; align-items: baseline; }
+  .sheet .r u { text-decoration: none; flex: 1; font-weight: 700; }
+  .sheet .r q { quotes: none; font-family: var(--font-mono); color: #55503f; }
+  .sheet .band { display: flex; gap: 8px; background: #D9D4C6; border: 1px solid #BFB9A8; padding: 3px 5px; margin-bottom: 4px; }
+  .sheet .band d { display: block; }
+  .sheet .band l { display: block; font-size: 5.5px; letter-spacing: .1em; color: #5E584C; }
+  .sheet .band v { display: block; font-size: 9px; font-weight: 700; }
+
+  /* EDIT MODE: every value that maps to one place in the data */
+  .ed { box-shadow: inset 0 -1px 0 #8A8467; cursor: text; }
+  .ed.open { background: #FFFDF5; box-shadow: inset 0 0 0 1.5px #3F6B22; padding: 0 2px; }
+  .ed.open i { display: inline-block; width: 1px; height: 8px; background: #3F6B22; vertical-align: -1px;
+               margin-left: 1px; }
+  .fixed { color: #6A6255; }
+
+</style>
+</head>
+<body>
+
+<h1>CARD — editing the data on the sheet</h1>
+<div class="sub">MOCKUP FOR APPROVAL · NOT BUILT YET</div>
+
+<p class="why">
+  Today a card's data only comes from a <code>.card.json</code>. This makes the sheet itself the editor: turn
+  EDIT on, click a value, type. <b>The template does not change</b> — you are filling in the boxes it defines,
+  never moving or adding them, which is the same split that lets a card cross the wire as a few KB of data.
+</p>
+
+<p class="why">
+  <b>Every value maps back to exactly one place in the data, and that is what makes this possible.</b> A cell
+  is rendered from a template string like <code>{comms.primary[2].freq}</code>; I measured the three templates
+  we have — 57 of 61 cells are a single token like that. The other four are joins: <code>{alt} / {speed}</code>
+  on every route leg, and <code>{flight.from} → {flight.to}</code>. So the unit of editing is the
+  <b>token, not the cell</b>: <code>24000 / 350</code> is two editable values with fixed text between them.
+  One rule, no special cases, and nothing is un-editable just because the template formats it.
+</p>
+
+<h2>1 · Off, on, and editing</h2>
+
+<div class="row">
+  <div>
+    <div class="name">A · EDIT off — the sheet as it is now</div>
+    <div class="dev">
+      <div class="mstrip"><span class="ham"><i></i></span>TAC LINK · CARD</div>
+      <div class="mbody">
+        <div class="lrail"><b><s></s>INTEL</b><b class="on"><s></s>CARD</b><span class="sp"></span><b><s></s></b></div>
+        <div class="work">
+          <div class="scr"><div class="sheet">
+            <div class="band">
+              <d><l>CALLSIGN</l><v>COLT 2-1</v></d>
+              <d><l>FUEL</l><v>7000</v></d>
+              <d><l>ROUTE</l><v>AL DHAFRA → KHASAB</v></d>
+            </div>
+            <h>LEGS</h>
+            <div class="r"><u>CLIMB</u><q>WP1</q><q>24000 / 350</q></div>
+            <div class="r"><u>CRUISE</u><q>WP2</q><q>24000 / 400</q></div>
+            <h style="margin-top:4px">RADIO</h>
+            <div class="r"><u>KHASAB APP</u><q>119.900</q><q>112X</q></div>
+          </div></div>
+          <div class="abar2">
+            <k class="on">CARD</k><k>TMPL</k><span class="sep"></span><k>DATA</k><k>EDIT</k>
+            <span class="gap"></span><k class="go">CAST</k>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">Nothing on the sheet responds to a click except the route ticks. <b>EDIT</b> is one more
+      key in CARD's own group.</p>
+  </div>
+
+  <div>
+    <div class="name">B · <em>EDIT on</em> — what can be changed</div>
+    <div class="dev">
+      <div class="mstrip"><span class="ham"><i></i></span>TAC LINK · CARD · EDIT</div>
+      <div class="mbody">
+        <div class="lrail"><b><s></s>INTEL</b><b class="on"><s></s>CARD</b><span class="sp"></span><b><s></s></b></div>
+        <div class="work">
+          <div class="scr"><div class="sheet">
+            <div class="band">
+              <d><l>CALLSIGN</l><v><span class="ed">COLT 2-1</span></v></d>
+              <d><l>FUEL</l><v><span class="ed">7000</span></v></d>
+              <d><l>ROUTE</l><v><span class="ed">AL DHAFRA</span> <span class="fixed">→</span> <span class="ed">KHASAB</span></v></d>
+            </div>
+            <h>LEGS</h>
+            <div class="r"><u><span class="ed">CLIMB</span></u><q><span class="ed">WP1</span></q><q><span class="ed">24000</span> <span class="fixed">/</span> <span class="ed">350</span></q></div>
+            <div class="r"><u><span class="ed">CRUISE</span></u><q><span class="ed">WP2</span></q><q><span class="ed">24000</span> <span class="fixed">/</span> <span class="ed">400</span></q></div>
+            <h style="margin-top:4px">RADIO</h>
+            <div class="r"><u><span class="ed">KHASAB APP</span></u><q><span class="ed">119.900</span></q><q><span class="ed">112X</span></q></div>
+          </div></div>
+          <div class="abar2">
+            <k class="on">CARD</k><k>TMPL</k><span class="sep"></span><k>DATA</k><k class="hot">EDIT</k>
+            <span class="gap"></span><k class="go">CAST</k>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">Every editable value is underlined. Note <b>ROUTE</b> and the <b>24000 / 350</b> gates:
+      the arrow and the slash come from the template and stay fixed — the values either side are separate.</p>
+  </div>
+
+  <div>
+    <div class="name">C · mid-edit</div>
+    <div class="dev">
+      <div class="mstrip"><span class="ham"><i></i></span>TAC LINK · CARD · EDIT</div>
+      <div class="mbody">
+        <div class="lrail"><b><s></s>INTEL</b><b class="on"><s></s>CARD</b><span class="sp"></span><b><s></s></b></div>
+        <div class="work">
+          <div class="scr"><div class="sheet">
+            <div class="band">
+              <d><l>CALLSIGN</l><v><span class="ed">COLT 2-1</span></v></d>
+              <d><l>FUEL</l><v><span class="ed">7000</span></v></d>
+              <d><l>ROUTE</l><v><span class="ed">AL DHAFRA</span> <span class="fixed">→</span> <span class="ed">KHASAB</span></v></d>
+            </div>
+            <h>LEGS</h>
+            <div class="r"><u><span class="ed">CLIMB</span></u><q><span class="ed">WP1</span></q><q><span class="ed open">26000<i></i></span> <span class="fixed">/</span> <span class="ed">350</span></q></div>
+            <div class="r"><u><span class="ed">CRUISE</span></u><q><span class="ed">WP2</span></q><q><span class="ed">24000</span> <span class="fixed">/</span> <span class="ed">400</span></q></div>
+            <h style="margin-top:4px">RADIO</h>
+            <div class="r"><u><span class="ed">KHASAB APP</span></u><q><span class="ed">119.900</span></q><q><span class="ed">112X</span></q></div>
+          </div></div>
+          <div class="abar2">
+            <k class="on">CARD</k><k>TMPL</k><span class="sep"></span><k>DATA</k><k class="hot">EDIT</k>
+            <span class="gap"></span><k class="go">CAST</k>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">Edits in place, on the sheet — not in a side panel, so you are looking at the card as it
+      will read. <b>Enter</b> or clicking away commits; <b>Esc</b> puts the old value back.</p>
+  </div>
+</div>
+
+<div class="verdict">
+  <b>Why a MODE and not always-on click-to-edit.</b> This sheet rides on a pilot's knee for a whole flight,
+  and the ticks are already a plain click by your choice. If every value were live, one stray tap during a
+  merge silently rewrites a frequency and nothing says so. EDIT is off by default, turns off when you leave
+  CARD, and while it is on the ticks stop taking clicks — one thing a click can mean at a time.
+</div>
+
+<h2>2 · Where the change goes</h2>
+<p class="why">
+  An edit changes the card <b>this app is holding</b>, immediately and permanently — it survives a restart, the
+  way a chosen template and ticked steps already do. <b>The file you imported is never written to.</b> You
+  loaded it; it is yours; the app does not reach back into your folder and rewrite it. To get an edited card
+  out as a file, <b>EXPORT</b> writes a fresh <code>.card.json</code> wherever you point it.
+</p>
+<p class="why">
+  <b>An edit does not travel by itself.</b> Ticks cross because a checklist is a shared, live thing; a
+  half-typed frequency is not. You edit, then you CAST — and the whole card goes as it always did. That also
+  means editing a card a squadmate sent you is safe: it becomes your copy, and they see nothing until you
+  send it back.
+</p>
+
+<div class="ask">
+  <b>The one thing that genuinely conflicts with an existing decision.</b> Brief mode has no TEXT tool, and the
+  reason is written into the protocol: <em>typing has no place in VR, and a tool that works for desktop pilots
+  but not VR ones splits the tool set.</em> Editing a card is typing. I think the rule survives, because the two
+  are different activities — you write a card at a desk before you fly, and you draw on a photo while you are
+  flying. Editing is planning; ink is briefing. So there is <b>no on-screen keyboard</b> in this design: you type
+  on a real one, and a pilot in a headset fills the card in beforehand or takes one a squadmate casts. If you
+  want EDIT usable in the OpenKneeboard tab too, say so — it changes the design and is worth knowing now.
+</div>
+
+<div class="ask">
+  <b>What I have deliberately left out of this pass, and want your call on:</b><br />
+  <b>Adding and removing rows.</b> Everything above edits values in boxes that already exist. Adding a route
+  leg, or a fourth tanker, means inserting into an array the template repeats over — a different and larger
+  mechanism (where does the new row go, what are its empty values, how do ticks reindex). Real need, worth
+  its own pass, and I would rather ship value-editing working than both half-done.
+</div>
+
+<div class="verdict">
+  <b>Before I build:</b><br />
+  1 · EDIT as a mode in the bottom bar — or would you rather every value were always clickable?<br />
+  2 · Edits persist in the app and EXPORT writes a file. Or should saving write straight back over the
+  <code>.card.json</code> you imported?<br />
+  3 · Row add/remove: leave for a second pass as above, or is it needed with the first?<br />
+  4 · Should an edit made while you are CASTING push to the flight live, like a tick does?
+</div>
+
+</body>
+</html>
