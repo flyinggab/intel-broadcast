@@ -209,6 +209,12 @@ let templates = null;
 // committing to it.
 let chosenTemplateId = null;
 
+// Bumped whenever the card's DATA or ticks change. The renderer will not
+// rebuild the sheet while a pilot is typing into it — but it must still
+// rebuild when the card ITSELF changed, or a press that adds a line lands in
+// main, succeeds, and never appears. This is how the two are told apart.
+let cardRev = 0;
+
 // An inspected template waiting to be named. Held HERE rather than in the
 // snapshot: it is a file another pilot wrote, and nothing about it needs to
 // reach a DOM except the handful of fields the naming panel shows.
@@ -288,6 +294,7 @@ function loadCard({ fresh = false } = {}) {
     }
     cardModel = resolved;
     chosenTemplateId = card.layout;
+    cardRev += 1;
     if (from !== working) saveWorkingCard();
     const pages = resolved.pages.map((p) => p.id).join(', ');
     console.log(`[card] loaded ${from} (${resolved.pages.length} page(s): ${pages})`);
@@ -384,7 +391,7 @@ function cardForSnapshot() {
       };
   // AFTER the ticks, never before: where the flight has got to is the first
   // step not yet flown, and that moves every time one is marked off.
-  return markCurrentStep(ticked);
+  return { ...markCurrentStep(ticked), rev: cardRev };
 }
 
 /**
@@ -411,21 +418,38 @@ function refreshTemplates() {
  * sees exactly what a receiver would — including a refusal, if they have
  * managed to type something the template cannot render.
  */
-function recardAfterEdit() {
-  if (!cardSource) return;
+/**
+ * Makes one change to the card DATA, and keeps the data and the sheet in step.
+ *
+ * ROLLS BACK if the change leaves a card the template cannot render. Without
+ * that, a refused change stayed in `cardSource` while `cardModel` kept the old
+ * sheet: the screen silently reverted, and — far worse — EVERY LATER EDIT was
+ * refused too, because the card was still carrying the bad row. One press
+ * poisoned the card for the rest of the session. That is exactly what the
+ * + ROW key on GAME PLAN did.
+ */
+function applyCardChange(mutate) {
+  if (!cardSource) return false;
   const layout = templates && templates.get(cardSource.layout);
-  if (!layout) return;
+  if (!layout) return false;
+
+  const before = JSON.stringify(cardSource);
+  if (!mutate()) return false; // nothing actually changed
+
   const { ok, errors, card: resolved } = resolveCard({ layout, card: cardSource });
   if (!ok) {
-    console.log(`[card] the edit leaves a card this template cannot render, ${errors.length} problem(s):`);
+    cardSource = JSON.parse(before);
+    console.log(`[card] change refused — the template cannot render it, ${errors.length} problem(s):`);
     for (const err of errors.slice(0, 6)) console.log(`[card]   ${err}`);
-    return;
+    return false;
   }
   for (const page of resolved.pages) {
     for (const block of page.blocks) if (block.type === 'image') block.url = `intel://blob/${block.blob}`;
   }
   cardModel = { ...resolved, from: cardModel && cardModel.from ? cardModel.from : '' };
+  cardRev += 1;
   saveWorkingCard();
+  return true;
 }
 
 /** The steps block's row array and cap, for add/remove and tick reindexing. */
@@ -632,6 +656,7 @@ function applyBriefMessage(msg) {
       // yet is worse than no card: it is a confident wrong answer about where
       // the flight is.
       cardTicks = new Map(Object.entries(msg.ticks || {}).map(([k, v]) => [Number(k), v]));
+      cardRev += 1;
       // A card raises no banner, by design. Without a mark on the rail it can
       // land on a pilot's kneeboard with nothing on screen saying so.
       view.noteCardArrived();
@@ -651,6 +676,7 @@ function applyBriefMessage(msg) {
       const mine = cardHash();
       if (!mine || mine !== msg.hash) return;
       cardTicks.set(msg.index, msg.done);
+      cardRev += 1;
       break;
     }
     default:
@@ -1442,22 +1468,60 @@ function handleViewerIntent(intent, payload) {
       if (!editing || !cardSource) break;
       const { path: at, value } = payload || {};
       if (typeof at !== 'string' || typeof value !== 'string') break;
-      if (cardEdit.setAt(cardSource, at, value)) recardAfterEdit();
+      applyCardChange(() => cardEdit.setAt(cardSource, at, value));
+      noteActivity();
+      break;
+    }
+    case 'card-line-break': {
+      // ENTER IN A PROSE LIST: commit this line and open a new one after it.
+      // ONE intent, not an edit followed by an add, and that is not tidiness.
+      // As two, main pushed twice: the first render re-opened the editor the
+      // pilot was moving to, and the second — the one carrying the new line —
+      // was then skipped, because the sheet is deliberately not rebuilt while
+      // an editor is open. The new line never appeared. As one change it is
+      // also one rollback if the template refuses it.
+      if (!editing || !cardSource) break;
+      const { path: at, value, repeat, at: index } = payload || {};
+      if (typeof at !== 'string' || typeof value !== 'string' || typeof repeat !== 'string') break;
+      const block = (cardModel.pages || []).flatMap((p) => p.blocks).find((b) => b.repeat === repeat);
+      if (!block) break;
+      applyCardChange(() => {
+        cardEdit.setAt(cardSource, at, value);
+        const made = cardEdit.addRow(cardSource, repeat, {
+          max: block.max,
+          fields: block.rowFields,
+          kind: block.rowKind,
+          at: Number.isInteger(index) ? index : null,
+        });
+        if (!made.ok) console.log(`[card] no line added: ${made.reason}`);
+        return true; // the value changed even if the list was at its cap
+      });
       noteActivity();
       break;
     }
     case 'card-row-add': {
       if (!editing || !cardSource) break;
-      const block = (cardModel.pages || [])
-        .flatMap((p) => p.blocks)
-        .find((b) => b.repeat === payload);
+      // A bare string is "append to this block"; {repeat, at} inserts, which
+      // is what Enter in a prose list means.
+      const repeat = typeof payload === 'string' ? payload : (payload || {}).repeat;
+      const at = typeof payload === 'object' && payload ? payload.at : null;
+      const block = (cardModel.pages || []).flatMap((p) => p.blocks).find((b) => b.repeat === repeat);
       if (!block) break;
-      const added = cardEdit.addRow(cardSource, block.repeat, block.max, block.rowFields);
-      if (!added.ok) {
-        console.log(`[card] no row added: ${added.reason}`);
-        break;
-      }
-      recardAfterEdit();
+      let added = { ok: false };
+      applyCardChange(() => {
+        added = cardEdit.addRow(cardSource, block.repeat, {
+          max: block.max,
+          fields: block.rowFields,
+          kind: block.rowKind,
+          at: Number.isInteger(at) ? at : null,
+        });
+        if (!added.ok) console.log(`[card] no row added: ${added.reason}`);
+        return added.ok;
+      });
+      // Ticks are keyed by row index: a row inserted above a ticked step
+      // pushes that step down, and its tick has to go with it.
+      if (added.ok && block.type === 'steps') cardTicks = cardEdit.reindexTicks(cardTicks, added.index, 1);
+      if (added.ok) cardRev += 1;
       noteActivity();
       break;
     }
@@ -1466,15 +1530,16 @@ function handleViewerIntent(intent, payload) {
       const { repeat, index } = payload || {};
       const block = (cardModel.pages || []).flatMap((p) => p.blocks).find((b) => b.repeat === repeat);
       if (!block) break;
-      const gone = cardEdit.removeRow(cardSource, repeat, Number(index));
-      if (!gone.ok) {
-        console.log(`[card] no row removed: ${gone.reason}`);
-        break;
-      }
+      let gone = { ok: false };
+      applyCardChange(() => {
+        gone = cardEdit.removeRow(cardSource, repeat, Number(index));
+        if (!gone.ok) console.log(`[card] no row removed: ${gone.reason}`);
+        return gone.ok;
+      });
       // A tick is keyed by row index, so removing a row above a ticked step
       // slides that tick onto a different leg unless the ticks move with it.
-      if (block.type === 'steps') cardTicks = cardEdit.reindexTicks(cardTicks, Number(index), -1);
-      recardAfterEdit();
+      if (gone.ok && block.type === 'steps') cardTicks = cardEdit.reindexTicks(cardTicks, Number(index), -1);
+      if (gone.ok) cardRev += 1;
       noteActivity();
       break;
     }
@@ -1508,6 +1573,7 @@ function handleViewerIntent(intent, payload) {
         const said = steps && steps.rows[step] ? Boolean(steps.rows[step].done) : false;
         const now = cardTicks.has(step) ? cardTicks.get(step) : said;
         cardTicks.set(step, !now);
+        cardRev += 1;
         // And everyone else flying this card sees it. A route card is a
         // shared checklist, not a performance — so unlike ink there is no
         // presenter lock on it, and any pilot may mark a leg flown. Last

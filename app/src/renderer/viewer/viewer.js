@@ -814,6 +814,10 @@ let editingNow = false;
 // rebuilds the sheet, so the element the pilot was in no longer exists —
 // without this, Tab would commit and land nowhere.
 let wantFocus = null;
+// The card revision currently on screen. A push that carries the SAME card is
+// safe to skip while the pilot is typing; a push carrying a CHANGED one is
+// not — skipping that is how a line the pilot added never appeared.
+let shownCardRev = null;
 
 /**
  * Writes a resolved value into a node, split into its editable pieces.
@@ -1048,6 +1052,7 @@ function cardBlock(block) {
       // the screen — so the whole line is one editable piece.
       const path = block.itemPaths && block.itemPaths[i];
       writeValue(item, entry, path ? [{ s: 0, e: entry.length, path }] : null);
+      if (editingNow && block.repeat) item.append(rowKill(block.repeat, i));
       list.append(item);
     });
     section.append(list);
@@ -1121,7 +1126,11 @@ function renderCard(s) {
   //
   // Committing is safe: commitEditor closes the editor BEFORE it sends, so
   // the push it causes finds nothing open and rebuilds normally.
-  if (card.sheet.querySelector('.card__ed--open')) return;
+  // ...unless the card itself changed. Skipping THAT is how a press that adds
+  // a line succeeds in main and never reaches the screen.
+  const rev = model && model.rev !== undefined ? model.rev : null;
+  if (card.sheet.querySelector('.card__ed--open') && rev === shownCardRev) return;
+  shownCardRev = rev;
 
   card.sheet.textContent = '';
 
@@ -1474,8 +1483,13 @@ function openEditor(node) {
 }
 
 function closeEditor(node) {
-  node.contentEditable = 'false';
+  // THE CLASS COMES OFF FIRST. Clearing contentEditable blurs the element, and
+  // blur fires focusout synchronously — which commits. With the class still
+  // on, that re-entered commitEditor, sent a second identical edit, and reset
+  // the pending focus to null, so Enter in a list added the line and then
+  // landed nowhere.
   node.classList.remove('card__ed--open');
+  node.contentEditable = 'false';
   delete node.dataset.was;
 }
 
@@ -1529,6 +1543,12 @@ function verticalNeighbour(node, delta) {
     Math.abs(c.getBoundingClientRect().left - x) < Math.abs(best.getBoundingClientRect().left - x) ? c : best);
 }
 
+/** The list a prose item belongs to — `plan.flow[2]` names `plan.flow`. */
+function proseRepeat(node) {
+  const m = /^(.*)\[\d+\]$/.exec(node.dataset.path || '');
+  return m ? m[1] : null;
+}
+
 /** The value before or after this one WITHIN its row. */
 function horizontalNeighbour(node, delta) {
   const row = node.closest('.card__row, .card__step, .card__band, .card__prose-list li');
@@ -1572,10 +1592,28 @@ card.sheet.addEventListener('keydown', (event) => {
     const next = step(node, event.shiftKey ? -1 : 1);
     return commitEditor(node, next && next.dataset.path);
   }
-  // Enter commits and drops a row, the spreadsheet convention — a route table
-  // is filled in columns, not in rows.
   if (event.key === 'Enter') {
     event.preventDefault();
+    // IN A PROSE LIST, ENTER IS A NEW LINE — which for a list of bullets means
+    // a new bullet, inserted right after this one. That is what Enter does in
+    // every list a pilot has ever typed into, and there was previously no way
+    // to add a line to the game plan at all.
+    const bullet = node.closest('.card__prose-list li');
+    const repeat = bullet && proseRepeat(node);
+    if (bullet && repeat) {
+      const at = [...bullet.parentElement.children].indexOf(bullet) + 1;
+      const value = node.textContent;
+      closeEditor(node);
+      // ONE intent. Sent as an edit and then an add, main pushes twice: the
+      // first render re-opens the editor being moved to, and the second — the
+      // one carrying the new line — is skipped, because the sheet is not
+      // rebuilt while an editor is open.
+      wantFocus = `${repeat}[${at}]`;
+      send('card-line-break', { path: node.dataset.path, value, repeat, at });
+      return;
+    }
+    // Everywhere else it commits and drops a row, the spreadsheet convention:
+    // a route table is filled in columns, not in rows.
     const down = verticalNeighbour(node, 1) || step(node, 1);
     return commitEditor(node, down && down.dataset.path);
   }

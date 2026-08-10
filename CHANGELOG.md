@@ -59,11 +59,28 @@ that entry.
   responding reads as a frozen app.
 
 ### Fixed
+- **The game plan could not be added to, and one press broke the whole card.**
+  A prose list holds STRINGS; + ROW pushed a row of fields into one, the
+  resolver refused the card, and the sheet silently reverted. Worse, the bad
+  row stayed in the data, so every later edit was refused too — one press
+  poisoned the card for the session. A change that the template cannot render
+  is now rolled back whole, and a prose line is added as a line.
+- **Enter in a list is a new line.** It committed and moved down like a
+  spreadsheet cell, which for a bulleted game plan meant there was no way to
+  add a line at all. It now commits and opens a new bullet after the current
+  one — as ONE intent, because as two the first re-render re-opened the editor
+  and the second, carrying the new line, was skipped.
+- **Committing an edit sent it twice and lost the caret.** `closeEditor`
+  cleared `contentEditable` before removing the open class, and that blur
+  fires `focusout` synchronously — which committed again and reset the pending
+  focus to nothing. Enter would add a line and then land nowhere.
 - **A state push no longer throws away what a pilot is typing.** Any push at
   all rebuilt the card sheet and the template naming panel — a peer
   connecting, the funnel polling, intel landing — and every one would have
   wiped a half-typed value mid-keystroke for a reason having nothing to do
-  with the card. Neither is rebuilt while it holds an open editor.
+  with the card. Neither is rebuilt while it holds an open editor — unless the
+  card itself changed, which the sheet now tells apart by revision, because
+  skipping THAT render is how a line added in main never reached the screen.
 - **A path from a template can no longer reach Object.prototype.** Edit paths
   are built from a template's own tokens, and a template is a file another
   pilot wrote: `{__proto__}` in one would have written onto every object in

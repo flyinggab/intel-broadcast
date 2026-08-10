@@ -198,6 +198,67 @@ async function main() {
   }
   console.log('[e2e] down from an altitude lands on the next leg\'s altitude');
 
+  // THE PROSE LIST — GAME PLAN. Its rows are STRINGS, not rows of fields, and
+  // the + ROW key pushed an object into one: the resolver refused the card,
+  // the sheet silently reverted, and — worse — the bad row stayed in the data,
+  // so every later edit was refused too. One press poisoned the card.
+  const prose = await probe('prose', `
+    const sec = [...document.querySelectorAll('.card__section')].find((x) => /GAME PLAN/.test(x.textContent));
+    return {
+      items: sec.querySelectorAll('.card__prose-list li').length,
+      kills: sec.querySelectorAll('.card__rowkill').length,
+      addKey: Boolean(sec.querySelector('[data-row-add]')),
+    };
+  `);
+  if (!prose.addKey) throw new Error('the prose block has no way to add a line');
+  if (!prose.kills) throw new Error('the prose block has no way to remove a line');
+
+  const beforeProse = output.length;
+  await run(`
+    const sec = [...document.querySelectorAll('.card__section')].find((x) => /GAME PLAN/.test(x.textContent));
+    sec.querySelector('[data-row-add]').click();
+  `);
+  await sleep(900);
+  const proseAdded = await probe('proseAdded', `
+    const sec = [...document.querySelectorAll('.card__section')].find((x) => /GAME PLAN/.test(x.textContent));
+    return { items: sec.querySelectorAll('.card__prose-list li').length };
+  `);
+  if (proseAdded.items !== prose.items + 1) {
+    throw new Error(`+ ROW on the prose list gave ${proseAdded.items} lines, expected ${prose.items + 1}`);
+  }
+  if (/cannot render|must be strings/.test(output.slice(beforeProse))) {
+    throw new Error('adding a prose line produced a card the template refuses');
+  }
+  console.log(`[e2e] a line is added to the game plan (${prose.items} -> ${proseAdded.items})`);
+
+  // ENTER IN A LIST IS A NEW LINE. There was previously no way to add one at
+  // all, and Enter committed-and-moved like a spreadsheet cell.
+  await run(`
+    const sec = [...document.querySelectorAll('.card__section')].find((x) => /GAME PLAN/.test(x.textContent));
+    const box = sec.querySelector('.card__ed');
+    box.click();
+    box.textContent = 'REWRITTEN LINE';
+    box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  `);
+  await sleep(1000);
+  const broke = await probe('broke', `
+    const sec = [...document.querySelectorAll('.card__section')].find((x) => /GAME PLAN/.test(x.textContent));
+    const open = document.querySelector('.card__ed--open');
+    return {
+      first: sec.querySelector('.card__ed').textContent,
+      items: sec.querySelectorAll('.card__prose-list li').length,
+      open: open ? open.dataset.path : null,
+    };
+  `);
+  if (broke.first !== 'REWRITTEN LINE') {
+    throw new Error(`Enter lost the edit — the line reads "${broke.first}"`);
+  }
+  if (broke.items !== proseAdded.items + 1) {
+    throw new Error(`Enter gave ${broke.items} lines, expected ${proseAdded.items + 1} — it must open a new one`);
+  }
+  if (!broke.open) throw new Error('Enter added a line and landed nowhere');
+  console.log(`[e2e] Enter keeps the edit and opens a new line (${broke.open})`);
+
   // A ROW ADDED, AND THE TICKS THAT MUST MOVE WITH IT.
   const before = await probe('rowsBefore', `return {
     legs: document.querySelectorAll('.card__step').length,

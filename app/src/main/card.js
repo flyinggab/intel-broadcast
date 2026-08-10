@@ -296,6 +296,7 @@ function resolveBlock(block, card, where, errors) {
         repeat: block.repeat,
         max: rowCap(block),
         rowFields: rowFieldsOf(block),
+        rowKind: 'object',
       };
     }
 
@@ -326,6 +327,7 @@ function resolveBlock(block, card, where, errors) {
         repeat: block.repeat,
         max: rowCap(block),
         rowFields: rowFieldsOf(block),
+        rowKind: 'object',
       };
     }
 
@@ -357,6 +359,10 @@ function resolveBlock(block, card, where, errors) {
         itemPaths: (list || []).map((_e, i) => `${block.bind ? `${block.bind}.` : ''}${listPath}[${i}]`),
         repeat: block.bind ? `${block.bind}.${listPath}` : listPath,
         max: rowCap(block),
+        // A prose list holds STRINGS, not rows of fields. Adding a seeded
+        // object to one produces a card the resolver refuses outright — which
+        // is exactly what the + ROW key did on GAME PLAN.
+        rowKind: 'text',
       };
     }
 

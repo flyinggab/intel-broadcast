@@ -78,18 +78,30 @@ function rowsAt(card, repeatPath) {
  * leg you have not planned yet, and inventing values would put text on a
  * kneeboard that nobody wrote. `fields` comes from the template — the keys its
  * row spec names — because a row missing them is a card the template refuses.
+ * `at` inserts rather than appends, which is what Enter in a prose list means.
  */
-function addRow(card, repeatPath, max = Infinity, fields = []) {
+function addRow(card, repeatPath, { max = Infinity, fields = [], kind = 'object', at = null } = {}) {
   const rows = rowsAt(card, repeatPath);
   if (!rows) return { ok: false, reason: 'no such list' };
   if (rows.length >= max) return { ok: false, reason: "at the template's row limit" };
-  // Seeded with the keys the template's row spec names, empty. A bare `{}`
-  // renders as a card the template REFUSES, because a token with no fallback
-  // that resolves to nothing is an error by design — see rowFieldsOf.
-  const row = {};
-  for (const key of fields) row[key] = '';
-  rows.push(row);
-  return { ok: true, index: rows.length - 1 };
+
+  // WHAT A ROW IS depends on the block. A steps or table row is an object of
+  // fields; a PROSE list holds plain strings, and pushing an object into one
+  // makes a card the resolver refuses outright.
+  let row;
+  if (kind === 'text') {
+    row = '';
+  } else {
+    // Seeded with the keys the template's row spec names, empty. A bare `{}`
+    // renders as a card the template REFUSES, because a token with no fallback
+    // that resolves to nothing is an error by design — see rowFieldsOf.
+    row = {};
+    for (const key of fields) row[key] = '';
+  }
+
+  const index = Number.isInteger(at) && at >= 0 && at <= rows.length ? at : rows.length;
+  rows.splice(index, 0, row);
+  return { ok: true, index };
 }
 
 function removeRow(card, repeatPath, index) {
