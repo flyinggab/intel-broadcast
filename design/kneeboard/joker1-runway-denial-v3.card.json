@@ -1,0 +1,195 @@
+{
+  "schema": 1,
+  "layout": "strike-package",
+  "title": "RUNWAY DENIAL v3",
+  "subtitle": "JOKER 1",
+  "flight": {
+    "callsign": "JOKER 1",
+    "bullseye": "N34 56'21\" E35 24'57\"",
+    "stations": [
+      {
+        "station": "9",
+        "load": "AIM-9X"
+      },
+      {
+        "station": "8",
+        "load": "AIM-120C"
+      },
+      {
+        "station": "7",
+        "load": "500lb JDAM"
+      },
+      {
+        "station": "6",
+        "load": "AIM-120C"
+      },
+      {
+        "station": "5",
+        "load": "FUEL"
+      },
+      {
+        "station": "4",
+        "load": "AIM-120C"
+      },
+      {
+        "station": "3",
+        "load": "500lb JDAM"
+      },
+      {
+        "station": "2",
+        "load": "AIM-120C"
+      },
+      {
+        "station": "1",
+        "load": "AIM-9X"
+      }
+    ]
+  },
+  "threats": {
+    "surface": "SA-9 / SA-15",
+    "air": "MIG-21"
+  },
+  "route": {
+    "steps": [
+      {
+        "name": "DEPART",
+        "ref": "CVN-71",
+        "alt": "—",
+        "speed": "—",
+        "note": "Case I"
+      },
+      {
+        "name": "REJOIN",
+        "ref": "WP2 — FORM",
+        "alt": "FL170",
+        "speed": "450G"
+      },
+      {
+        "name": "AAR",
+        "ref": "WP2 — SHELL-11",
+        "alt": "FL200",
+        "speed": "400T",
+        "note": "2 min plug — CAP 1"
+      },
+      {
+        "name": "FENCE IN",
+        "ref": "WP3",
+        "alt": "FL170",
+        "speed": "450G",
+        "note": "CARD"
+      },
+      {
+        "name": "DROP TANKS",
+        "ref": "—",
+        "alt": "—",
+        "speed": "—"
+      },
+      {
+        "name": "NOE",
+        "ref": "WP4",
+        "alt": "150 ft",
+        "speed": "500i"
+      },
+      {
+        "name": "TGT",
+        "ref": "WP5",
+        "alt": "—",
+        "speed": "—",
+        "note": "WDPSG"
+      },
+      {
+        "name": "EGRESS",
+        "ref": "WP7",
+        "alt": "—",
+        "speed": "—"
+      },
+      {
+        "name": "FENCE OUT",
+        "ref": "WP8",
+        "alt": "—",
+        "speed": "—"
+      },
+      {
+        "name": "RTB",
+        "ref": "WP9",
+        "alt": "—",
+        "speed": "—",
+        "note": "Case I recovery"
+      }
+    ]
+  },
+  "comms": {
+    "primary": [
+      {
+        "ch": "1",
+        "name": "CVN-71",
+        "freq": "127.500",
+        "tacan": "17X"
+      },
+      {
+        "ch": "2",
+        "name": "MARSHAL",
+        "freq": "251.000"
+      },
+      {
+        "ch": "3",
+        "name": "SHELL-11",
+        "freq": "251.200",
+        "tacan": "55X"
+      },
+      {
+        "ch": "5",
+        "name": "NAVY ONE",
+        "freq": "251.800",
+        "tacan": "58Y"
+      },
+      {
+        "ch": "G",
+        "name": "GUARD",
+        "freq": "243.000"
+      }
+    ],
+    "mids": [
+      {
+        "name": "MIDS A",
+        "channel": "70"
+      },
+      {
+        "name": "MIDS B",
+        "channel": "72"
+      }
+    ],
+    "fields": [
+      {
+        "name": "SHELL-11",
+        "tacan": "55X",
+        "alt": "FL200 / 400T",
+        "hdg": "000/180",
+        "next": true
+      },
+      {
+        "name": "CVN-71 (HOME)",
+        "tacan": "71X",
+        "alt": "0 ft · ICLS 11",
+        "hdg": "342"
+      },
+      {
+        "name": "AKROTIRI (ALT)",
+        "tacan": "107X",
+        "alt": "76 ft",
+        "hdg": "291"
+      }
+    ]
+  },
+  "plan": {
+    "bingo": "BINGO 6K / JOKER 8K",
+    "flow": [
+      "Case I departure.",
+      "Rejoin → AAR.",
+      "Feet dry → Fence → Drop tanks.",
+      "NOE ingress → strike.",
+      "Egress → Form → RTB (Case I).",
+      "DTC: AAR = CAP 1 · TURKISH BORDER = FLOT 1."
+    ]
+  }
+}

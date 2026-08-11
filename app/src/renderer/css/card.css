@@ -175,9 +175,9 @@
    measured against that card's longest strings, not guessed; the width check
    the handoff asks for at import time is what will keep them honest. */
 .card__step > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card__step-name { flex: none; width: 104px; font-weight: 700; }
+.card__step-name { flex: none; width: 94px; font-weight: 700; }
 .card__step-ref  { flex: none; width: 196px; font-family: var(--font-mono); font-size: 13px; }
-.card__step-gate { flex: none; width: 104px; font-family: var(--font-mono); font-size: 13px; color: var(--pp-secondary); }
+.card__step-gate { flex: none; width: 114px; font-family: var(--font-mono); font-size: 13px; color: var(--pp-secondary); }
 .card__step-note { flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--pp-secondary); }
 
 /* Current step is EMPHASIS, not expansion — raised, go bar, reading NOW.

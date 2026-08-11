@@ -45,6 +45,11 @@ const SAMPLES = path.join(APP_DIR, '..', 'design', 'kneeboard', 'samples');
 const CARDS = [
   ['design', path.join(APP_DIR, '..', 'design', 'kneeboard', 'foxhunt2-roman1.card.json'), path.join(LAYOUTS, 'strike-package.layout.json')],
   ['full', path.join(APP_DIR, 'scripts', 'fixtures', 'card-full.card.json'), path.join(LAYOUTS, 'strike-package.layout.json')],
+  // A real mission card, converted from a squadron briefing rather than
+  // written against the template. That is the case that finds columns sized
+  // to the examples: "500 IAS" in the gate column clipped to "150 ft / 50…"
+  // the first time this card was rendered.
+  ['joker1', path.join(APP_DIR, '..', 'design', 'kneeboard', 'joker1-runway-denial-v3.card.json'), path.join(LAYOUTS, 'strike-package.layout.json')],
   // The second SHIPPED template. A template that ships is one a pilot will
   // fly, so it earns the same string-width check as the first.
   ['cas', path.join(SAMPLES, 'uzi11-cas.card.json'), path.join(LAYOUTS, 'cas-9line.layout.json')],
