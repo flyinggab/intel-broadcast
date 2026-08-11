@@ -205,7 +205,7 @@ async function main() {
   const prose = await probe('prose', `
     const sec = [...document.querySelectorAll('.card__section')].find((x) => /GAME PLAN/.test(x.textContent));
     return {
-      items: sec.querySelectorAll('.card__prose-list li').length,
+      items: sec.querySelectorAll('.card__prose-line').length,
       kills: sec.querySelectorAll('.card__rowkill').length,
       addKey: Boolean(sec.querySelector('[data-row-add]')),
     };
@@ -221,7 +221,7 @@ async function main() {
   await sleep(900);
   const proseAdded = await probe('proseAdded', `
     const sec = [...document.querySelectorAll('.card__section')].find((x) => /GAME PLAN/.test(x.textContent));
-    return { items: sec.querySelectorAll('.card__prose-list li').length };
+    return { items: sec.querySelectorAll('.card__prose-line').length };
   `);
   if (proseAdded.items !== prose.items + 1) {
     throw new Error(`+ ROW on the prose list gave ${proseAdded.items} lines, expected ${prose.items + 1}`);
@@ -246,7 +246,7 @@ async function main() {
     const open = document.querySelector('.card__ed--open');
     return {
       first: sec.querySelector('.card__ed').textContent,
-      items: sec.querySelectorAll('.card__prose-list li').length,
+      items: sec.querySelectorAll('.card__prose-line').length,
       open: open ? open.dataset.path : null,
     };
   `);
@@ -258,6 +258,35 @@ async function main() {
   }
   if (!broke.open) throw new Error('Enter added a line and landed nowhere');
   console.log(`[e2e] Enter keeps the edit and opens a new line (${broke.open})`);
+
+  // NO IMPOSED BULLET. A game plan is free text: it may be bulleted and may
+  // equally be two sentences, so the marker is the pilot's to type. A dash and
+  // Tab turns into one, and the marker lands in the DATA — so it exports,
+  // casts and reads on someone else's kneeboard exactly as written.
+  await run(`
+    const sec = [...document.querySelectorAll('.card__section')].find((x) => /GAME PLAN/.test(x.textContent));
+    const box = sec.querySelector('.card__ed');
+    box.click();
+    box.textContent = '-';
+    box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+  `);
+  await sleep(1000);
+  const bullet = await probe('bullet', `
+    const sec = [...document.querySelectorAll('.card__section')].find((x) => /GAME PLAN/.test(x.textContent));
+    const line = sec.querySelector('.card__prose-line');
+    const open = document.querySelector('.card__ed--open');
+    return {
+      text: sec.querySelector('.card__ed').textContent,
+      hanging: line.classList.contains('card__prose-line--bullet'),
+      open: open ? open.dataset.path : null,
+      listTag: sec.querySelector('.card__prose-list').tagName,
+    };
+  `);
+  if (bullet.listTag === 'UL') throw new Error('the game plan is still a bullet list — the marker must be the pilot\'s to type');
+  if (!bullet.text.startsWith('\u2022')) throw new Error(`a dash and Tab gave "${bullet.text}", expected a bullet`);
+  if (!bullet.hanging) throw new Error('a bulleted line does not hang, so its wrap sits under the marker');
+  if (bullet.open !== 'plan.flow[0]') throw new Error(`after bulleting, the caret is at ${bullet.open} — it must stay in the line`);
+  console.log('[e2e] free text by default; a dash and Tab makes a bullet, in the data, caret kept');
 
   // A ROW ADDED, AND THE TICKS THAT MUST MOVE WITH IT.
   const before = await probe('rowsBefore', `return {

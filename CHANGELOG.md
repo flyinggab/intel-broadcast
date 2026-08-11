@@ -59,6 +59,20 @@ that entry.
   responding reads as a frozen app.
 
 ### Fixed
+- **The game plan is free text, not a bullet list.** It was a `<ul>` with a
+  marker on every line, which made a plan that is simply two sentences
+  impossible to write — the bullet was the app's, not the pilot's. It is lines
+  now, and a dash followed by Tab turns into a bullet. The marker lands in the
+  DATA rather than in a flag on the line, so a bulleted line stays bulleted
+  through export, casting and someone else's kneeboard, and no card grows a
+  field meaning "this one has a dot".
+- **The remove key was clipped by its own button.** At 15px the multiplication
+  sign measures 21px in B612 and the button was 18px — so the x was cut, and in
+  table blocks it also sat on the block's border, because a `display: table-row`
+  puts it in an anonymous cell ending exactly at the edge. `dev-card-geometry-test`
+  now renders every card TWICE, as flown and as edited, which is the only way
+  chrome that exists only while editing gets measured at all; it found this
+  immediately.
 - **The game plan could not be added to, and one press broke the whole card.**
   A prose list holds STRINGS; + ROW pushed a row of fields into one, the
   resolver refused the card, and the sheet silently reverted. Worse, the bad

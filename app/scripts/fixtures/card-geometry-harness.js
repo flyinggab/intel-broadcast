@@ -71,6 +71,11 @@ app.whenReady().then(async () => {
   const results = [];
   for (const [name, file, layoutFile] of CARDS) {
     const model = buildModel(file, layoutFile);
+    // TWICE: as flown, and as EDITED. Edit mode adds a remove key to every row
+    // and a bar to every block, and those have to fit the same sheet — the
+    // keys landed on top of the table border the first time, which nothing
+    // measuring only the read-mode sheet could ever see.
+    for (const editing of [false, true]) {
     const report = await win.webContents.executeJavaScript(`
       (() => {
         const model = ${JSON.stringify(model)};
@@ -83,7 +88,7 @@ app.whenReady().then(async () => {
           queue: { total: 0, pos: -1, current: null }, batches: [],
           folder: '', photos: [], selectedCount: 0, photoCount: 0, stagedBytes: 0,
           profile: 'kneeboard', funnel: {}, counters: {}, logPath: '', version: '0',
-          autoShow: true, card: model,
+          autoShow: true, card: model, editing: ${editing},
         });
 
         const sheet = document.getElementById('card-sheet');
@@ -161,7 +166,9 @@ app.whenReady().then(async () => {
         const escaped = [];
         for (const sec of sheet.querySelectorAll('.card__section, .card__stations, .card__band')) {
           const box = sec.getBoundingClientRect();
-          for (const inner of sec.querySelectorAll('.card__row, .card__step, .card__cell, .card__field')) {
+          // .card__rowkill included on purpose: in EDIT mode the remove key is
+          // the thing most likely to sit on a block's border.
+          for (const inner of sec.querySelectorAll('.card__row, .card__step, .card__cell, .card__field, .card__rowkill')) {
             const r = inner.getBoundingClientRect();
             if (r.right > box.right + 1) {
               escaped.push({
@@ -186,7 +193,8 @@ app.whenReady().then(async () => {
         };
       })()
     `);
-    results.push({ card: name, ...report });
+    results.push({ card: editing ? `${name} (editing)` : name, ...report });
+    }
   }
 
   console.log(`CARD_GEOMETRY ${JSON.stringify(results)}`);

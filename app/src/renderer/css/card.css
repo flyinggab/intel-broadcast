@@ -318,7 +318,19 @@
 
 /* --- prose ---------------------------------------------------------------- */
 .card__prose { border: 1px solid var(--pp-rule); }
-.card__prose-list { margin: 0; padding: 5px 8px 6px 22px; font-size: 13px; line-height: 1.45; }
+/* FREE TEXT. This was a <ul> with a bullet on every line, which made a game
+   plan that is simply two sentences impossible to write — the marker was the
+   app's, not the pilot's. Now it is lines: type "- " if you want a bullet, the
+   same as you would on paper. The left padding that made room for the marker
+   goes with it. */
+.card__prose-list { margin: 0; padding: 5px 8px 6px; font-size: 13px; line-height: 1.45; }
+.card__prose-line { margin: 0; }
+/* A line the pilot bulleted: the wrap lines up under the text, not under the
+   marker. Driven by the text itself — the bullet is a character they typed. */
+.card__prose-line--bullet { padding-left: 14px; text-indent: -14px; }
+/* An empty line still has to be clickable, or a blank one cannot be filled in
+   and Enter would open something with no target. */
+.card--editing .card__prose-line { min-height: 1.45em; }
 .card__badge {
   margin-left: auto; font-family: var(--font-mono); font-size: 12px; font-weight: 700;
   background: var(--pp-band-ink); color: var(--pp-band); padding: 0 5px;
@@ -392,11 +404,23 @@
   border: 1px solid var(--pp-rule); padding: 2px 8px; cursor: pointer;
 }
 .card__rowadd:hover { background: var(--pp-raised); }
+/* Wide enough for its own glyph. At 15px the multiplication sign measures
+   21px in B612 and was being cut by its own 18px box — which is what "the x is
+   slightly clipped" was: not only the block border, the button itself. */
 .card__rowkill {
-  flex: none; width: 18px; height: 18px; margin-left: 4px;
+  flex: none; width: 22px; height: 18px; margin-left: 4px; padding: 0;
   background: none; border: 0; cursor: pointer; line-height: 1;
-  color: var(--pp-tertiary); font-size: 15px;
+  color: var(--pp-tertiary); font-size: 13px;
 }
+/* A TABLE row is `display: table-row`, so the remove key lands in an anonymous
+   cell that ends exactly at the block's right edge — flush with the border on
+   a comms block, and hard against the sheet's edge on a wide one. A steps row
+   is flex and already has the tick lane after it, so only tables were clipped.
+   The lane is reserved on the SECTION: padding on the `display: table` box
+   itself never reached the row. EDITING only — a sheet a pilot flies must not
+   carry room for a control that is not there. */
+.card--editing .card__section > .card__rows { padding-right: 0; }
+.card--editing .card__section:has(> .card__rows) { padding-right: 9px; }
 .card__rowkill:hover { color: var(--pp-threat); }
 /* The ticks stop taking clicks while EDIT is on: one thing a click can mean
    at a time. Main refuses the intent too — this is only so it LOOKS inert. */

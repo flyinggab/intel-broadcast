@@ -111,7 +111,9 @@ child.on('exit', () => {
     // check bites. It should become an import-time refusal (card.js has the
     // measured height model, not yet wired up because it comes out 132px
     // light); until then this is where a too-long card is caught.
-    if (r.card === 'full') {
+    // The over-long fixture, in either mode. Edit mode adds a row bar per
+    // block, so it overflows by more — still on purpose.
+    if (r.card.startsWith('full')) {
       if (r.scrollH <= r.clientH + 1) {
         console.error('[card-geometry] FAIL: the over-long fixture now fits — the overflow check proves nothing');
         failed = true;

@@ -818,6 +818,13 @@ let wantFocus = null;
 // safe to skip while the pilot is typing; a push carrying a CHANGED one is
 // not — skipping that is how a line the pilot added never appeared.
 let shownCardRev = null;
+// Where the caret goes when `wantFocus` is re-opened. Arriving at a value
+// selects it whole; landing mid-line after a dash became a bullet does not.
+let wantCaret = 'all';
+
+// The marker a dash turns into. One character, in the DATA, so a bulleted line
+// stays bulleted through export, casting and someone else's kneeboard.
+const BULLET = '\u2022';
 
 /**
  * Writes a resolved value into a node, split into its editable pieces.
@@ -1044,11 +1051,20 @@ function cardBlock(block) {
   if (block.type === 'prose') {
     section.className = 'card__section card__prose';
     section.append(cardHead(block.title, '', block.badge));
-    const list = document.createElement('ul');
+    // FREE TEXT, NOT A BULLET LIST. A game plan is prose: it may be bulleted,
+    // and it may equally be two sentences. The app used to impose a bullet on
+    // every line, which made "no bullet" impossible — so the marker is gone and
+    // a pilot who wants one types it, the same way they would on paper.
+    const list = document.createElement('div');
     list.className = 'card__prose-list';
     block.items.forEach((entry, i) => {
-      const item = document.createElement('li');
-      // A prose entry IS its value — no template string between the data and
+      const item = document.createElement('p');
+      item.className = 'card__prose-line';
+      // Hanging indent for a line the pilot chose to bullet, so its wrap lines
+      // up under the text rather than under the marker. Read off the text, not
+      // off a flag, because the marker IS the text.
+      if (entry.trimStart().startsWith(BULLET)) item.classList.add('card__prose-line--bullet');
+      // A prose line IS its value — no template string between the data and
       // the screen — so the whole line is one editable piece.
       const path = block.itemPaths && block.itemPaths[i];
       writeValue(item, entry, path ? [{ s: 0, e: entry.length, path }] : null);
@@ -1193,8 +1209,10 @@ function renderCard(s) {
   // the commit that got here, so the element they were heading for is new.
   if (editingNow && wantFocus) {
     const next = byPath(wantFocus);
+    const caret = wantCaret;
     wantFocus = null;
-    if (next) openEditor(next);
+    wantCaret = 'all';
+    if (next) openEditor(next, caret);
   }
 }
 
@@ -1467,7 +1485,7 @@ const editables = () => [...card.sheet.querySelectorAll('.card__ed')];
 
 /** Opens one for typing. Renderer-local: nothing has changed yet, so this
  *  must NOT push state — a re-render would destroy the element mid-keystroke. */
-function openEditor(node) {
+function openEditor(node, caret = 'all') {
   if (!node) return;
   const live = card.sheet.querySelector('.card__ed--open');
   if (live && live !== node) commitEditor(live);
@@ -1477,6 +1495,10 @@ function openEditor(node) {
   node.focus();
   const range = document.createRange();
   range.selectNodeContents(node);
+  // Selecting the whole value is right when you ARRIVE at one — the first
+  // keystroke replaces it, which is what you want when filling a card in. It
+  // is wrong when you are mid-line, as after turning a dash into a bullet.
+  if (caret === 'end') range.collapse(false);
   const sel = window.getSelection();
   sel.removeAllRanges();
   sel.addRange(range);
@@ -1530,10 +1552,10 @@ function step(node, delta) {
  * left edge is what a pilot means by "the one below this".
  */
 function verticalNeighbour(node, delta) {
-  const row = node.closest('.card__row, .card__step, .card__prose-list li');
+  const row = node.closest('.card__row, .card__step, .card__prose-line');
   const section = node.closest('.card__section');
   if (!row || !section) return null;
-  const rows = [...section.querySelectorAll('.card__row, .card__step, .card__prose-list li')];
+  const rows = [...section.querySelectorAll('.card__row, .card__step, .card__prose-line')];
   const next = rows[rows.indexOf(row) + delta];
   if (!next) return null;
   const x = node.getBoundingClientRect().left;
@@ -1551,7 +1573,7 @@ function proseRepeat(node) {
 
 /** The value before or after this one WITHIN its row. */
 function horizontalNeighbour(node, delta) {
-  const row = node.closest('.card__row, .card__step, .card__band, .card__prose-list li');
+  const row = node.closest('.card__row, .card__step, .card__band, .card__prose-line');
   if (!row) return null;
   const inRow = [...row.querySelectorAll('.card__ed')];
   const at = inRow.indexOf(node);
@@ -1589,19 +1611,29 @@ card.sheet.addEventListener('keydown', (event) => {
   // across block boundaries.
   if (event.key === 'Tab') {
     event.preventDefault();
+    // A DASH AND TAB MAKES A BULLET. The marker is TEXT, not a flag on the
+    // line: it is what the pilot typed, so it exports, casts and reads exactly
+    // as written, and no card ever grows a field that means "this one is a
+    // bullet". Anywhere else Tab moves on as usual.
+    if (!event.shiftKey && node.closest('.card__prose-line') && node.textContent.trim() === '-') {
+      node.textContent = `${BULLET} `;
+      // Back into the SAME line with the caret after the marker — commitEditor
+      // owns `wantFocus`, so it has to be told, not set behind its back.
+      wantCaret = 'end';
+      return commitEditor(node, node.dataset.path);
+    }
     const next = step(node, event.shiftKey ? -1 : 1);
     return commitEditor(node, next && next.dataset.path);
   }
   if (event.key === 'Enter') {
     event.preventDefault();
-    // IN A PROSE LIST, ENTER IS A NEW LINE — which for a list of bullets means
-    // a new bullet, inserted right after this one. That is what Enter does in
-    // every list a pilot has ever typed into, and there was previously no way
-    // to add a line to the game plan at all.
-    const bullet = node.closest('.card__prose-list li');
-    const repeat = bullet && proseRepeat(node);
-    if (bullet && repeat) {
-      const at = [...bullet.parentElement.children].indexOf(bullet) + 1;
+    // IN FREE TEXT, ENTER IS A NEW LINE, inserted right after this one — what
+    // Enter does in anything a pilot has ever typed into. There was previously
+    // no way to add a line to the game plan at all.
+    const line = node.closest('.card__prose-line');
+    const repeat = line && proseRepeat(node);
+    if (line && repeat) {
+      const at = [...line.parentElement.children].indexOf(line) + 1;
       const value = node.textContent;
       closeEditor(node);
       // ONE intent. Sent as an edit and then an add, main pushes twice: the
