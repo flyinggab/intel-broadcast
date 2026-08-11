@@ -31,6 +31,7 @@
     "files": [
       "src/**/*",
       "resources/config.default.json",
+      "resources/layouts/**/*",
       "photos/**/*",
       "package.json"
     ],
