@@ -14,7 +14,7 @@ that entry.
 
 ---
 
-## Unreleased
+## v0.9.3 — 2026-08-11
 
 ### Added
 - **A card's data can be edited on the sheet itself.** EDIT is a key in CARD's
@@ -40,6 +40,11 @@ that entry.
   different one and the app confidently misreports where the flight is.
 - **EXPORT** writes the card out as a `.card.json`. It exists only for handing
   one to someone out of band — casting already shares the values.
+
+- **`joker1-runway-denial-v3.card.json`** — a real squadron briefing converted
+  to a card, and the first one written against a briefing rather than against
+  the template. That is what found the column above, so it is now a permanent
+  case in `dev-card-geometry-test`.
 
 ### Changed
 - **Edits are permanent and the imported file is never written to.** The app
@@ -99,6 +104,24 @@ that entry.
   are built from a template's own tokens, and a template is a file another
   pilot wrote: `{__proto__}` in one would have written onto every object in
   the process. Refused at the parse.
+- **The shipped card templates were never packaged.** `build.files` covered
+  `resources/config.default.json` and nothing else under `resources/`, so
+  `resources/layouts/*.layout.json` were absent from the asar. The installed
+  app's template store found zero templates and refused every card with
+  *"no template named `strike-package`"*. It shipped that way in v0.9.0,
+  v0.9.1 and v0.9.2 — a dev run cannot see it, because the files are on disk
+  either way, which is how the entire card suite stayed green throughout.
+  `dev-packaged-files-test` now asserts that anything under `resources/` the
+  app reads at runtime is covered by a glob, and names the templates
+  specifically so a regression says which one stopped shipping.
+- **A low-level route leg truncated in the ALT/SPD column.** It was 104px,
+  sized against example cards whose gates are all flight levels
+  (`FL200 / 400T`); a real briefing's `150 ft / 500i` needs 110. Columns are
+  rebalanced against measured glyph widths across every card we hold rather
+  than against whichever one was in front of us — the step name was carrying
+  18px of slack over its widest, so it gave up 10 and the gate took 4, leaving
+  the note column intact because a truncated note is the one that hurts most.
+
 
 ---
 
