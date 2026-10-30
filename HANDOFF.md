@@ -56,7 +56,7 @@ the echo is the sharer's own render path, not redundancy.
 `CHANGELOG.md` has the detail. The commit messages have the reasoning — they
 are long on purpose and are the best record of *why*.
 
-### The server relay and intel from DCS (v0.10.0, not released yet)
+### The server relay and intel from DCS (v0.10.0, 2026-10-30)
 
 A headless relay for the machine that runs a DCS server, and JTAC 9-lines and
 calls from the mission onto every kneeboard. Admin guide `RELAY.md`, contract

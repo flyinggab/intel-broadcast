@@ -15,7 +15,7 @@ that entry.
 
 ---
 
-## v0.10.0 — unreleased
+## v0.10.0 — 2026-10-30
 
 ### Added
 - **A relay for the DCS server.** `taclink-relay`, the same relay with no
