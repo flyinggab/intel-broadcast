@@ -35,9 +35,19 @@ const CALLS_KEPT = 20;
 const CALLS_SHOWN = 3;
 const CALL_SHOW_MS = 5 * 60 * 1000;
 
-// Every intel id seen, so the relay's catch-up after a reconnect lands
+// Every intel message seen, so the relay's catch-up after a reconnect lands
 // nothing twice — kept past the batches' own eviction, and bounded.
 const INTEL_SEEN = 1000;
+
+/**
+ * Which DCS message this is. Not the id alone: a reloaded mission numbers its
+ * ids from the start again (PROTOCOL.md §3.1), and an app that stayed open
+ * would take its 9-lines for ones it already had. When DCS wrote the line
+ * tells the two runs apart, and the relay's catch-up replays it unchanged.
+ */
+function intelKey(msg) {
+  return `${msg.mission}\u0000${msg.id}\u0000${msg.logTime || ''}`;
+}
 
 // BRIEF §2, "the auto-switch conflict". Ship rule C: switch on arrival unless
 // the pilot interacted in the last 8s, so a reveal can't yank the page out
@@ -144,7 +154,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     // it pages, curates and arrives exactly like intel always has.
     batches: [],
 
-    // Calls from DCS, newest first: { id, mission, time, from, to, text, at }.
+    // Calls from DCS, newest first: { id, mission, logTime, time, from, to, text, at }.
     calls: [],
     // What is on the stage, by IDENTITY, not index: deselecting some other
     // photo must never change what is on the pilot's knee. null = STANDBY.
@@ -175,7 +185,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
 
   /** True the first time a DCS message is offered, false ever after. */
   function firstSight(msg) {
-    const key = `${msg.mission}\u0000${msg.id}`;
+    const key = intelKey(msg);
     if (intelSeen.has(key)) return false;
     intelSeen.add(key);
     if (intelSeen.size > INTEL_SEEN) intelSeen.delete(intelSeen.values().next().value);
@@ -301,13 +311,13 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
    * already received — the relay replays the mission's recent intel to every
    * pilot who (re)joins.
    *
-   * Its hash is derived from the mission and the id, not from bytes: every
-   * pilot computes the same one, which is what lets a presenter's focus find
-   * it on everyone else's kneeboard.
+   * Its hash is derived from the message's key (intelKey), not from bytes:
+   * every pilot computes the same one, which is what lets a presenter's focus
+   * find it on everyone else's kneeboard.
    */
   function addNineline(msg, receivedAt = now()) {
     if (!firstSight(msg)) return null;
-    const hash = crypto.createHash('sha256').update(`nineline\u0000${msg.mission}\u0000${msg.id}`).digest('hex');
+    const hash = crypto.createHash('sha256').update(`nineline\u0000${intelKey(msg)}`).digest('hex');
     return addBatch({
       sharedBy: msg.from || '',
       to: msg.to || '',
@@ -321,6 +331,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
           nineline: {
             id: msg.id,
             mission: msg.mission,
+            logTime: msg.logTime || '',
             time: msg.time || '',
             from: msg.from || '',
             to: msg.to || '',
@@ -343,6 +354,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     state.calls.unshift({
       id: msg.id,
       mission: msg.mission,
+      logTime: msg.logTime || '',
       time: msg.time || '',
       from: msg.from || '',
       to: msg.to || '',

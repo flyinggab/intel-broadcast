@@ -466,9 +466,10 @@ const NINE = (id, extra = {}) => ({
   to: 'Joker',
   lines: ['IP SOUTH', '003', '9.0', '10 feet', 'Silkworm launcher', 'N25 52.799 E055 02.596', 'laser, 1536', 'none', 'south'],
   remarks: 'Call IN with heading.',
+  logTime: '2026-10-30T07:41:12.880Z',
   ...extra,
 });
-const CALL = (id, text = 'Joker, cleared hot.') => ({
+const CALL = (id, text = 'Joker, cleared hot.', extra = {}) => ({
   type: 'intel-call',
   id,
   mission: 'abu-musa-cas-test',
@@ -476,6 +477,8 @@ const CALL = (id, text = 'Joker, cleared hot.') => ({
   from: 'Pointer',
   to: 'Joker',
   text,
+  logTime: '2026-10-30T07:43:40.120Z',
+  ...extra,
 });
 {
   const { view } = withClock();
@@ -531,6 +534,27 @@ const CALL = (id, text = 'Joker, cleared hot.') => ({
   assert.strictEqual(view.snapshot().unseen.brief, true, 'a call while away marks BRIEF, where it is shown');
   assert.strictEqual(view.snapshot().page, 'card', 'without moving the pilot');
   console.log('[test] calls: never move the pilot, newest three, five minutes each');
+}
+{
+  // A mission reloaded while the app stays open numbers its ids from the start
+  // again. The relay clears its memory on the load; the app must not drop the
+  // new run's lines as ones it already has.
+  const { view } = withClock();
+  const first = view.addNineline(NINE('0001'));
+  view.addCall(CALL('0002'));
+  const RELOAD = { logTime: '2026-10-30T08:15:03.410Z' };
+  const again = view.addNineline(NINE('0001', { ...RELOAD, remarks: 'Second run.' }));
+  assert.ok(again, 'the reloaded mission\'s 9-line lands');
+  assert.notStrictEqual(again.entry.items[0].hash, first.entry.items[0].hash, 'with its own hash: focus and ink stay on the right one');
+  assert.strictEqual(view.snapshot().queue.current.nineline.remarks, 'Second run.');
+  assert.strictEqual(view.addCall(CALL('0002', 'Joker, cleared hot.', RELOAD)), true, 'and so does its call');
+  assert.strictEqual(view.snapshot().calls.length, 2);
+
+  // The catch-up after a reconnect replays the new run with the same logTime.
+  assert.strictEqual(view.addNineline(NINE('0001', RELOAD)), null, 'the catch-up still lands nothing twice');
+  assert.strictEqual(view.addCall(CALL('0002', 'Joker, cleared hot.', RELOAD)), false);
+  assert.strictEqual(view.snapshot().queue.total, 2);
+  console.log('[test] a reloaded mission reusing its ids: its intel lands, the catch-up still does not');
 }
 
 console.log('[dev-viewstate-test] PASS');

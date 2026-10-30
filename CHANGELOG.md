@@ -15,6 +15,15 @@ that entry.
 
 ---
 
+## Unreleased
+
+### Fixed
+- **A reloaded mission's 9-lines and calls showed nothing** on an app left
+  open: the app remembered every id it had seen, and a reloaded mission
+  numbers its ids from the start again. It now tells them apart by when DCS
+  wrote the line. A presenter's FOCUS on a 9-line finds it only on pilots
+  with the same version, since the 9-line's hash changed with the fix.
+
 ## v0.10.0 — 2026-10-30
 
 ### Added

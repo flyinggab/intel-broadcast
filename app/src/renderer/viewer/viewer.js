@@ -512,7 +512,7 @@ function renderStage(s) {
  */
 let renderedNineline = null;
 function renderNineline(sheet, locale) {
-  const key = `${sheet.mission}|${sheet.id}|${locale}`;
+  const key = `${sheet.mission}|${sheet.id}|${sheet.logTime}|${locale}`;
   if (key === renderedNineline) return;
   renderedNineline = key;
 
@@ -549,7 +549,7 @@ function renderCalls(s) {
   const onSheet = Boolean(s.queue.current && s.queue.current.kind === 'nineline');
   const home = onSheet ? nl.root : stageRoot;
   if (stage.calls.parentNode !== home) home.append(stage.calls);
-  const key = `${s.locale}|${calls.map((c) => `${c.mission}/${c.id}`).join(',')}`;
+  const key = `${s.locale}|${calls.map((c) => `${c.mission}/${c.id}/${c.logTime}`).join(',')}`;
   if (key === renderedCalls) return;
   renderedCalls = key;
   stage.calls.textContent = '';

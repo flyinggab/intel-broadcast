@@ -142,7 +142,8 @@ starting to load) and when DCS starts a new `dcs.log`, so a reloaded mission may
 - `logTime` is when DCS wrote the line, in UTC, from the dcs.log timestamp.
 - An app checks each message again against §3.1 and drops one that fails.
 - A pilot who signs in on `/rt` gets the current mission's last 50 messages, oldest first. Apps
-  ignore an `id` they already have, so a reconnect adds nothing twice.
+  ignore a message they already have: the same `mission`, `id` and `logTime`. A reconnect adds
+  nothing twice, and a reloaded mission that uses its ids again is still shown.
 - **Only the relay sends these.** A relay drops `intel-*` and `net-roster` frames from clients and
   logs it, so nobody holding the squad code can put words in the JTAC's mouth.
 

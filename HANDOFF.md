@@ -88,11 +88,14 @@ src/relay/taclink-relay.js ── relayServer.js ── /rt ──► every app
   (`=== Log opened UTC …`) changing or by the file getting shorter.
 - **Dedupe at both ends, for different reasons.** The relay sends an id once
   per mission load (DCS sometimes writes a line twice; a reload reuses ids, so
-  `loadMission` clears it). The app keeps every id it has seen, because the
-  relay replays the mission's last 50 to every pilot who reconnects.
+  `loadMission` clears it). The app keeps every message it has seen, because
+  the relay replays the mission's last 50 to every pilot who reconnects. The
+  app's key is mission + id + `logTime` (`intelKey` in `viewState.js`), never
+  the id alone: an app left open across a reload took the new run's 9-lines
+  for ones it had (v0.10.0, found by the server session the day it shipped).
 - **A 9-line is a batch of one, `kind: 'nineline'`.** It goes through
   `addBatch`, so rule C, the banner, the rail mark, RECEIVED and curation are
-  the photo rules unchanged. Its `hash` is derived from mission + id, not
+  the photo rules unchanged. Its `hash` is derived from that same key, not
   bytes: every pilot computes the same one, which is what lets a presenter's
   FOCUS land on it. Ink is hidden on it.
 - **Calls never move the pilot.** No stage, no banner; the newest three, five

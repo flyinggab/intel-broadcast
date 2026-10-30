@@ -131,6 +131,7 @@
   const nineline = {
     id: 'abu-musa-cas-test-0007',
     mission: 'abu-musa-cas-test',
+    logTime: '2026-10-30T07:41:12.880Z',
     time: '07:41:12',
     from: 'Pointer',
     to: 'Joker',
@@ -169,8 +170,8 @@
     nineline,
   };
   const calls = [
-    { id: '0010', mission: 'abu-musa-cas-test', time: '07:44:02', from: 'Pointer', to: 'Joker', text: 'Good hits. Target destroyed, one secondary.', at: T0 },
-    { id: '0009', mission: 'abu-musa-cas-test', time: '07:43:40', from: 'Pointer', to: 'Joker', text: 'Joker, cleared hot. Laser on, 1536.', at: T0 },
+    { id: '0010', mission: 'abu-musa-cas-test', logTime: '2026-10-30T07:44:02.310Z', time: '07:44:02', from: 'Pointer', to: 'Joker', text: 'Good hits. Target destroyed, one secondary.', at: T0 },
+    { id: '0009', mission: 'abu-musa-cas-test', logTime: '2026-10-30T07:43:40.120Z', time: '07:43:40', from: 'Pointer', to: 'Joker', text: 'Joker, cleared hot. Laser on, 1536.', at: T0 },
   ];
 
   const withLocale = (base, l) => {
