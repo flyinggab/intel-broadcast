@@ -40,7 +40,7 @@ if (outIndex !== -1 && !outDir) {
 const args = [HARNESS, '--no-sandbox'];
 if (outDir) args.push('--out', path.resolve(outDir));
 
-const child = spawn(path.join(APP_DIR, 'node_modules', '.bin', 'electron'), args, {
+const child = spawn((process.platform === 'win32' ? require('electron') : path.join(APP_DIR, 'node_modules', '.bin', 'electron')), args, {
   cwd: APP_DIR,
   detached: true,
   env: process.env,

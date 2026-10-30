@@ -16,7 +16,7 @@ const { killApp } = require('./dev-electron');
 const { LOCAL_CONFIG_PATH } = require('../src/main/config');
 
 const APP_DIR = path.join(__dirname, '..');
-const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
+const ELECTRON_BIN = (process.platform === 'win32' ? require('electron') : path.join(APP_DIR, 'node_modules', '.bin', 'electron'));
 
 const CUSTOM_HOTKEYS = {
   reveal: 'Ctrl+Shift+U', // deliberately different from the default Ctrl+Shift+I

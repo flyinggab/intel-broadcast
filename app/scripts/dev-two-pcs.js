@@ -36,7 +36,7 @@ const squad = require('../src/main/squadCode');
 const { killApp } = require('./dev-electron');
 
 const APP_DIR = path.join(__dirname, '..');
-const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
+const ELECTRON_BIN = (process.platform === 'win32' ? require('electron') : path.join(APP_DIR, 'node_modules', '.bin', 'electron'));
 
 const args = process.argv.slice(2);
 const manual = args.includes('--manual');

@@ -20,7 +20,7 @@ const { spawn } = require('child_process');
 const { killApp } = require('./dev-electron');
 
 const APP_DIR = path.join(__dirname, '..');
-const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
+const ELECTRON_BIN = (process.platform === 'win32' ? require('electron') : path.join(APP_DIR, 'node_modules', '.bin', 'electron'));
 const SAMPLES = path.join(APP_DIR, '..', 'design', 'kneeboard', 'samples');
 const FERRY_LAYOUT = path.join(SAMPLES, 'ferry-flight.layout.json');
 const FERRY_CARD = path.join(SAMPLES, 'colt21-ferry.card.json');

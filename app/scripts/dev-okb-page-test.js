@@ -62,7 +62,7 @@ const startServer = () =>
 
 server = startServer();
 
-const child = spawn(path.join(APP_DIR, 'node_modules', '.bin', 'electron'), [HARNESS, '--port', String(PORT), '--no-sandbox'], {
+const child = spawn((process.platform === 'win32' ? require('electron') : path.join(APP_DIR, 'node_modules', '.bin', 'electron')), [HARNESS, '--port', String(PORT), '--no-sandbox'], {
   cwd: APP_DIR,
   detached: true,
   env: process.env,

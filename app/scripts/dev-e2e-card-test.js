@@ -25,7 +25,7 @@ const { spawn } = require('child_process');
 const { killApp } = require('./dev-electron');
 
 const APP_DIR = path.join(__dirname, '..');
-const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
+const ELECTRON_BIN = (process.platform === 'win32' ? require('electron') : path.join(APP_DIR, 'node_modules', '.bin', 'electron'));
 const CONFIG_PATH = path.join(APP_DIR, 'card-e2e-config.local.json');
 const EVAL_PATH = path.join(APP_DIR, 'card-e2e-eval.js');
 const CARD = path.join(APP_DIR, '..', 'design', 'kneeboard', 'foxhunt2-roman1.card.json');

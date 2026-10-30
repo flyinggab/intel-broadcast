@@ -59,7 +59,7 @@ function renderAll() {
   fs.mkdirSync(OUT, { recursive: true });
 
   const harness = path.join(__dirname, 'fixtures', 'icon-render-harness.js');
-  const electron = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
+  const electron = (process.platform === 'win32' ? require('electron') : path.join(APP_DIR, 'node_modules', '.bin', 'electron'));
 
   return new Promise((resolve, reject) => {
     const child = spawn(electron, [harness, '--no-sandbox', JSON.stringify({ jobs, branding: BRANDING })], {

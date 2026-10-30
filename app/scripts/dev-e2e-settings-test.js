@@ -23,7 +23,7 @@ const { killApp } = require('./dev-electron');
 const { decodeSquadCode } = require('../src/main/squadCode');
 
 const APP_DIR = path.join(__dirname, '..');
-const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
+const ELECTRON_BIN = (process.platform === 'win32' ? require('electron') : path.join(APP_DIR, 'node_modules', '.bin', 'electron'));
 const CONFIG_PATH = path.join(APP_DIR, 'settings-e2e-config.local.json');
 const EVAL_PATH = path.join(APP_DIR, 'settings-e2e-eval.js');
 const CODE_MARKER_PATH = path.join(APP_DIR, 'settings-e2e-code.txt');

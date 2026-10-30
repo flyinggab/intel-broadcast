@@ -23,7 +23,7 @@ const { killApp } = require('./dev-electron');
 const APP_DIR = path.join(__dirname, '..');
 const HARNESS = path.join(__dirname, 'fixtures', 'card-geometry-harness.js');
 
-const child = spawn(path.join(APP_DIR, 'node_modules', '.bin', 'electron'), [HARNESS, '--no-sandbox'], {
+const child = spawn((process.platform === 'win32' ? require('electron') : path.join(APP_DIR, 'node_modules', '.bin', 'electron')), [HARNESS, '--no-sandbox'], {
   cwd: APP_DIR,
   detached: true,
   env: process.env,

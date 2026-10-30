@@ -19,7 +19,7 @@ const { killApp } = require('./dev-electron');
 const APP_DIR = path.join(__dirname, '..');
 const HOST_CONFIG_PATH = path.join(APP_DIR, 'host-e2e-config.local.json');
 const SHARER_CONFIG_PATH = path.join(APP_DIR, 'sharer-e2e-config.local.json');
-const ELECTRON_BIN = path.join(APP_DIR, 'node_modules', '.bin', 'electron');
+const ELECTRON_BIN = (process.platform === 'win32' ? require('electron') : path.join(APP_DIR, 'node_modules', '.bin', 'electron'));
 const MARKER_PATH = path.join(APP_DIR, 'host-received-marker.json');
 
 const RELAY_PORT = require('./dev-ports').host;
