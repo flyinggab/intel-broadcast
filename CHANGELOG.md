@@ -15,7 +15,7 @@ that entry.
 
 ---
 
-## Unreleased
+## v0.10.1 — 2026-10-30
 
 ### Fixed
 - **A reloaded mission's 9-lines and calls showed nothing** on an app left
