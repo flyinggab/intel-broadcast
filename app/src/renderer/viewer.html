@@ -136,6 +136,24 @@
       <div class="stage">
         <img class="stage__img" id="stage-img" src="img/frame-placeholder.svg" alt="" draggable="false" />
 
+        <!-- A 9-line from DCS, in place of the photo when the queue's current
+             item is one. Text, not a picture of text: legible at whatever
+             size the kneeboard is. It is the intel itself, not chrome, so it
+             stays when the chrome hides. Written by renderNineline() as
+             textContent: it comes from a mission file. -->
+        <div class="nl is-hidden" id="stage-nl">
+          <div class="nl__head">
+            <span class="nl__title" data-i18n="nl.title">9-LINE</span>
+            <span class="nl__route" id="nl-route"></span>
+            <span class="nl__time" id="nl-time"></span>
+          </div>
+          <ol class="nl__lines" id="nl-lines"></ol>
+          <div class="nl__remarks" id="nl-remarks-box">
+            <span class="nl__cap" data-i18n="nl.remarks">REMARKS</span>
+            <p class="nl__text" id="nl-remarks"></p>
+          </div>
+        </div>
+
         <!-- Ink. Sized and positioned by JS to the image's CONTAINED box, not
              the stage: object-fit: contain letterboxes, and a canvas covering
              the letterbox would put marks where there is no photo. It is
@@ -152,6 +170,12 @@
         <div class="briefmark is-hidden" id="brief-mark">
           <span class="briefmark__label" id="brief-mark-label"></span>
         </div>
+
+        <!-- Calls from DCS ("cleared hot", BDA): the newest few, each for a
+             few minutes, as main decides. Outside .stage__chrome for the same
+             reason as .briefmark — a call is read on the knee, with the
+             chrome hidden. Nothing here is pressable. -->
+        <ul class="calls is-hidden" id="stage-calls" data-i18n-aria="calls.aria" aria-label="Calls"></ul>
 
         <div class="stage__chrome">
           <button class="stage__nav stage__nav--prev" id="stage-prev" aria-label="Previous">&lsaquo;</button>

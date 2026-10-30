@@ -46,7 +46,9 @@ function connect(callsign, { path = REALTIME_PATH, token = TOKEN } = {}) {
 
     ws.on('message', (data) => {
       const msg = JSON.parse(data.toString('utf8'));
-      if (msg.type !== 'hello-ack') inbox.push(msg);
+      // The roster goes to everyone whenever anyone joins or leaves; it is the
+      // relay's own news, not brief traffic, and dev-intel-relay-test covers it.
+      if (msg.type !== 'hello-ack' && msg.type !== 'net-roster') inbox.push(msg);
     });
     ws.on('error', fail);
     ws.on('close', (code) => fail(new Error(`refused, close code ${code}`)));

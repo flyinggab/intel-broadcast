@@ -4,13 +4,48 @@ Notable changes per release. The commit messages carry the full reasoning —
 they are long on purpose.
 
 Versions are `0.x`: minor bumps carry behaviour or interface changes, patches
-are assets and fixes. The wire protocol has not changed since `v0.3.0`, so
-mixed-version squads still talk to each other.
+are assets and fixes. The wire protocol has only grown since `v0.3.0` — new
+realtime types that older apps drop — so mixed-version squads still talk to
+each other.
 
 No `config.local.json` has ever needed rewriting, and none does now — but the
 rename to Tac Link moved the directory Electron keeps it in, so from `v0.8.0`
 the app adopts the file left behind under the old name on first launch. See
 that entry.
+
+---
+
+## v0.10.0 — unreleased
+
+### Added
+- **A relay for the DCS server.** `taclink-relay`, the same relay with no
+  window, runs next to a DCS dedicated server; pilots join it with an ordinary
+  squad code, so nobody hosts from their own PC and nobody needs Tailscale.
+  Configured by `taclink-relay.json` or environment variables, `--init` makes
+  a token, `--squad-code <address>` prints the code. Shipped as
+  `taclink-relay-<version>-win-x64.zip` with a `.sha256`: Node's own
+  `node.exe` and the relay's scripts, no packed executable for Defender to
+  quarantine. Admin guide: `RELAY.md`.
+- **9-lines and calls from the mission.** The relay follows the server's
+  `dcs.log`; a mission line `TACLINK: {json}` becomes a 9-line or a call on
+  every kneeboard (PROTOCOL.md §3). A 9-line joins the BRIEF queue as a sheet
+  of its own — nine lines, remarks, from → to, mission time — and arrives like
+  intel always has: the banner, rule C, the mark on the rail, RECEIVED. Calls
+  are lines on the BRIEF stage, the newest three for five minutes each, and
+  never move the pilot. A pilot who joins late gets the mission's intel so far.
+- **Who is on the net, for everyone.** The relay sends the roster to every
+  pilot; it used to exist only on the host's screen.
+
+### Changed
+- **A refused code says so.** A token the relay rejects showed ONLINE and then
+  retried for ever; the app now stops and shows CODE REFUSED, in the strip and
+  in SETUP.
+- **A relay on a public port defends itself:** caps on sockets in total, per
+  address and before signing in; a cap on what may be sent before signing in;
+  a realtime rate per socket; photo batches per pilot capped at a burst of 5
+  and 30 a minute; a ping to drop dead sockets. Defaults suit a squad; a server can change them.
+- The relay's log names the address of a refused attempt, and the standalone
+  dev relay no longer prints its token.
 
 ---
 

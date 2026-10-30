@@ -13,9 +13,11 @@ const {
   REALTIME_PATH,
   MAX_REALTIME_FRAME_BYTES,
   PRESENTER_ONLY,
+  SERVER_ONLY,
   parseBriefMessage,
   stampPresenter,
 } = require('./protocol');
+const { MissionIntel } = require('./intel');
 
 /**
  * Starts the embedded relay: a WebSocket server that authenticates connections
@@ -46,7 +48,37 @@ const MAX_BUFFERED_BYTES = 48 * 1024 * 1024;
 // minutes behind. That client is not slow, it is gone.
 const MAX_REALTIME_BUFFERED_BYTES = 256 * 1024;
 
-function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = () => {}, onBrief = null }) {
+// What one relay on a public port will put up with. A squad is a few dozen
+// pilots with two sockets each; a host behind Tailscale Funnel sees every
+// connection from 127.0.0.1, which is why the per-address cap is generous.
+const DEFAULT_LIMITS = {
+  maxClients: 64, // signed-in sockets, both kinds together
+  maxPending: 32, // sockets that have not signed in yet
+  maxPerAddress: 16, // sockets from one address, signed in or not
+  preAuthBytes: 1024 * 1024, // what a socket may send before it has signed in
+  rtPerSecond: 100, // realtime frames per socket: ink at 30 Hz is a third of it
+  rtBurst: 300,
+  // Photo batches per pilot: a burst of 5, then 30 a minute. A pilot who
+  // presses reveal twice in a second is normal and must get both through.
+  batchBurst: 5,
+  batchPerMinute: 30,
+  heartbeatMs: 30000, // a socket that misses a ping is dropped
+};
+
+const CAPABILITIES = ['brief', 'intel', 'roster'];
+
+function createRelayServer({
+  port,
+  host,
+  token,
+  onLog = () => {},
+  onClientsChanged = () => {},
+  onBrief = null,
+  limits: limitOverrides = {},
+  serverName,
+}) {
+  const limits = { ...DEFAULT_LIMITS, ...limitOverrides };
+  const authOptions = { onLog, serverName, capabilities: CAPABILITIES };
   // ONE http server, TWO websocket servers routed by path on upgrade.
   //
   // Not a refactor for its own sake: Tailscale Funnel forwards exactly one
@@ -81,6 +113,14 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
   // handing the pen to a callsign later is one new message, not a redesign.
   let presenter = null;
 
+  // What DCS has said in the mission running now, for pilots who join late.
+  const intel = new MissionIntel();
+
+  // Sockets by address, and those not signed in yet. Counted at the upgrade,
+  // before `ws` has allocated anything for the connection.
+  const perAddress = new Map();
+  let pending = 0;
+
   httpServer.on('error', (err) => onLog(`server error: ${err.message}`));
   wss.on('error', (err) => onLog(`server error: ${err.message}`));
   rtServer.on('error', (err) => onLog(`realtime error: ${err.message}`));
@@ -95,16 +135,89 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
       socket.destroy();
       return;
     }
+    const address = socket.remoteAddress || '';
+    const signedIn = clients.size + rtClients.size;
+    const full =
+      pending >= limits.maxPending ||
+      signedIn >= limits.maxClients ||
+      (perAddress.get(address) || 0) >= limits.maxPerAddress;
+    if (full) {
+      onLog(`refused a connection from ${address}: relay full`);
+      socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    perAddress.set(address, (perAddress.get(address) || 0) + 1);
+    socket.once('close', () => {
+      const n = (perAddress.get(address) || 1) - 1;
+      if (n > 0) perAddress.set(address, n);
+      else perAddress.delete(address);
+    });
     target.handleUpgrade(req, socket, head, (ws) => target.emit('connection', ws, req));
   });
 
-  httpServer.listen(port);
+  if (host) httpServer.listen(port, host);
+  else httpServer.listen(port);
 
   rtServer.on('connection', (ws, req) => attachRealtime(ws, req));
+
+  // One ping per period; a socket that has not answered the last one is gone
+  // (a pilot's PC asleep, a NAT that forgot the mapping) and is dropped
+  // rather than counted as a pilot on the net for ever.
+  const heartbeat = setInterval(() => {
+    for (const server of [wss, rtServer]) {
+      for (const ws of server.clients) {
+        if (ws.isAlive === false) {
+          ws.terminate();
+          continue;
+        }
+        ws.isAlive = false;
+        try {
+          ws.ping();
+        } catch {
+          // closing already
+        }
+      }
+    }
+  }, limits.heartbeatMs);
+  heartbeat.unref();
+
+  /**
+   * The part of signing in both sockets share: the pending count, the
+   * heartbeat mark, and the cap on what may arrive before the token has been
+   * checked — `ws` would otherwise queue up to 200 frames of 32 MB each for
+   * a connection that never sends one.
+   */
+  function guard(ws) {
+    pending += 1;
+    let counted = true;
+    const done = () => {
+      if (counted) pending -= 1;
+      counted = false;
+    };
+    ws.isAlive = true;
+    ws.on('pong', () => {
+      ws.isAlive = true;
+    });
+    ws.on('close', done);
+    let bytes = 0;
+    return {
+      signedIn: done,
+      tooMuch(data) {
+        bytes += data.length || 0;
+        if (bytes <= limits.preAuthBytes) return false;
+        ws.close(1008, 'too much before auth');
+        return true;
+      },
+    };
+  }
 
   wss.on('connection', (ws) => {
     const reassembler = new BatchReassembler();
     let senderCallsign = null; // set once authenticated
+    const gate = guard(ws);
+    let batchTokens = limits.batchBurst;
+    let batchFilledAt = Date.now();
 
     function handleFrame(data, isBinary) {
       let batch;
@@ -115,6 +228,16 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
         return;
       }
       if (!batch) return;
+      // One pilot cannot turn the relay into a firehose: past the burst and
+      // the per-minute rate a batch is dropped, and logged.
+      const now = Date.now();
+      batchTokens = Math.min(limits.batchBurst, batchTokens + ((now - batchFilledAt) / 60000) * limits.batchPerMinute);
+      batchFilledAt = now;
+      if (batchTokens < 1) {
+        onLog(`dropped batch from ${senderCallsign || '(none)'}: over ${limits.batchPerMinute} batches a minute`);
+        return;
+      }
+      batchTokens -= 1;
       // sharedBy is stamped from the AUTHENTICATED callsign — whatever the
       // incoming frame claimed is ignored.
       broadcastRevealBatch(batch.items, { sourceType: batch.sourceType, sharedBy: senderCallsign || '' });
@@ -131,18 +254,21 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
     let authed = false;
     ws.on('message', (data, isBinary) => {
       if (!authed) {
+        if (gate.tooMuch(data)) return;
         if (preAuthQueue.length < 200) preAuthQueue.push([data, isBinary]);
         return;
       }
       handleFrame(data, isBinary);
     });
 
-    authenticateConnection(ws, token, { onLog })
+    authenticateConnection(ws, token, authOptions)
       .then((authMsg) => {
+        gate.signedIn();
         senderCallsign = authMsg.callsign || '';
         clients.set(ws, { role: authMsg.role, callsign: senderCallsign, connectedAt: Date.now() });
         onLog(`client connected: role=${authMsg.role} callsign=${senderCallsign || '(none)'}`);
         onClientsChanged(getConnectedClients());
+        fanOutRealtime(rosterMessage());
 
         authed = true;
         for (const [data, isBinary] of preAuthQueue) handleFrame(data, isBinary);
@@ -152,12 +278,21 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
           clients.delete(ws);
           onLog(`client disconnected: role=${authMsg.role} callsign=${senderCallsign || '(none)'}`);
           onClientsChanged(getConnectedClients());
+          fanOutRealtime(rosterMessage());
         });
       })
       .catch((err) => {
         onLog(`auth failed: ${err.message}`);
       });
   });
+
+  /** Who is on the net, for every pilot rather than only the host. */
+  function rosterMessage() {
+    return {
+      type: 'net-roster',
+      peers: getConnectedClients().map((c) => ({ callsign: c.callsign, connectedAt: c.connectedAt })),
+    };
+  }
 
   /** Snapshot of every authenticated client, ordered by connect time. */
   function getConnectedClients() {
@@ -173,20 +308,43 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
     let callsign = null;
     const preAuthQueue = [];
     let authed = false;
+    const gate = guard(ws);
+    // A token bucket per socket. Frames over the rate are dropped, not queued:
+    // a late stroke is worse than a missing one, and the socket stays up.
+    let tokens = limits.rtBurst;
+    let filledAt = Date.now();
+    let droppedSince = 0;
+
+    function allowed() {
+      const now = Date.now();
+      tokens = Math.min(limits.rtBurst, tokens + ((now - filledAt) / 1000) * limits.rtPerSecond);
+      filledAt = now;
+      if (tokens >= 1) {
+        tokens -= 1;
+        return true;
+      }
+      if (!droppedSince) onLog(`realtime: ${callsign || '(none)'} over ${limits.rtPerSecond} frames/s, dropping`);
+      droppedSince += 1;
+      return false;
+    }
 
     // Same reasoning as the bulk socket: attach the listener before auth
     // resolves, because ws can emit already-buffered frames synchronously.
     ws.on('message', (data, isBinary) => {
       if (isBinary) return; // the realtime socket is JSON only
       if (!authed) {
+        if (gate.tooMuch(data)) return;
         if (preAuthQueue.length < 200) preAuthQueue.push(data);
         return;
       }
+      if (!allowed()) return;
+      if (droppedSince && tokens > limits.rtBurst / 2) droppedSince = 0;
       handleRealtimeFrame(ws, callsign, data);
     });
 
-    authenticateConnection(ws, token, { onLog })
+    authenticateConnection(ws, token, authOptions)
       .then((authMsg) => {
+        gate.signedIn();
         callsign = authMsg.callsign || '';
         rtClients.set(ws, { callsign, connectedAt: Date.now() });
 
@@ -201,6 +359,10 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
           send(ws, { type: 'brief-present-start', presenter });
           if (presenter.focus) send(ws, { ...presenter.focus, presenter: presenter.callsign });
         }
+        // Who is here, and what DCS has said in this mission so far — oldest
+        // first, so the newest 9-line ends up at the front of their queue.
+        send(ws, rosterMessage());
+        for (const msg of intel.history()) send(ws, msg);
 
         ws.on('close', () => {
           rtClients.delete(ws);
@@ -215,6 +377,13 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
   function handleRealtimeFrame(ws, callsign, data) {
     const msg = parseBriefMessage(data);
     if (!msg) return; // malformed or unknown — never forwarded
+    // Only the relay speaks for DCS and for the net. A pilot sending a 9-line
+    // or a roster of their own is refused: otherwise anyone holding the squad
+    // code could put a JTAC's words on every kneeboard.
+    if (SERVER_ONLY.has(msg.type)) {
+      onLog(`realtime: refused ${msg.type} from ${callsign || '(none)'}`);
+      return;
+    }
 
     if (msg.type === 'brief-present-start') {
       presenter = { ws, callsign, focus: null };
@@ -309,6 +478,23 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
   }
 
   /**
+   * One message from DCS (intel.js) to every pilot. Sent once per mission:
+   * returns false for one already sent, which is how a line DCS wrote twice,
+   * or a relay re-reading its log, stays off the kneeboards.
+   */
+  function broadcastIntel(msg) {
+    if (!intel.accept(msg)) return false;
+    fanOutRealtime(msg);
+    onLog(`intel: ${msg.type} ${msg.id} from ${msg.from || '(none)'} to ${rtClients.size} socket(s)`);
+    return true;
+  }
+
+  /** A mission loaded, or DCS started a new log: forget the last one's intel. */
+  function resetIntel() {
+    intel.reset();
+  }
+
+  /**
    * items: [{ filename, mimeType, buffer }]
    */
   function broadcastRevealBatch(items, { sourceType = 'prebundled', sharedBy = '' } = {}) {
@@ -349,6 +535,7 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
    * port would hit EADDRINUSE intermittently.
    */
   function close(done = () => {}) {
+    clearInterval(heartbeat);
     for (const ws of wss.clients) ws.terminate();
     for (const ws of rtServer.clients) ws.terminate();
     presenter = null;
@@ -362,6 +549,8 @@ function createRelayServer({ port, token, onLog = () => {}, onClientsChanged = (
     getConnectedClients,
     broadcastBrief,
     getPresenter,
+    broadcastIntel,
+    resetIntel,
     close,
     wss,
     rtServer,
@@ -387,7 +576,7 @@ function readPhotoFolder(folderPath) {
     }));
 }
 
-module.exports = { createRelayServer, readPhotoFolder, ITEM_ID_LENGTH };
+module.exports = { createRelayServer, readPhotoFolder, ITEM_ID_LENGTH, DEFAULT_LIMITS };
 
 // Standalone dev mode: `node relayServer.js` (or `npm run relay:standalone`).
 // Starts the server, then lets you trigger broadcasts by typing a folder path
@@ -398,7 +587,8 @@ if (require.main === module) {
   const token = process.env.RELAY_TOKEN || 'dev-secret';
 
   const server = createRelayServer({ port, token, onLog: (msg) => console.log(`[relay] ${msg}`) });
-  console.log(`[relay] listening on ws://localhost:${port} (token=${token})`);
+  // Never the token: it is half the squad code. RELAY_TOKEN is where it came from.
+  console.log(`[relay] listening on ws://localhost:${port}`);
   console.log('[relay] type a folder path + Enter to broadcast every photo in it, or Ctrl+C to quit');
 
   process.stdin.setEncoding('utf8');

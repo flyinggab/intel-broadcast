@@ -90,3 +90,45 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name'
+
+  # The headless relay for DCS servers (RELAY.md): one zip and its SHA-256,
+  # from the same tag as the app. node.exe is the runner's own Node, as the
+  # Node.js project publishes it — signed, which is the point: an unsigned
+  # executable is what Defender's ML heuristic quarantines. The step after the
+  # build refuses to ship one whose signature does not check out.
+  relay:
+    needs: create-release
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      # The relay needs `ws` and nothing else; no Electron download.
+      - run: npm ci --omit=dev --ignore-scripts
+
+      - run: node scripts/build-relay.js
+
+      - name: Check node.exe is signed
+        run: |
+          $sig = Get-AuthenticodeSignature dist/relay/taclink-relay/node.exe
+          "node.exe signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { throw "node.exe is not validly signed" }
+
+      - name: Zip, hash and attach to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $zip = "taclink-relay-$v-win-x64.zip"
+          Compress-Archive -Path dist/relay/taclink-relay -DestinationPath $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $zip" | Out-File -Encoding ascii "$zip.sha256"
+          Get-Content "$zip.sha256"
+          gh release upload "$env:GITHUB_REF_NAME" $zip "$zip.sha256" --clobber

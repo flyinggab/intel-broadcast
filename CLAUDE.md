@@ -34,7 +34,12 @@ Doc map:
 - To test two instances on one machine: give each terminal its own
   `INTEL_BROADCAST_LOCAL_CONFIG_PATH` env var — see `README.md`.
 - Releases are built by `.github/workflows/release.yml` on GitHub Actions, triggered by pushing
-  a `v*` tag. Bump `app/package.json` first.
+  a `v*` tag. Bump `app/package.json` first. The same tag builds the headless relay's zip
+  (`taclink-relay-<version>-win-x64.zip` + `.sha256`, job `relay`).
+- **The headless relay** for a DCS server is `app/src/relay/taclink-relay.js` around the same
+  `relayServer.js`; `dcsLog.js` follows dcs.log, `intel.js` owns the `TACLINK:` contract
+  (`PROTOCOL.md` §3). Admin guide `RELAY.md`; build `node scripts/build-relay.js`. Read
+  `HANDOFF.md` §1 "The server relay" before changing it.
 - UI lives in `app/src/renderer/` — `viewer.html` (ONE window: BRIEF, RECEIVED, SHARE and
   SETUP are all pages of it), `css/`, `i18n.js`, vendored B612 fonts. Serve that folder over
   HTTP and open `preview.html` to drive the **real** render functions with fake snapshots, no

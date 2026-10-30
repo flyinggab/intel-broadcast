@@ -62,7 +62,11 @@ function tokensMatch(given, expected) {
  * and is what makes phase 2 possible (see PROTOCOL-V2.md §3). Unknown control
  * frames are ignored rather than fatal, for the same reason.
  */
-function authenticateConnection(ws, expectedToken, { onLog = () => {} } = {}) {
+function authenticateConnection(
+  ws,
+  expectedToken,
+  { onLog = () => {}, serverName = null, capabilities = ['brief'] } = {},
+) {
   const ip = ws && ws._socket && ws._socket.remoteAddress;
 
   return new Promise((resolve, reject) => {
@@ -82,7 +86,9 @@ function authenticateConnection(ws, expectedToken, { onLog = () => {} } = {}) {
       ws.removeListener('message', onMessage);
       if (code === CLOSE_AUTH_FAILED) noteFailure(ip);
       ws.close(code, message);
-      reject(new Error(message));
+      // The log gets the address, so an admin can see who is knocking — and
+      // never the token that was tried.
+      reject(new Error(ip ? `${message} from ${ip}` : message));
     }
 
     function onMessage(data, isBinary) {
@@ -102,11 +108,13 @@ function authenticateConnection(ws, expectedToken, { onLog = () => {} } = {}) {
             JSON.stringify({
               type: 'hello-ack',
               protocolVersion: 1,
-              server: `taclink-electron/${process.env.npm_package_version || '0'}`,
+              server: serverName || `taclink-electron/${process.env.npm_package_version || '0'}`,
               // A peer that does not list 'brief' still receives photos and
               // simply never sees a FOCUS or STROKE frame, so mixed-version
-              // squads keep working rather than half-working.
-              capabilities: ['brief'],
+              // squads keep working rather than half-working. 'intel' and
+              // 'roster' are the same deal: an app that predates them drops
+              // the frames it does not know and loses nothing else.
+              capabilities,
             }),
           );
         } catch {

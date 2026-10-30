@@ -12,7 +12,7 @@ const { createRelayServer } = require('./relayServer');
 const { revealPhotosFolder } = require('./reveal');
 const { listPhotoFilenames, makeThumbnail } = require('./photoLibrary');
 const { createBlobStore } = require('./blobStore');
-const { createViewState } = require('./viewState');
+const { createViewState, CALL_SHOW_MS } = require('./viewState');
 const { createInkStore, quantise } = require('./inkStore');
 const { createImagePrep } = require('./imagePrep');
 const squad = require('./squadCode');
@@ -679,6 +679,30 @@ function applyBriefMessage(msg) {
       cardRev += 1;
       break;
     }
+    // From DCS, through a relay that follows the server's dcs.log. A 9-line
+    // is intel: it joins the BRIEF queue like a photo batch, so it can take
+    // the stage and move a presenter's followers the same way.
+    case 'intel-nineline':
+      if (!view.addNineline(msg)) return; // the relay's catch-up, already here
+      syncFocus();
+      break;
+    case 'intel-call':
+      if (!view.addCall(msg)) return;
+      // A call leaves the stage after CALL_SHOW_MS, and nothing else may push
+      // state by then — the renderer decides nothing, so main has to.
+      setTimeout(pushState, CALL_SHOW_MS + 250).unref();
+      break;
+    // Who is on the net, from the relay. A host already knows from its own
+    // relay; everyone else had no way to know at all until relays sent this.
+    case 'net-roster':
+      if (relayServer) return;
+      view.state.peers = msg.peers.map((p) => ({
+        callsign: p.callsign,
+        connectedAt: p.connectedAt,
+        self: p.callsign === config.callsign,
+        host: false,
+      }));
+      break;
     default:
       return;
   }
@@ -1029,6 +1053,7 @@ function stopHost(done = () => {}) {
 }
 
 function startClient() {
+  view.state.refused = false;
   relayClient = new RelayClient({
     url: effectiveRelayUrl(),
     token: config.token,
@@ -1048,10 +1073,21 @@ function startClient() {
     // way to fix the connection. Re-locking is safe and automatic: the relay
     // re-announces a live brief to every client that authenticates.
     view.setPresenter(null);
+    // A roster we can no longer hear about is a list of who WAS on the net.
+    if (!relayServer) view.state.peers = [];
     pushState();
   });
   relayClient.on('reconnecting', (info) => {
     view.state.reconnect = info;
+    pushState();
+  });
+  // The relay rejected the token: the code is old or wrong. The client has
+  // stopped retrying; the strip and SETUP say why. A new code starts a new
+  // client, which is what clears this.
+  relayClient.on('refused', () => {
+    view.state.refused = true;
+    view.state.reconnect = null;
+    console.log('[relay] the relay refused our token; not retrying until the code changes');
     pushState();
   });
   relayClient.on('brief', (msg) => applyBriefMessage(msg));

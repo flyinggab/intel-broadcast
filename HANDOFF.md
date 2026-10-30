@@ -56,6 +56,71 @@ the echo is the sharer's own render path, not redundancy.
 `CHANGELOG.md` has the detail. The commit messages have the reasoning — they
 are long on purpose and are the best record of *why*.
 
+### The server relay and intel from DCS (v0.10.0, not released yet)
+
+A headless relay for the machine that runs a DCS server, and JTAC 9-lines and
+calls from the mission onto every kneeboard. Admin guide `RELAY.md`, contract
+`PROTOCOL.md` §3.
+
+```
+mission  env.info("TACLINK: {json}")  ──►  dcs.log
+                                            │  dcsLog.js   follows it (poll, read, close)
+                                            ▼
+                                         intel.js     parses + validates the line,
+                                            │            MissionIntel: once per id per mission load
+                                            ▼
+src/relay/taclink-relay.js ── relayServer.js ── /rt ──► every app
+  config, --init, --squad-code     broadcastIntel, net-roster,
+  its own log                      catch-up of the last 50 on sign-in
+                                                    │
+                    app: protocol.js checks again ──┘─► index.js ─► viewState
+                         addNineline (a batch of one in the BRIEF queue) / addCall
+```
+
+- **The relay is the only voice of DCS.** `SERVER_ONLY` in `protocol.js`:
+  `intel-*` and `net-roster` from a client are dropped by the relay. Without
+  that, anyone with the squad code could put a JTAC's words on every knee.
+- **The follower never holds dcs.log open.** It opens, reads what is new and
+  closes, every 500 ms. DCS renames the file at its next start; a held handle
+  could stop that. `dev-dcslog-test` renames it while it is being followed.
+- **Started on a running log, it reads from the end.** A log that appears
+  later is read from its first line. A new log is spotted by its header line
+  (`=== Log opened UTC …`) changing or by the file getting shorter.
+- **Dedupe at both ends, for different reasons.** The relay sends an id once
+  per mission load (DCS sometimes writes a line twice; a reload reuses ids, so
+  `loadMission` clears it). The app keeps every id it has seen, because the
+  relay replays the mission's last 50 to every pilot who reconnects.
+- **A 9-line is a batch of one, `kind: 'nineline'`.** It goes through
+  `addBatch`, so rule C, the banner, the rail mark, RECEIVED and curation are
+  the photo rules unchanged. Its `hash` is derived from mission + id, not
+  bytes: every pilot computes the same one, which is what lets a presenter's
+  FOCUS land on it. Ink is hidden on it.
+- **Calls never move the pilot.** No stage, no banner; the newest three, five
+  minutes each. Main decides which are live (`liveCalls()`) and pushes state
+  when one expires — the renderer only draws `s.calls`.
+- **A refused token stops the client.** Close `4001` → `'refused'`, no more
+  retries, CODE REFUSED in the strip and SETUP. It used to show ONLINE and
+  retry for ever, because `'connected'` fires on open, before auth.
+- **Limits for a public port** live in `DEFAULT_LIMITS` in `relayServer.js`
+  (sockets in total, per address, before sign-in; bytes before sign-in; `/rt`
+  rate; photo batches per pilot, a burst of 5 then 30 a minute; heartbeat). The pre-sign-in byte cap matters
+  because `hello` is accepted any number of times while waiting for the token.
+- **The release zip carries Node's own signed `node.exe`**, not a packed
+  executable (§7: an unsigned exe is what Defender quarantines). The workflow
+  refuses a `node.exe` whose signature does not check out.
+
+Tested (this repo, Windows 11, 2026-10-30): `dev-dcslog-test` (follower and
+parser on recorded-format samples: normal run, restart with a new log, broken
+JSON, duplicate id, line cut mid-write, mission reload, oversize line, log
+missing), `dev-intel-relay-test` (the headless relay as its own process, real
+`RelayClient`s, catch-up, refusal, limits), `dev-relay-build-test` (the zip's
+folder from outside, the `.cmd` restart loop), `dev-viewstate-test`. Not
+tested: a real DCS writing the lines (the follower was fed files in DCS's
+format, measured from this PC's logs); the longest line DCS writes without
+cutting it (seen: 598 characters; a 9-line is 800–1,000); how fast DCS flushes
+under load; the relay on a real server across the internet; Task Scheduler;
+the 9-line sheet through OpenKneeboard in a headset.
+
 ---
 
 ## 2. Architecture in one page
@@ -315,6 +380,9 @@ JS toggles these. JS never writes inline styles. This supersedes `BRIEF.md` §4.
 | `.field` | `.field--recording` | keybind capture in progress |
 | `.banner` | `.is-hidden` | |
 | `.stage__standby` | `.is-hidden` | shown when the queue is empty |
+| `.nl` (9-line sheet) | `.is-hidden` | shown when the queue's current item is a 9-line; `.stage__img` and `.stage__ink` get `.is-hidden` then |
+| `.nl__remarks` | `.is-hidden` | the 9-line has no remarks |
+| `.calls` | `.is-hidden` | no live calls. Moved by `renderCalls()` between `.stage` (over a photo) and `.nl` (under the remarks) |
 | any element | `data-i18n="key"` | static string, rewritten by `applyStatic()` |
 
 Gone since BRIEF: `.row` / `.row__*` (RECEIVED is tiles now), `.subtab` (a
@@ -532,6 +600,12 @@ outputs.
 
 ## 7. Honest gaps
 
+- **On Windows four tests fail, on v0.9.3 as well** (run side by side,
+  2026-10-30): `dev-e2e-card-test`, `dev-e2e-funnel-flow-test`,
+  `dev-e2e-host-test`, `dev-tailscale-parse-test`. Not looked into yet. The
+  Electron tests only run on Windows at all since the same day: they spawned
+  `node_modules/.bin/electron`, which is a `.cmd` there, and now take
+  `require('electron')` on win32 (macOS and Linux unchanged).
 - **`dev-packaged-config-test` fails on arm64.** It asserts a bundle at
   `dist/linux-unpacked/`, but electron-builder writes
   `dist/linux-arm64-unpacked/` here. A WSL-era hardcoding, one line to fix by

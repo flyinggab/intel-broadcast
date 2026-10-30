@@ -47,11 +47,27 @@
     'strip.nonet': 'NO NET',
     'strip.online': 'ONLINE · {t}',
     'strip.offline': 'OFFLINE',
+    'strip.refused': 'CODE REFUSED',
 
     // banner
     'banner.newFrom': 'NEW FROM {who}',
     'banner.switched': 'SWITCHED AUTOMATICALLY',
     'banner.queued': 'QUEUED',
+
+    // 9-line and calls, from DCS. The nine labels are the JTAC's own words.
+    'nl.title': '9-LINE',
+    'nl.local': '{t} L',
+    'nl.remarks': 'REMARKS',
+    'nl.l1': 'IP / BP',
+    'nl.l2': 'HDG · OFFSET',
+    'nl.l3': 'DISTANCE',
+    'nl.l4': 'TGT ELEVATION',
+    'nl.l5': 'TGT DESCRIPTION',
+    'nl.l6': 'TGT LOCATION',
+    'nl.l7': 'MARK',
+    'nl.l8': 'FRIENDLIES',
+    'nl.l9': 'EGRESS',
+    'calls.aria': 'Calls from the mission',
 
     // stage / standby
     'stage.noIntel': 'NO INTEL',
@@ -215,6 +231,7 @@
     'net.connect': 'CONNECT',
     'net.pasteToConnect': 'PASTE A CODE TO CONNECT',
     'net.badCode': 'CODE NOT RECOGNISED',
+    'net.refused': 'THIS CODE WAS REFUSED · ASK FOR A NEW ONE',
     'net.resolved': '{host} · PORT {port} · TOKEN VALID',
     'net.codeCarries': 'THE CODE CARRIES HOST, PORT AND TOKEN',
     'net.nothingElse': 'NOTHING ELSE TO TYPE',
@@ -311,10 +328,26 @@
     'strip.nonet': 'SENZA RETE',
     'strip.online': 'ONLINE · {t}',
     'strip.offline': 'OFFLINE',
+    'strip.refused': 'CODICE RIFIUTATO',
 
     'banner.newFrom': 'NUOVO DA {who}',
     'banner.switched': 'CAMBIO AUTOMATICO',
     'banner.queued': 'IN CODA',
+
+    // Le nove righe restano nei termini del JTAC, in inglese come in radio.
+    'nl.title': '9-LINE',
+    'nl.local': '{t} L',
+    'nl.remarks': 'NOTE',
+    'nl.l1': 'IP / BP',
+    'nl.l2': 'HDG · OFFSET',
+    'nl.l3': 'DISTANCE',
+    'nl.l4': 'TGT ELEVATION',
+    'nl.l5': 'TGT DESCRIPTION',
+    'nl.l6': 'TGT LOCATION',
+    'nl.l7': 'MARK',
+    'nl.l8': 'FRIENDLIES',
+    'nl.l9': 'EGRESS',
+    'calls.aria': 'Chiamate dalla missione',
 
     'stage.noIntel': 'NESSUN INTEL',
     'standby.title': 'STANDBY',
@@ -463,6 +496,7 @@
     'net.connect': 'CONNETTI',
     'net.pasteToConnect': 'INCOLLA UN CODICE PER CONNETTERE',
     'net.badCode': 'CODICE NON RICONOSCIUTO',
+    'net.refused': 'CODICE RIFIUTATO · CHIEDINE UNO NUOVO',
     'net.resolved': '{host} · PORTA {port} · TOKEN VALIDO',
     'net.codeCarries': 'IL CODICE CONTIENE HOST, PORTA E TOKEN',
     'net.nothingElse': 'NIENT’ALTRO DA DIGITARE',

@@ -127,6 +127,52 @@
 
   const scenario = (over) => ({ ...base, ...over });
 
+  // A 9-line from DCS, as viewState shapes it: a batch of one in the queue.
+  const nineline = {
+    id: 'abu-musa-cas-test-0007',
+    mission: 'abu-musa-cas-test',
+    time: '07:41:12',
+    from: 'Pointer',
+    to: 'Joker',
+    lines: [
+      'IP SOUTH',
+      '003, no offset',
+      '9.0',
+      '10 feet',
+      'Silkworm launcher, one vehicle',
+      'N25 52.799 E055 02.596 (40R CP 04321 62345)',
+      'laser, 1536',
+      'none on the island',
+      'Egress south to IP SOUTH, above one zero thousand',
+    ],
+    remarks: 'Laser-target line 086. Threats: 8 ZU-23 north of the runway, effective to 8,200 feet. Call IN with heading.',
+  };
+  const nlBatch = {
+    id: 4,
+    sharedBy: 'Pointer',
+    to: 'Joker',
+    kind: 'nineline',
+    receivedAt: T0 + 2 * 60000,
+    count: 1,
+    selectedCount: 1,
+    items: [{ filename: '9-LINE abu-musa-cas-test-0007', url: null, hash: 'b'.repeat(64), selected: true, nineline }],
+  };
+  const nlCurrent = {
+    batchId: 4,
+    filename: nlBatch.items[0].filename,
+    url: null,
+    hash: nlBatch.items[0].hash,
+    sharedBy: 'Pointer',
+    receivedAt: nlBatch.receivedAt,
+    kind: 'nineline',
+    to: 'Joker',
+    nineline,
+  };
+  const calls = [
+    { id: '0010', mission: 'abu-musa-cas-test', time: '07:44:02', from: 'Pointer', to: 'Joker', text: 'Good hits. Target destroyed, one secondary.', at: T0 },
+    { id: '0009', mission: 'abu-musa-cas-test', time: '07:43:40', from: 'Pointer', to: 'Joker', text: 'Joker, cleared hot. Laser on, 1536.', at: T0 },
+  ];
+
   const withLocale = (base, l) => {
     const out = {};
     for (const [k, v] of Object.entries(base)) out[k] = { ...v, locale: l };
@@ -151,6 +197,22 @@
       following: scenario({
         brief: { ...base.brief, presenter: 'JOKER 2-1', live: true, locked: true },
       }),
+      // From DCS through a server relay: the 9-line on the stage, and calls.
+      nineline: scenario({
+        isHost: false,
+        queue: { total: queueItems.length + 1, pos: 0, current: nlCurrent },
+        batches: [nlBatch, ...batches],
+        banner: { who: 'Pointer', count: 1, switched: true, at: T0, kind: 'nineline' },
+      }),
+      'nineline + calls': scenario({
+        isHost: false,
+        queue: { total: queueItems.length + 1, pos: 0, current: nlCurrent },
+        batches: [nlBatch, ...batches],
+        calls,
+      }),
+      'photo + calls': scenario({ isHost: false, calls }),
+      'received nineline': scenario({ page: 'received', batches: [nlBatch, ...batches] }),
+      refused: scenario({ isHost: false, connected: false, refused: true }),
       received: scenario({ page: 'received' }),
       share: scenario({ page: 'share' }),
       fault: scenario({

@@ -96,6 +96,9 @@ let lastSnapshot = null;
 // snapshot. Lives up here because render() reads it and refreshJoinPreview()
 // also runs on input events, outside render.
 let joinConnected = false;
+// The code parsed and the relay turned it down. Said here, where the code is,
+// because this is the one page where a pilot can do something about it.
+let joinRefused = false;
 
 const send = (intent, payload) => window.viewerAPI && window.viewerAPI.send(intent, payload);
 const setText = (node, text) => {
@@ -279,8 +282,10 @@ function render(s) {
   // JOIN's step 02 ticks only when a socket is actually up, so keep the flag
   // fresh and re-evaluate — connection state arrives by push, not by typing.
   const wasConnected = joinConnected;
+  const wasRefused = joinRefused;
   joinConnected = Boolean(s.connected) && !s.isHost;
-  if (wasConnected !== joinConnected) refreshJoinPreview();
+  joinRefused = Boolean(s.refused) && !s.isHost;
+  if (wasConnected !== joinConnected || wasRefused !== joinRefused) refreshJoinPreview();
 
   setText(net.code, s.squadCode || t('net.codeUnavailable'));
   setText(net.port, String(s.relayPort || ''));
@@ -386,7 +391,12 @@ async function refreshJoinPreview() {
   const raw = net.codeInput.value.trim();
   const decoded = await window.viewerAPI.decodeCode(raw);
   if (decoded.ok) {
-    setText(net.joinResolved, t('net.resolved', { host: decoded.host.toUpperCase(), port: decoded.port }));
+    setText(
+      net.joinResolved,
+      raw === connectedWith && joinRefused
+        ? t('net.refused')
+        : t('net.resolved', { host: decoded.host.toUpperCase(), port: decoded.port }),
+    );
     if (raw !== connectedWith) {
       connectedWith = raw;
       modeDirty = false; // connecting adopts JOIN; it is not a pending edit
@@ -403,7 +413,7 @@ async function refreshJoinPreview() {
   net.joinStep1.classList.toggle('is-done', decoded.ok);
   net.joinStep1.classList.toggle('is-running', !decoded.ok);
   net.joinStep2.classList.toggle('is-done', joinConnected);
-  net.joinStep2.classList.toggle('is-running', decoded.ok && !joinConnected);
+  net.joinStep2.classList.toggle('is-running', decoded.ok && !joinConnected && !joinRefused);
 }
 
 // --- intents ----------------------------------------------------------------

@@ -453,4 +453,84 @@ const cur = (view) => view.snapshot().queue.current;
   console.log('[test] arrivals mark their destination on the rail; going there clears it');
 }
 
+// ---------------------------------------------------------------------------
+// INTEL FROM DCS. A 9-line is a batch of one in the same queue; a call is a
+// line on the stage that never moves the pilot.
+// ---------------------------------------------------------------------------
+const NINE = (id, extra = {}) => ({
+  type: 'intel-nineline',
+  id,
+  mission: 'abu-musa-cas-test',
+  time: '07:41:12',
+  from: 'Pointer',
+  to: 'Joker',
+  lines: ['IP SOUTH', '003', '9.0', '10 feet', 'Silkworm launcher', 'N25 52.799 E055 02.596', 'laser, 1536', 'none', 'south'],
+  remarks: 'Call IN with heading.',
+  ...extra,
+});
+const CALL = (id, text = 'Joker, cleared hot.') => ({
+  type: 'intel-call',
+  id,
+  mission: 'abu-musa-cas-test',
+  time: '07:43:40',
+  from: 'Pointer',
+  to: 'Joker',
+  text,
+});
+{
+  const { view } = withClock();
+  view.addBatch({ sharedBy: 'LEAD', items: items(2) });
+  const r = view.addNineline(NINE('0007'));
+  assert.ok(r && r.switched, 'an idle pilot gets the 9-line on the stage, rule C as for photos');
+  const s = view.snapshot();
+  assert.strictEqual(s.queue.total, 3, 'it joins the same queue as the photos');
+  assert.strictEqual(s.queue.pos, 0, 'at the front');
+  assert.strictEqual(s.queue.current.kind, 'nineline');
+  assert.strictEqual(s.queue.current.to, 'Joker');
+  assert.strictEqual(s.queue.current.sharedBy, 'Pointer', 'the JTAC is who it is from');
+  assert.deepStrictEqual(s.queue.current.nineline.lines.length, 9);
+  assert.strictEqual(s.banner.kind, 'nineline', 'the banner can say 9-LINE rather than "1 photo"');
+  assert.ok(/^[a-f0-9]{64}$/.test(s.queue.current.hash), 'a hash, so a presenter\'s focus can find it');
+  assert.strictEqual(s.batches[0].items[0].nineline.remarks, 'Call IN with heading.', 'RECEIVED has the data too');
+  console.log('[test] a 9-line lands in the BRIEF queue like intel, with its own kind');
+
+  assert.strictEqual(view.addNineline(NINE('0007')), null, 'the relay\'s catch-up lands nothing twice');
+  assert.strictEqual(view.snapshot().queue.total, 3);
+
+  // The same id on two pilots' machines gives the same hash: focus works.
+  const other = createViewState();
+  other.addNineline(NINE('0007'));
+  assert.strictEqual(other.snapshot().queue.current.hash, s.queue.current.hash);
+  assert.ok(other.setFocus({ hash: s.queue.current.hash }) === true, 'a follower is moved onto it by hash');
+  console.log('[test] a 9-line seen twice lands once; its hash is the same on every machine');
+}
+{
+  const { view, advance } = withClock();
+  view.addBatch({ sharedBy: 'LEAD', items: items(1) });
+  view.step(0); // an interaction: rule C will not switch for a while
+  const before = view.snapshot().queue.current;
+  assert.strictEqual(view.addCall(CALL('0009')), true);
+  let s = view.snapshot();
+  assert.deepStrictEqual(s.queue.current, before, 'a call never takes the stage');
+  assert.strictEqual(s.banner.kind, 'photos', 'nor raises the banner');
+  assert.strictEqual(s.calls.length, 1);
+  assert.strictEqual(s.calls[0].text, 'Joker, cleared hot.');
+  assert.strictEqual(view.addCall(CALL('0009')), false, 'seen twice, shown once');
+
+  view.addCall(CALL('0010', 'Good hits.'));
+  view.addCall(CALL('0011', 'Second target.'));
+  view.addCall(CALL('0012', 'Fourth call.'));
+  s = view.snapshot();
+  assert.deepStrictEqual(s.calls.map((c) => c.id), ['0012', '0011', '0010'], 'the newest three, newest first');
+
+  advance(5 * 60 * 1000 + 1);
+  assert.strictEqual(view.snapshot().calls.length, 0, 'and gone after five minutes');
+
+  view.setPage('card');
+  view.addCall(CALL('0013'));
+  assert.strictEqual(view.snapshot().unseen.brief, true, 'a call while away marks BRIEF, where it is shown');
+  assert.strictEqual(view.snapshot().page, 'card', 'without moving the pilot');
+  console.log('[test] calls: never move the pilot, newest three, five minutes each');
+}
+
 console.log('[dev-viewstate-test] PASS');

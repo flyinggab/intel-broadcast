@@ -24,7 +24,20 @@
 //
 // Pure Node, no Electron: unit-testable, and the push side is injected.
 
+const crypto = require('crypto');
+
 const DEFAULT_MAX_BATCHES = 25;
+
+// Calls from DCS ("cleared hot", BDA) are lines on the BRIEF stage, not pages:
+// the newest few, each for a few minutes. Long enough to read after the
+// attack run it was about; short enough that a stale "cleared hot" is gone.
+const CALLS_KEPT = 20;
+const CALLS_SHOWN = 3;
+const CALL_SHOW_MS = 5 * 60 * 1000;
+
+// Every intel id seen, so the relay's catch-up after a reconnect lands
+// nothing twice — kept past the batches' own eviction, and bounded.
+const INTEL_SEEN = 1000;
 
 // BRIEF §2, "the auto-switch conflict". Ship rule C: switch on arrival unless
 // the pilot interacted in the last 8s, so a reveal can't yank the page out
@@ -51,6 +64,9 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     relayLabel: '',
     lastContactAt: null,
     reconnect: null, // { attempt, nextInMs } while down
+    // The relay rejected our token. Not "down": retrying cannot fix it, a new
+    // code can, and the pilot has to be told which of the two it is.
+    refused: false,
 
     // viewer
     page: 'brief',
@@ -122,8 +138,14 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     },
 
     // received — the queue's backing store.
-    // newest first: { id, sharedBy, receivedAt, items:[{filename, url, selected}] }
+    // newest first: { id, sharedBy, receivedAt, kind, to, items:[{filename, url, selected, nineline?}] }
+    // `kind` is 'photos', or 'nineline' for a 9-line from DCS: a batch of one
+    // item that carries its text instead of a picture, in the same queue, so
+    // it pages, curates and arrives exactly like intel always has.
     batches: [],
+
+    // Calls from DCS, newest first: { id, mission, time, from, to, text, at }.
+    calls: [],
     // What is on the stage, by IDENTITY, not index: deselecting some other
     // photo must never change what is on the pilot's knee. null = STANDBY.
     current: null, // { batchId, filename }
@@ -149,6 +171,16 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
 
   let nextBatchId = 1;
   let lastInteractionAt = 0;
+  const intelSeen = new Set();
+
+  /** True the first time a DCS message is offered, false ever after. */
+  function firstSight(msg) {
+    const key = `${msg.mission}\u0000${msg.id}`;
+    if (intelSeen.has(key)) return false;
+    intelSeen.add(key);
+    if (intelSeen.size > INTEL_SEEN) intelSeen.delete(intelSeen.values().next().value);
+    return true;
+  }
 
   // -- interaction clock ----------------------------------------------------
   /** Any deliberate act by the pilot: paging, curating, switching tab. */
@@ -177,6 +209,9 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
             hash: item.hash || null,
             sharedBy: b.sharedBy,
             receivedAt: b.receivedAt,
+            kind: b.kind || 'photos',
+            to: b.to || '',
+            nineline: item.nineline || null,
           });
         }
       }
@@ -217,12 +252,20 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
    * page that moves on its own without saying why reads as a bug — and when
    * it did not, the banner is the only trace the arrival leaves.
    */
-  function addBatch({ sharedBy, items, receivedAt = now() }) {
+  function addBatch({ sharedBy, items, receivedAt = now(), kind = 'photos', to = '' }) {
     const entry = {
       id: nextBatchId++,
       sharedBy: sharedBy || '',
       receivedAt,
-      items: (items || []).map((item) => ({ filename: item.filename, url: item.url, hash: item.hash || null, selected: true })),
+      kind,
+      to,
+      items: (items || []).map((item) => ({
+        filename: item.filename,
+        url: item.url,
+        hash: item.hash || null,
+        selected: true,
+        ...(item.nineline ? { nineline: item.nineline } : {}),
+      })),
     };
     state.batches.unshift(entry);
     if (state.batches.length > maxBatches) state.batches.length = maxBatches;
@@ -241,7 +284,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     }
     // Any arrival supersedes the previous banner; `at` keys the renderer's
     // auto-dismiss timer so a later state push cannot extend an old banner.
-    state.banner = { who: entry.sharedBy, count: entry.items.length, switched, at: now() };
+    state.banner = { who: entry.sharedBy, count: entry.items.length, switched, at: now(), kind };
     // Read AFTER the auto-switch above, not before: if the intel took the
     // stage by itself, the pilot is now looking straight at it and marking it
     // unseen would be false.
@@ -249,6 +292,72 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     repairCurrent(); // eviction may have dropped the batch `current` was in
     state.counters.received += 1;
     return { entry, switched };
+  }
+
+  /**
+   * A 9-line from DCS, through the relay. Lands in the BRIEF queue as a batch
+   * of one, so everything intel does it does: rule C, the banner, the mark on
+   * the rail, RECEIVED, paging, the presenter's focus. Returns null for one
+   * already received — the relay replays the mission's recent intel to every
+   * pilot who (re)joins.
+   *
+   * Its hash is derived from the mission and the id, not from bytes: every
+   * pilot computes the same one, which is what lets a presenter's focus find
+   * it on everyone else's kneeboard.
+   */
+  function addNineline(msg, receivedAt = now()) {
+    if (!firstSight(msg)) return null;
+    const hash = crypto.createHash('sha256').update(`nineline\u0000${msg.mission}\u0000${msg.id}`).digest('hex');
+    return addBatch({
+      sharedBy: msg.from || '',
+      to: msg.to || '',
+      kind: 'nineline',
+      receivedAt,
+      items: [
+        {
+          filename: `9-LINE ${msg.id}`,
+          url: null,
+          hash,
+          nineline: {
+            id: msg.id,
+            mission: msg.mission,
+            time: msg.time || '',
+            from: msg.from || '',
+            to: msg.to || '',
+            lines: msg.lines.slice(0, 9),
+            remarks: msg.remarks || '',
+          },
+        },
+      ],
+    });
+  }
+
+  /**
+   * A call from DCS. A line on the stage, never a page: it does not move the
+   * pilot, take the stage, or raise the banner. Marks BRIEF on the rail if
+   * the pilot is elsewhere — the call is on the BRIEF stage, so that is where
+   * it is to be read. Returns false for one already received.
+   */
+  function addCall(msg) {
+    if (!firstSight(msg)) return false;
+    state.calls.unshift({
+      id: msg.id,
+      mission: msg.mission,
+      time: msg.time || '',
+      from: msg.from || '',
+      to: msg.to || '',
+      text: msg.text,
+      at: now(),
+    });
+    if (state.calls.length > CALLS_KEPT) state.calls.length = CALLS_KEPT;
+    if (!INTEL_PAGES.includes(state.page)) state.unseen.brief = true;
+    return true;
+  }
+
+  /** The calls on screen now: the newest few, none older than CALL_SHOW_MS. */
+  function liveCalls() {
+    const t = now();
+    return state.calls.filter((c) => t - c.at <= CALL_SHOW_MS).slice(0, CALLS_SHOWN);
   }
 
   /** Pages the flat queue. Wraps: one step back from the newest photo is the
@@ -508,6 +617,7 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
       relayLabel: state.relayLabel,
       lastContactAt: state.lastContactAt,
       reconnect: state.reconnect,
+      refused: state.refused,
 
       page: state.page,
       navCollapsed: state.navCollapsed,
@@ -547,10 +657,19 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
         id: b.id,
         sharedBy: b.sharedBy,
         receivedAt: b.receivedAt,
+        kind: b.kind || 'photos',
+        to: b.to || '',
         count: b.items.length,
         selectedCount: b.items.filter((it) => it.selected).length,
-        items: b.items.map((it) => ({ filename: it.filename, url: it.url, hash: it.hash || null, selected: it.selected })),
+        items: b.items.map((it) => ({
+          filename: it.filename,
+          url: it.url,
+          hash: it.hash || null,
+          selected: it.selected,
+          nineline: it.nineline || null,
+        })),
       })),
+      calls: liveCalls(),
 
       folder: state.folder,
       photos: state.photos,
@@ -585,6 +704,9 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
     recentlyInteracted,
     queue,
     addBatch,
+    addNineline,
+    addCall,
+    liveCalls,
     step,
     toggleItem,
     setBatchSelected,
@@ -602,4 +724,10 @@ function createViewState({ maxBatches = DEFAULT_MAX_BATCHES, now = () => Date.no
   };
 }
 
-module.exports = { createViewState, INTERACTION_GRACE_MS, DEFAULT_MAX_BATCHES };
+module.exports = {
+  createViewState,
+  INTERACTION_GRACE_MS,
+  DEFAULT_MAX_BATCHES,
+  CALL_SHOW_MS,
+  CALLS_SHOWN,
+};

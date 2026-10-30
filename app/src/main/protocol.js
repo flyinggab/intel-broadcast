@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const { checkWire } = require('./intel');
 
 // See PROTOCOL.md — this module is the one place that knows how a
 // reveal-batch is framed on the wire (one JSON text frame + `count` binary
@@ -177,7 +178,17 @@ const BRIEF_TYPES = new Set([
   'brief-snapshot',
   'brief-card',
   'brief-card-tick',
+  'intel-nineline',
+  'intel-call',
+  'net-roster',
 ]);
+
+// Types only the RELAY may send: what DCS said (intel.js), and who is on the
+// net. A relay drops them from a client; an app accepts them only off the wire.
+const SERVER_ONLY = new Set(['intel-nineline', 'intel-call', 'net-roster']);
+
+// A squad is not this big; the cap is on what one frame can make a client hold.
+const MAX_ROSTER = 200;
 
 // A route card is a page of paper. Far past any real one, and the only job
 // here is to stop a client making every other pilot hold an unbounded map.
@@ -339,6 +350,23 @@ function parseBriefMessage(data) {
       };
     }
 
+    // From DCS, through the relay. Checked again here against the same rules
+    // the relay applied to the dcs.log line: a client does not trust the
+    // network to have had a relay that checked.
+    case 'intel-nineline':
+    case 'intel-call':
+      return checkWire(msg);
+
+    case 'net-roster': {
+      if (!Array.isArray(msg.peers) || msg.peers.length > MAX_ROSTER) return null;
+      const peers = [];
+      for (const p of msg.peers) {
+        if (!p || typeof p.callsign !== 'string' || p.callsign.length > 64) return null;
+        peers.push({ callsign: p.callsign, connectedAt: Number.isFinite(p.connectedAt) ? p.connectedAt : 0 });
+      }
+      return { type: msg.type, peers };
+    }
+
     default:
       return null;
   }
@@ -368,6 +396,7 @@ module.exports = {
   MAX_REALTIME_FRAME_BYTES,
   BRIEF_TYPES,
   PRESENTER_ONLY,
+  SERVER_ONLY,
   parseBriefMessage,
   stampPresenter,
 };

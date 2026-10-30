@@ -896,6 +896,82 @@ body[data-page="share"] .page.share { display: flex; }
 .stage__standby.is-hidden { display: none; }
 .stage__standby-plate { width: 100%; }
 
+/* --- 9-line --------------------------------------------------------------
+   A JTAC's 9-line from DCS, on the stage where a photo would be. Long-form
+   text, so --lit on --dn (HANDOFF §3: never lighten --bg for copy). Values
+   wrap rather than clip: a grid reference cut short is worse than two
+   lines. The sheet is a size container, so its type scales with the page.   */
+.nl {
+  position: absolute; inset: 0; z-index: 1;
+  display: flex; flex-direction: column; gap: 0.6cqh;
+  padding: 2.2cqh 3cqw;
+  background: var(--dn); color: var(--lit);
+  container-type: size;
+  overflow: hidden;
+}
+.nl__head {
+  display: flex; align-items: baseline; gap: 2cqw;
+  padding-bottom: 0.8cqh; border-bottom: 2px solid var(--lit);
+  font-size: var(--fs-nl); font-weight: 700;
+}
+.nl__title { letter-spacing: var(--ls-tab); }
+.nl__route { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.nl__time  { font-family: var(--font-mono); white-space: nowrap; }
+.nl__lines { list-style: none; margin: 0; padding: 0; }
+.nl__line {
+  display: grid; grid-template-columns: 1.4em minmax(6em, 28%) 1fr; column-gap: 1.2cqw;
+  align-items: baseline;
+  padding: 0.55cqh 0; border-bottom: var(--rule);
+  font-size: var(--fs-nl);
+}
+.nl__n     { font-family: var(--font-mono); font-weight: 700; }
+.nl__label { font-size: var(--fs-nl-cap); letter-spacing: var(--ls-tight); text-transform: uppercase; }
+.nl__value { font-weight: 700; overflow-wrap: anywhere; }
+/* The sheet's own blocks keep their height; only the calls below give way. */
+.nl__head, .nl__lines, .nl__remarks { flex: none; }
+.nl__remarks { margin-top: 0.6cqh; }
+.nl__remarks.is-hidden { display: none; }
+.nl__cap   { font-size: var(--fs-nl-cap); letter-spacing: var(--ls-cap); }
+.nl__text  { margin: 0.3cqh 0 0; font-size: var(--fs-nl); line-height: 1.3; overflow-wrap: anywhere; }
+
+/* --- calls ---------------------------------------------------------------
+   One line per call from DCS, newest on top, above the stage foot so the
+   two never overlap while the chrome shows. Not pressable, not chrome.      */
+.calls {
+  position: absolute; left: 0; right: 0; bottom: var(--touch-min); z-index: 2;
+  margin: 0; padding: 0 var(--sp-3); list-style: none;
+  display: flex; flex-direction: column; gap: 2px;
+  pointer-events: none;
+}
+/* Two lines a call: who and when above, what was said below at full width —
+   on one line the text was squeezed to a word per line in a kneeboard-wide
+   window. */
+.call {
+  display: grid; grid-template-columns: auto 1fr; column-gap: var(--sp-3);
+  padding: var(--sp-1) var(--sp-3);
+  background: var(--scrim); color: var(--lit);
+}
+.call__time  { font-family: var(--font-mono); font-size: var(--fs-meta); }
+.call__route { font-size: var(--fs-meta); font-weight: 700; letter-spacing: var(--ls-tight); }
+.call__text  { grid-column: 1 / -1; font-size: var(--fs-call); font-weight: 700; overflow-wrap: anywhere; }
+
+/* On a 9-line the calls join the sheet, under the remarks, instead of lying
+   over the lines. The sheet clips at its foot, so on a short page the calls
+   are what gives way — never a line of the 9-line. */
+.nl .calls {
+  position: static; padding: 0; margin-top: auto;
+  flex: 0 1 auto; min-height: 0; overflow: hidden;
+}
+.nl .call { background: var(--bg); }
+
+/* RECEIVED: a 9-line's tile carries words where a photo tile has a picture. */
+.tile__nl {
+  display: flex; align-items: center; justify-content: center;
+  aspect-ratio: 4 / 3; width: 100%;
+  background: var(--dn); color: var(--lit);
+  font-weight: 700; letter-spacing: var(--ls-tab);
+}
+
 /* --- settings save bar ---------------------------------------------------
    Pinned to the window, present on every sub-page — a save control that
    lives inside one page is a save control three pages cannot see. The CTA

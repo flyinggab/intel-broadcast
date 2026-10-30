@@ -3,6 +3,7 @@
 const { EventEmitter } = require('events');
 const WebSocket = require('ws');
 const { buildRevealFrames, BatchReassembler, REALTIME_PATH, parseBriefMessage } = require('./protocol');
+const { CLOSE_AUTH_FAILED, CLOSE_RATE_LIMITED } = require('./auth');
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 16000, 30000]; // caps at 30s
 
@@ -16,6 +17,7 @@ const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 16000, 30000]; // caps at 3
  *   - 'disconnected'
  *   - 'reveal-batch' ({ batchId, sourceType, sharedBy, ts, items: [{filename, mimeType, buffer}] })
  *   - 'brief' (one validated realtime message — see protocol.js)
+ *   - 'refused' ({ code }) — the relay rejected the token; no more retries
  *
  * TWO sockets, one port. The bulk socket carries photos; the realtime socket
  * (`/rt`) carries brief mode. They are separate so a 3 MB photo cannot delay
@@ -123,9 +125,22 @@ class RelayClient extends EventEmitter {
       if (batch) this.emit('reveal-batch', batch);
     });
 
-    ws.on('close', () => {
+    ws.on('close', (code) => {
       this.emit('disconnected');
-      if (!this.closedByUser) this._scheduleReconnect();
+      if (this.closedByUser) return;
+      // The relay said no to the token. Retrying cannot change that answer —
+      // the code is old, or mistyped — and a pilot watching ONLINE flicker on
+      // and off every few seconds has no way to tell it from a bad link. Stop,
+      // and say so; a new code makes a new client.
+      if (code === CLOSE_AUTH_FAILED) {
+        this.closedByUser = true;
+        if (this.rt) this.rt.close();
+        this.emit('refused', { code });
+        return;
+      }
+      // Too many failed attempts from this address: wait the longest step.
+      if (code === CLOSE_RATE_LIMITED) this.reconnectAttempt = RECONNECT_DELAYS_MS.length - 1;
+      this._scheduleReconnect();
     });
 
     ws.on('error', () => {

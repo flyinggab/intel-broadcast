@@ -94,7 +94,21 @@ const stage = {
   standbyLine2: el('standby-line2'),
   ink: el('stage-ink'),
   cast: el('brief-cast'),
+  calls: el('stage-calls'),
 };
+const stageRoot = el('stage-img').parentNode;
+const nl = {
+  root: el('stage-nl'),
+  route: el('nl-route'),
+  time: el('nl-time'),
+  lines: el('nl-lines'),
+  remarksBox: el('nl-remarks-box'),
+  remarks: el('nl-remarks'),
+};
+
+// The nine lines' names. Standard JTAC wording, which is why both locales
+// carry it in English; only the words around it are translated.
+const NINELINE_LABELS = ['nl.l1', 'nl.l2', 'nl.l3', 'nl.l4', 'nl.l5', 'nl.l6', 'nl.l7', 'nl.l8', 'nl.l9'];
 
 const brief = {
   bar: el('briefbar'),
@@ -169,7 +183,10 @@ function renderStrip(s) {
     strip.net,
     s.isHost ? t('strip.host', { n: s.peers.length }) : s.connected ? t('strip.joined') : t('strip.nonet'),
   );
-  setText(strip.relay, s.connected ? t('strip.online', { t: zulu(s.lastContactAt) }) : t('strip.offline'));
+  setText(
+    strip.relay,
+    s.connected ? t('strip.online', { t: zulu(s.lastContactAt) }) : t(s.refused ? 'strip.refused' : 'strip.offline'),
+  );
   strip.relay.classList.toggle('strip__seg--fault', !s.connected);
   // Offline needs somewhere to GO, not a paragraph about it. The key appears
   // beside the word and leads to the one page that can do anything.
@@ -442,7 +459,8 @@ function renderBanner(s) {
     return;
   }
   setText(banner.who, t('banner.newFrom', { who: (s.banner.who || t('fault.unknown')).toUpperCase() }));
-  setText(banner.meta, `${photoWord(s.banner.count)} · ${t(s.banner.switched ? 'banner.switched' : 'banner.queued')}`);
+  const what = s.banner.kind === 'nineline' ? t('nl.title') : photoWord(s.banner.count);
+  setText(banner.meta, `${what} · ${t(s.banner.switched ? 'banner.switched' : 'banner.queued')}`);
   banner.root.classList.remove('is-hidden');
   if (bannerShownAt !== s.banner.at) {
     bannerShownAt = s.banner.at;
@@ -455,6 +473,12 @@ function renderStage(s) {
   const q = s.queue;
   const empty = !q.current;
   stage.standby.classList.toggle('is-hidden', !empty);
+  const sheet = !empty && q.current.kind === 'nineline' ? q.current.nineline : null;
+  // A 9-line takes the photo's place, and the ink goes with the photo: a pen
+  // over a sheet of text has nothing to say that the text does not.
+  stage.img.classList.toggle('is-hidden', Boolean(sheet));
+  stage.ink.classList.toggle('is-hidden', Boolean(sheet));
+  nl.root.classList.toggle('is-hidden', !sheet);
   if (empty) {
     if (stage.img.getAttribute('src') !== PLACEHOLDER) stage.img.src = PLACEHOLDER;
     setText(stage.file, t('stage.noIntel'));
@@ -464,13 +488,86 @@ function renderStage(s) {
     setText(stage.standbyLine2, t(s.connected ? 'standby.sincePowerUp' : 'standby.offline'));
     return;
   }
+  const who = (q.current.sharedBy || t('fault.unknown')).toUpperCase();
+  setText(stage.posN, `${q.pos + 1} / ${q.total}`);
+  if (sheet) {
+    renderNineline(sheet, s.locale);
+    setText(stage.file, sheet.time ? `${t('nl.title')} · ${t('nl.local', { t: sheet.time })}` : t('nl.title'));
+    const to = q.current.to ? ` → ${q.current.to.toUpperCase()}` : '';
+    setText(stage.posMeta, ` · ${who}${to} · ${zulu(q.current.receivedAt)}`);
+    return;
+  }
   // Only reassign src when it actually changed: re-setting it restarts the
   // decode and flashes the stage, which is the one thing that must never
   // happen on the surface a pilot is reading.
   if (stage.img.getAttribute('src') !== q.current.url) stage.img.src = q.current.url;
   setText(stage.file, (q.current.filename || '').toUpperCase());
-  setText(stage.posN, `${q.pos + 1} / ${q.total}`);
-  setText(stage.posMeta, ` · ${(q.current.sharedBy || t('fault.unknown')).toUpperCase()} · ${zulu(q.current.receivedAt)}`);
+  setText(stage.posMeta, ` · ${who} · ${zulu(q.current.receivedAt)}`);
+}
+
+/**
+ * The 9-line sheet. Rebuilt only when a different 9-line (or language) is on
+ * the stage: a state push every few seconds must not re-lay-out the page a
+ * pilot is reading. Everything is textContent — it came from a mission file.
+ */
+let renderedNineline = null;
+function renderNineline(sheet, locale) {
+  const key = `${sheet.mission}|${sheet.id}|${locale}`;
+  if (key === renderedNineline) return;
+  renderedNineline = key;
+
+  const route = [sheet.from, sheet.to].filter(Boolean).map((x) => x.toUpperCase());
+  setText(nl.route, route.join(' → '));
+  setText(nl.time, sheet.time ? t('nl.local', { t: sheet.time }) : '');
+  nl.lines.textContent = '';
+  sheet.lines.forEach((value, i) => {
+    const row = document.createElement('li');
+    row.className = 'nl__line';
+    const n = document.createElement('span');
+    n.className = 'nl__n';
+    n.textContent = String(i + 1);
+    const label = document.createElement('span');
+    label.className = 'nl__label';
+    label.textContent = t(NINELINE_LABELS[i]);
+    const v = document.createElement('span');
+    v.className = 'nl__value';
+    v.textContent = value || '—';
+    row.append(n, label, v);
+    nl.lines.append(row);
+  });
+  nl.remarksBox.classList.toggle('is-hidden', !sheet.remarks);
+  setText(nl.remarks, sheet.remarks || '');
+}
+
+/** The calls on screen: main has already picked which, and for how long. */
+let renderedCalls = '';
+function renderCalls(s) {
+  const calls = s.calls || [];
+  stage.calls.classList.toggle('is-hidden', calls.length === 0);
+  // Over a photo they float at the foot of the stage; on a 9-line they move
+  // into the sheet, under the remarks, so they never cover a line of it.
+  const onSheet = Boolean(s.queue.current && s.queue.current.kind === 'nineline');
+  const home = onSheet ? nl.root : stageRoot;
+  if (stage.calls.parentNode !== home) home.append(stage.calls);
+  const key = `${s.locale}|${calls.map((c) => `${c.mission}/${c.id}`).join(',')}`;
+  if (key === renderedCalls) return;
+  renderedCalls = key;
+  stage.calls.textContent = '';
+  for (const c of calls) {
+    const li = document.createElement('li');
+    li.className = 'call';
+    const time = document.createElement('span');
+    time.className = 'call__time';
+    time.textContent = c.time || '';
+    const route = document.createElement('span');
+    route.className = 'call__route';
+    route.textContent = [c.from, c.to].filter(Boolean).map((x) => x.toUpperCase()).join(' → ');
+    const text = document.createElement('span');
+    text.className = 'call__text';
+    text.textContent = c.text;
+    li.append(time, route, text);
+    stage.calls.append(li);
+  }
 }
 
 function renderReceived(s) {
@@ -504,7 +601,8 @@ function renderReceived(s) {
     head.className = 'batch__head';
     const who = document.createElement('span');
     who.className = 'batch__who';
-    who.textContent = (batch.sharedBy || t('fault.unknown')).toUpperCase();
+    who.textContent =
+      (batch.sharedBy || t('fault.unknown')).toUpperCase() + (batch.to ? ` → ${batch.to.toUpperCase()}` : '');
     const meta = document.createElement('span');
     meta.className = 'batch__meta';
     meta.textContent = t('received.inBrief', {
@@ -529,15 +627,24 @@ function renderReceived(s) {
 
       const check = document.createElement('i');
       check.className = 'tile__check';
-      const img = document.createElement('img');
-      img.className = 'tile__img';
-      img.src = item.url || PLACEHOLDER;
-      img.alt = '';
       const name = document.createElement('span');
       name.className = 'tile__name';
-      name.textContent = item.filename.toUpperCase();
-
-      tile.append(check, img, name);
+      if (item.nineline) {
+        // Words where the picture would be, and the target as its name: line
+        // 5 is how a pilot tells one 9-line from the next.
+        const face = document.createElement('span');
+        face.className = 'tile__nl';
+        face.textContent = t('nl.title');
+        name.textContent = (item.nineline.lines[4] || item.nineline.id).toUpperCase();
+        tile.append(check, face, name);
+      } else {
+        const img = document.createElement('img');
+        img.className = 'tile__img';
+        img.src = item.url || PLACEHOLDER;
+        img.alt = '';
+        name.textContent = item.filename.toUpperCase();
+        tile.append(check, img, name);
+      }
       tiles.appendChild(tile);
     }
 
@@ -611,6 +718,7 @@ function render(s) {
   if (window.__renderSetup) window.__renderSetup(s);
   renderBanner(s);
   renderStage(s);
+  renderCalls(s);
   renderActionBar(s);
   renderBrief(s);
   renderCard(s);

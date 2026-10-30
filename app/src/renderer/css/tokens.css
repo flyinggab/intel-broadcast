@@ -64,6 +64,14 @@
   --fs-fault:   2.250rem;  /* 36px */
   --fs-display: 2.625rem;  /* 42px   — STANDBY */
 
+  /* The 9-line sheet on the BRIEF stage is sized to the STAGE, not to rem:
+     it is read as a kneeboard page through OpenKneeboard, and the page's
+     height is what decides legibility. Fourteen rows — head, nine lines,
+     remarks — fit a portrait page at these. cqh = the sheet's own height.  */
+  --fs-nl:      clamp(0.875rem, 3.1cqh, 2rem);
+  --fs-nl-cap:  clamp(0.594rem, 1.7cqh, 1.05rem);
+  --fs-call:    1.063rem;  /* 17px — a call line over the photo */
+
   --ls-cap:     0.18em;
   --ls-tab:     0.12em;
   --ls-display: 0.17em;

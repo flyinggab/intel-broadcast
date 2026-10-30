@@ -6,11 +6,15 @@ the internet, on separate physical PCs. Each pilot's screen shows the photos in 
 window that [OpenKneeboard](https://openkneeboard.com/)'s Window Capture source can grab and
 present as a virtual kneeboard page in the cockpit.
 
-No DCS scripting, mission file, or Hooks install is involved anywhere — the trigger is a global
+Sharing photos needs no DCS scripting, mission file, or Hooks install — the trigger is a global
 OS-level hotkey (à la [rkusa/dcs-scratchpad](https://github.com/rkusa/dcs-scratchpad)), and the
 cross-client fan-out is a small relay embedded directly in one pilot's own app instance (the same
 shape [DCS-SimpleRadioStandalone](https://github.com/ciribob/dcs-simpleradiostandalone) uses for
-voice, minus the standalone server — see [PROTOCOL.md](./PROTOCOL.md) for the wire format).
+voice — see [PROTOCOL.md](./PROTOCOL.md) for the wire format).
+
+Optionally, the relay runs on the DCS server instead ([RELAY.md](./RELAY.md)). Pilots then join
+the server, nobody hosts, and a mission that writes JTAC 9-lines and calls into `dcs.log` puts them
+on every kneeboard. That part needs the mission to write the lines; still no hook.
 
 ## Installing
 
@@ -99,6 +103,18 @@ IB1-Z2FiLXBjLnRhaWw5ZjJiLnRzLm5ldDo4MTQwOmtkOTM
 The host copies it from Setup → NETWORK; everyone else pastes it into the same page and hits CONNECT.
 It encodes the host, port and token, so there is nothing else to type. **Treat it as a password** —
 anyone holding it can join. Rotating the token in Setup invalidates every code previously issued.
+
+A squad with a DCS server can run the relay there instead: the server's admin makes the code
+(`taclink-relay --squad-code <address>`, see [RELAY.md](./RELAY.md)) and pilots paste it the same
+way. A code the relay refuses shows CODE REFUSED rather than retrying.
+
+### 9-lines and calls from the mission
+
+On a server relay that follows the server's `dcs.log`, a mission line `TACLINK: {json}` (format in
+[PROTOCOL.md](./PROTOCOL.md) §3) reaches every pilot. A **9-line** lands in BRIEF as a sheet of
+its own — the nine lines, remarks, who sent it to whom, mission time — in the same queue as photos,
+with the same banner and the same mark on the rail. A **call** ("cleared hot", BDA) is a line on
+the BRIEF stage: the newest three, five minutes each, never moving the page.
 
 ## Local testing (two instances, one machine)
 
