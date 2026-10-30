@@ -1,0 +1,18 @@
+=== Log opened UTC 2026-10-30 07:30:02
+2026-10-30 07:30:02.346 INFO    APP (Main): Disabling vectored exception handler, some debug info will be unavailable.
+2026-10-30 07:30:02.348 INFO    EDCORE (Main): Created boot pool: n:8
+2026-10-30 07:30:08.721 INFO    Scripting (Main): OBSOLETE mount_vfs_sound_path() used in ./CoreMods/aircraft/AJS37/entry.lua
+2026-10-30 07:31:47.631 INFO    Dispatcher (Main): loadMission C:\Users\<server user>\Saved Games\DCS.dcs_serverrelease\Missions\abu-musa-cas-test.miz
+2026-10-30 07:32:09.758 INFO    ASYNCNET (Main): simulation is ready, state=ssPaused
+2026-10-30 07:32:09.788 INFO    Dispatcher (Main): loadMission Done: Control passed to the player
+2026-10-30 07:32:10.002 INFO    SCRIPTING (Main): CASTEST: build v03, start 07:40 local
+2026-10-30 07:41:12.880 INFO    SCRIPTING (Main): TACLINK: {"v":1,"kind":"nineline","id":"abu-musa-cas-test-0007","mission":"abu-musa-cas-test","time":"07:41:12","from":"Pointer","to":"Joker","lines":["IP SOUTH","003, no offset","9.0","10 feet","Silkworm launcher, one vehicle","N25 52.799 E055 02.596 (40R CP 04321 62345)","laser, 1536","none on the island","Egress south to IP SOUTH, above one zero thousand"],"remarks":"Laser-target line 086. Threats: 8 ZU-23 north of the runway, effective to 8,200 feet. Call IN with heading.","target":{"lat":25.879983,"lon":55.043267,"elev_ft":10},"laser":1536}
+2026-10-30 07:41:12.881 INFO    SCRIPTING (Main): TACLINK: {"v":1,"kind":"nineline","id":"abu-musa-cas-test-0007","mission":"abu-musa-cas-test","time":"07:41:12","from":"Pointer","to":"Joker","lines":["IP SOUTH","003, no offset","9.0","10 feet","Silkworm launcher, one vehicle","N25 52.799 E055 02.596 (40R CP 04321 62345)","laser, 1536","none on the island","Egress south to IP SOUTH, above one zero thousand"],"remarks":"Laser-target line 086. Threats: 8 ZU-23 north of the runway, effective to 8,200 feet. Call IN with heading.","target":{"lat":25.879983,"lon":55.043267,"elev_ft":10},"laser":1536}
+2026-10-30 07:42:30.114 ERROR   SCRIPTING (Main): [string "l10n/DEFAULT/main.lua"]:212: attempt to index a nil value near TACLINK: {"v":1,"kind":"call"}
+2026-10-30 07:42:31.000 INFO    SCRIPTING (Main): TACLINK: {"v":1,"kind":"call","id":"abu-musa-cas-test-0008","mission":"abu-musa-cas-test","time":"07:4
+2026-10-30 07:43:40.212 INFO    SCRIPTING (Main): TACLINK: {"v":1,"kind":"call","id":"abu-musa-cas-test-0009","mission":"abu-musa-cas-test","time":"07:43:40","from":"Pointer","to":"Joker","text":"Joker, cleared hot. Laser on, 1536."}
+2026-10-30 07:44:02.500 WARNING SCRIPTING (Main): TACLINK: {"v":1,"kind":"call","id":"abu-musa-cas-test-0010","mission":"abu-musa-cas-test","time":"07:44:02","from":"Pointer","to":"Joker","text":"Good hits. Target destroyed, one secondary."}
+2026-10-30 07:44:30.000 INFO    SCRIPTING (Main): TACLINK: {"v":2,"kind":"call","id":"abu-musa-cas-test-0011","mission":"abu-musa-cas-test","text":"from a later version"}
+2026-10-30 07:44:31.000 INFO    SCRIPTING (Main): TACLINK: {"v":1,"kind":"retask","id":"abu-musa-cas-test-0012","mission":"abu-musa-cas-test","from":"Wizard","to":"Joker","text":"not handled yet"}
+2026-10-30 07:44:32.000 INFO    SCRIPTING (Main): TACLINK: {"v":1,"kind":"nineline","id":"abu-musa-cas-test-0013","mission":"abu-musa-cas-test","lines":["one","two","three","four","five","six","seven","eight"]}
+2026-10-30 07:45:00.000 INFO    SCRIPTING (Main): CASTEST: phase egress

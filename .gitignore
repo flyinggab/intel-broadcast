@@ -1,7 +1,12 @@
 node_modules/
 dist/
 *.log
+# ...except the recorded dcs.log samples the tests read.
+!app/scripts/fixtures/dcslog/*.log
 app/resources/config.local.json
+# What the Electron tests leave behind in app/.
+app/*-e2e-config.local.json
+app/*-e2e-tailscale-state.json
 
 # UI handoff package — its contents are installed into app/src/renderer/ and
 # app/src/main/imagePrep.js; keeping the original around would be a second

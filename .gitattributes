@@ -1,0 +1,2 @@
+# The dcs.log samples are DCS's bytes: LF line endings, never converted.
+app/scripts/fixtures/dcslog/* -text
